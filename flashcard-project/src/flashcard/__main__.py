@@ -26,4 +26,3 @@ if __name__ == "__main__":
         dev()
     else:
         main()
-fsd
