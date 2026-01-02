@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flashcard"
+version = "0.1.0"
+authors = [
+  { name="FlashCard Team" },
+]
+description = "Flashcard core services"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "aiogram>=3.3.0",
+    "pymongo>=4.6.1",
+    "python-dotenv>=1.0.0",
+    "pydantic-settings>=2.1.0",
+    "httpx>=0.26.0",
+]
+
+[project.scripts]
+flashcard-bot = "flashcard.__main__:main"
+flashcard-bot-dev = "flashcard.__main__:dev"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
