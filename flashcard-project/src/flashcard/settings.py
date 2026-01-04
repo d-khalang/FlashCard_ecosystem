@@ -4,6 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     BOT_TOKEN: str
+    LOGGER_BOT_TOKEN: str
+    ADMIN_ID: int
     WEBHOOK_BASE: str
     WEBHOOK_PATH: str
     WEBHOOK_SECRET: str
@@ -14,6 +16,9 @@ class Settings(BaseSettings):
     COLLECTION_CONJUGATION: str
     PORT: int = 8000
     IN_DOCKER: int = 0
+    SCRAPER_API_KEY: str
+    SCRAPER_URL: str
+    SCRAPER_PORT: int
 
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),
