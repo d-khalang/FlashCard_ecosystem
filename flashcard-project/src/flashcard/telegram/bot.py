@@ -1,9 +1,13 @@
 import asyncio
 import contextlib
 from aiogram import Bot, Dispatcher
+from aiogram.enums.parse_mode import ParseMode
+from aiogram.client.default import DefaultBotProperties
+from aiogram.utils.chat_action import ChatActionMiddleware
 from fastapi import FastAPI
+
 from flashcard.settings import settings
-from flashcard.telegram.handlers import messages, callbacks
+from flashcard.telegram.handlers import messages, commands, callbacks, errors
 
 # def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
 #     bot = Bot(token=settings.BOT_TOKEN)
@@ -16,12 +20,16 @@ from flashcard.telegram.handlers import messages, callbacks
 #     return bot, dp
 
 def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
-    bot = Bot(token=settings.BOT_TOKEN)
+    bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode='HTML'))
     dp = Dispatcher()
+
+    dp.message.middleware(ChatActionMiddleware())
     
     # Include routers
+    dp.include_router(commands.router)
     dp.include_router(messages.router)
     dp.include_router(callbacks.router)
+    dp.include_router(errors.router)
 
     return bot, dp
 
@@ -49,8 +57,18 @@ async def init_telegram_bot(app: FastAPI, settings):
     app.state.bot = bot
     app.state.dispatcher = dp
 
+    logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN)
+    app.state.logger_bot = logger_bot
+
     # Run polling in background
-    app.state.polling_task = asyncio.create_task(dp.start_polling(bot, cols=app.state.cols))
+    app.state.polling_task = asyncio.create_task(
+        dp.start_polling(
+            bot, 
+            cols=app.state.cols, 
+            logger_bot=logger_bot,
+            verb_service=app.state.verb_service
+        )
+    )
 
 
 # async def close_telegram_bot(app: FastAPI):
@@ -73,3 +91,6 @@ async def close_telegram_bot(app: FastAPI):
         
     bot: Bot = app.state.bot
     await bot.session.close()
+
+    logger_bot: Bot = app.state.logger_bot
+    await logger_bot.session.close()
