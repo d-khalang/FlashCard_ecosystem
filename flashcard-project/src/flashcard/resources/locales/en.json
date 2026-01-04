@@ -1,0 +1,15 @@
+{
+    "start": {
+        "welcome": "👋 Welcome! I’m your Italian learning bot. Here’s how it works:\n\n✏️ Send me any Italian word or expression you want to learn or keep in mind.\n🤖 I’ll reply with translation + explanation.\n💾 You’ll see two buttons:\nSave → add the card to your personal study list.\nRegenerate → regenerate the explanation if you want another version.\n📅 Saved cards will be sent back to you automatically, spaced out for review.  You’ll be asked to rate your familiarity (0–5), and I’ll schedule the next review.\n\n⚠️ Point: you don't receive new FlashCards (reviews) if you don't rate the previous FlashCard or save a new one.\n✨ That’s it — just start sending words and build your flashcard deck!"
+    },
+    "verb": {
+        "instruction": "✋ Small tip!\n\nTo get the conjugation of a verb, type:\n/verb &ltthe verb you want&gt\n\nFor example:\n/verb andare\n\n💡 In the command menu, if you press and hold the /verb command, it will be added to your message box — then you can simply type the verb after it.",
+        "invalid": "Invalid verb format. Only valid Italian verbs are allowed."
+    },
+    "common": {
+        "buttons": {
+            "save": "Save",
+            "regenerate": "Regenerate"
+        }
+    }
+}
