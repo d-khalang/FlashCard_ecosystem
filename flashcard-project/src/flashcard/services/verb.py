@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from flashcard.settings import settings
-from flashcard.schemas.verb_conjugations import ConjugationDBResponse, ConjugationAPIResponse, ConjugationResponse
+from flashcard.schemas.conjugations import ConjugationDBResponse, ConjugationAPIResponse, ConjugationResponse
 
 logger = logging.getLogger(__name__)
 
