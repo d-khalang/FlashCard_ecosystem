@@ -51,3 +51,7 @@ class ConjugationAPIResponse(BaseModel):
     note: Optional[str] = None
     error: Optional[str] = None
     data: Optional[ConjugationResponse] = None
+
+class ConjugationDBResponse(BaseModel):
+    verb: str
+    data: ConjugationResponse
