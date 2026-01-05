@@ -5,7 +5,7 @@
     "verb": {
         "instruction": "✋ Small tip!\n\nTo get the conjugation of a verb, type:\n/verb &ltthe verb you want&gt\n\nFor example:\n/verb andare\n\n💡 In the command menu, if you press and hold the /verb command, it will be added to your message box — then you can simply type the verb after it.",
         "invalid": "Invalid verb format. Only valid Italian verbs are allowed.",
-        "api_error": "Failed to get conjugation data. Please try again later or try another verb."
+        "api_error": "☹️ Unfortunetally, we weren't able to conjugate it.\nPlease try again later or try another verb."
     },
     "common": {
         "buttons": {
