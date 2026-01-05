@@ -4,11 +4,10 @@ from aiogram import Router, flags
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.enums import ChatAction
-from pydantic import ValidationError
 
 from flashcard.services.i18n import i18n
 from flashcard.services.verb import VerbService
-from flashcard.schemas.verb_conjugations import ConjugationResponse
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -47,42 +46,38 @@ async def cmd_story(message: Message):
 
 
 @router.message(Command("verb"))
+@flags.chat_action(ChatAction.TYPING)
 async def cmd_verb(message: Message, verb_service: VerbService):
-    # Use Service Layer for validation logic
+    """
+    Handle /verb command.
+    """
+    # 1. Extract verb
     extracted_verb = verb_service.extract_verb(message.text)
     
     if not extracted_verb:
-        # logger.info(f"Message text: {message.text}")
-        instruction_text = i18n.get("verb.instruction")
-        await message.answer(instruction_text)
+        await message.answer(i18n.get("verb.instruction"))
         return
     
+    # 2. Validate verb format
     if not verb_service.is_valid_verb(extracted_verb):
-        logger.info(f"Invalid verb: {extracted_verb}")
-        error_text = i18n.get("verb.invalid")
+        logger.warning(f"Invalid verb: {extracted_verb}")
+        await message.answer(i18n.get("verb.invalid"))
+        return
+
+    # 3. Get verb data (DB or API)
+    # Give feedback to user that we are processing
+    status_msg = await message.answer(f"Searching for verb: {extracted_verb}...")
+    
+    verb_data = await verb_service.get_verb_data(extracted_verb)
+     
+    if not verb_data:
+        # Not found in DB or API, or API error
+        error_text = i18n.get("verb.api_error") # Or "not found" specific message
         await message.answer(error_text)
         return
 
-    # TODO: get verb from api
-    await message.answer(f"Processing verb: {extracted_verb}")
-    verb_dict = await verb_service.get_verb_from_db(extracted_verb)
-    # await message.answer(f"Verb_dict: {verb_dict}")
-    # logger.info(f"Verb_dict: {verb_dict}")
-
-    if not verb_dict:
-        # get from api
-        await message.answer(f"Verb not found in db: {extracted_verb}")
-        await verb_service.get_verb_from_api(extracted_verb)
-        return
-
-    try:
-        verb_response = ConjugationResponse(**verb_dict.get("data", {}))
-        await message.answer(f"Verb response: {verb_response.model_dump_json()}")
-    except ValidationError as e:
-        logger.error(f"Failed to validate verb response: {e}")
-        await message.answer("Failed to validate verb response")
-        return
-
-    ### TODO: add schema for db version, validate the response, add insert to db, complete rollbacks also in verb service
+    # Editing searching message
+    # 4. Return success response
+    await status_msg.edit_text(f"Verb found: {verb_data.queried}\nResponse: {verb_data.model_dump_json(exclude_none=True)}")
 
 
