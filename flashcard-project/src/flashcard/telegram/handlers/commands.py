@@ -78,6 +78,11 @@ async def cmd_verb(message: Message, verb_service: VerbService):
 
     # Editing searching message
     # 4. Return success response
-    await status_msg.edit_text(f"Verb found: {verb_data.queried}\nResponse: {verb_data.model_dump_json(exclude_none=True)}")
+    from flashcard.telegram.ui.verb import format_verb_message, get_verb_keyboard
+    
+    formatted_text = format_verb_message(verb_data)
+    keyboard = get_verb_keyboard(verb_data)
+    
+    await status_msg.edit_text(text=formatted_text, reply_markup=keyboard)
 
 
