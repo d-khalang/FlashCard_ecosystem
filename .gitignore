@@ -10,4 +10,4 @@ venv/
 dist/
 build/
 .DS_Store
-llm_key.json
+*llm_key.json
