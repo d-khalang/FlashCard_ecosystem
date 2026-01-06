@@ -4,6 +4,8 @@ from typing import Optional
 
 from flashcard.settings import settings
 from flashcard.schemas.conjugations import ConjugationDBResponse, ConjugationAPIResponse, ConjugationResponse
+from flashcard.telegram.keyboards import get_verb_keyboard
+from aiogram.types import InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,11 @@ class VerbService:
             
         return clean_verb
 
+    def get_verb_keyboard(self, data: ConjugationResponse) -> InlineKeyboardMarkup:
+        """
+        Gets the verb keyboard.
+        """
+        return get_verb_keyboard(data)
 
     async def get_verb_data(self, verb: str) -> Optional[ConjugationResponse]:
         """
