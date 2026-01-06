@@ -11,3 +11,4 @@ dist/
 build/
 .DS_Store
 *llm_key.json
+generate_tree.py
