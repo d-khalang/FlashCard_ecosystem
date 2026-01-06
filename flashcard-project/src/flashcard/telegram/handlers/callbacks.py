@@ -4,7 +4,7 @@ from aiogram.exceptions import TelegramBadRequest
 from contextlib import suppress
 
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
-from flashcard.telegram.ui.verb import format_verb_conjugation, get_verb_keyboard
+from flashcard.telegram.ui.verb import format_verb_conjugation
 from flashcard.services.verb import VerbService
 
 router = Router()
