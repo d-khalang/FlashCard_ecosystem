@@ -78,7 +78,8 @@ async def cmd_verb(message: Message, verb_service: VerbService):
 
     # Editing searching message
     # 4. Return success response
-    from flashcard.telegram.ui.verb import format_verb_message, get_verb_keyboard
+    from flashcard.telegram.ui.verb import format_verb_message
+    from flashcard.telegram.keyboards import get_verb_keyboard
     
     formatted_text = format_verb_message(verb_data)
     keyboard = get_verb_keyboard(verb_data)
