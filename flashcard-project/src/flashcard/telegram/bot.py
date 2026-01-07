@@ -6,8 +6,10 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.chat_action import ChatActionMiddleware
 from fastapi import FastAPI
 
+from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
 from flashcard.telegram.handlers import messages, commands, callbacks, errors
+from flashcard.services.expression import ExpressionService
 
 # def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
 #     bot = Bot(token=settings.BOT_TOKEN)
@@ -60,13 +62,21 @@ async def init_telegram_bot(app: FastAPI, settings):
     logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN)
     app.state.logger_bot = logger_bot
 
+    # Initialize Services
+    expression_service = ExpressionService(cols=app.state.cols)
+    llm_service = LLMService()
+    app.state.expression_service = expression_service
+    app.state.llm_service = llm_service
+
     # Run polling in background
     app.state.polling_task = asyncio.create_task(
         dp.start_polling(
             bot, 
             cols=app.state.cols, 
             logger_bot=logger_bot,
-            verb_service=app.state.verb_service
+            verb_service=app.state.verb_service,
+            expression_service=expression_service,
+            llm_service=llm_service
         )
     )
 
