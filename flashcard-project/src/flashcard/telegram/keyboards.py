@@ -1,5 +1,4 @@
-from aiogram.types import (InlineKeyboardMarkup, InlineKeyboardButton, 
-                           ReplyKeyboardMarkup, KeyboardButton)
+from aiogram.types import (InlineKeyboardMarkup)
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback

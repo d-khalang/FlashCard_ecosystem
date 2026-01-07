@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from aiogram import Router, flags
 from aiogram.filters import CommandStart, Command

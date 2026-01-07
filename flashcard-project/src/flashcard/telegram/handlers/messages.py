@@ -1,7 +1,7 @@
 from aiogram import Router, F
 import logging
 from aiogram.types import Message
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import Command
 from aiogram.enums import ChatAction
 from aiogram import flags
 

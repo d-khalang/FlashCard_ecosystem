@@ -20,7 +20,7 @@ from flashcard.telegram.handlers import messages, commands, callbacks, errors
 #     return bot, dp
 
 def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
-    bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode='HTML'))
+    bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
     dp.message.middleware(ChatActionMiddleware())

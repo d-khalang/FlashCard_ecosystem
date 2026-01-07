@@ -1,8 +1,6 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
 
 from flashcard.schemas.conjugations import ConjugationResponse
-from flashcard.telegram.ui.factories.verb_callback import VerbCallback
+
 
 PERSON_EMOJIS = {
     "io": "👤",

@@ -1,5 +1,5 @@
 from typing import Optional
-from flashcard.schemas.api_key import load_api_keys, APIKeyConfig, KeyEntry
+from flashcard.schemas.api_key import load_api_keys, APIKeyConfig
 
 class LLMKeyProvider:
     def __init__(self):

@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 class I18nService:
     def __init__(self, locales_dir: str = None):
