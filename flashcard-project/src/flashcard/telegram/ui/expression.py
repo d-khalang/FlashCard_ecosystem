@@ -3,12 +3,12 @@ from __future__ import annotations
 from flashcard.schemas.expression import ExpressionCard
 
 
-def render_expression_card(card: ExpressionCard) -> str:
+def render_expression_card(card: ExpressionCard) -> Dict[str, str]:
     # Always 4 lines (for UX consistency)
     if not card.success:
         line1 = f"{card.note_it or 'Parola non chiara'}"
         ### add suggestions if not in note_it
-        return line1
+        return {"success": False, "content": line1}
 
     # success path
     line1 = f"🇮🇹 Def: {card.def_it}".strip()
@@ -21,4 +21,4 @@ def render_expression_card(card: ExpressionCard) -> str:
     line3 = f"{t2.label}: {t2.text}" if t2 else "—"
     line4 = f'🧩 Esempio: "{card.example_it}"'
 
-    return "\n".join([line1, line2, line3, line4])
+    return {"success": True, "content": "\n".join([line1, line2, line3, line4])}
