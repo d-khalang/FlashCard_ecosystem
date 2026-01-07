@@ -29,32 +29,16 @@ async def cmd_help(message: Message):
 #     text = f"Explanation for: {message.text}"
     # print(message)
 
+from flashcard.telegram.utils.card_generator import generate_and_render_card
+
 @router.message(F.text)
 @flags.chat_action(ChatAction.TYPING)
-async def handle_text_message(message: Message):
+async def handle_text_message(message: Message, llm_service: LLMService):
     status_msg = await message.answer("Working on it...")
 
-    # TODO later: load from DB by user_id/chat_id
-    level = DEFAULT_LEVEL
-    langs = DEFAULT_LANGS  # must be 2 items
-
-    lang1_code = langs[0]
-    lang2_code = langs[1] if len(langs) > 1 else ""
-    lang1_label = label_for(lang1_code)
-    lang2_label = label_for(lang2_code) if lang2_code else ""
-
-    llm = LLMService()
-    card = await llm.generate_expression_card(
-        raw=message.text,
-        level=level,
-        lang1_code=lang1_code,
-        lang2_code=lang2_code,
-        lang1_label=lang1_label,
-        lang2_label=lang2_label,
-    )
-
-    text = render_expression_card(card)
-    kb = expression_action_kb(card.norm)
+    text, success, card = await generate_and_render_card(llm_service, message.text)
+    
+    kb = expression_action_kb(card.norm) if success else None
     
     await status_msg.edit_text(
         text=text,
