@@ -19,7 +19,12 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot):
     try:
         await logger_bot.send_message(
             chat_id=settings.ADMIN_ID,
-            text=f"⚠️ <b>Error Occurred</b>\nuser_id: {event.update.message.from_user.id}\nuser message: {event.update.message.text}\n\nException: {str(event.exception)[:1000]}",
+            text=(
+                f"⚠️ <b>Error Occurred</b>\n"
+                f"User ID: {event.update.message.from_user.id if event.update.message else (event.update.callback_query.from_user.id if event.update.callback_query else 'Unknown')}\n"
+                f"Update Type: {event.update.event_type}\n"
+                f"Exception: {str(event.exception)[:1000]}"
+            ),
             parse_mode="HTML"
         )
     except Exception as e:
