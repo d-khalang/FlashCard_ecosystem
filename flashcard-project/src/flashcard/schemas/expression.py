@@ -24,3 +24,17 @@ class ExpressionCard(BaseModel):
     # When success=false
     note_it: Optional[str] = Field(description='E.g. "Parola non chiara"')
     suggestions: List[str] = Field(description="Candidate intended tokens")
+
+class ExpressionDB(BaseModel):
+    user_id: str = Field(..., description="User ID as string")
+    value: str = Field(..., description="The expression text")
+    created_at: str = Field(..., description="Creation timestamp ISO")
+    last_sent_at: Optional[str] = None
+    last_interaction_at: Optional[str] = None
+    reps: int = 0
+    lapses: int = 0
+    success_streak: int = 0
+    ewma_grade: float = 0.0
+    last_grade: int = 0
+    pending_message_id: Optional[str] = None
+    status: str = "active"
