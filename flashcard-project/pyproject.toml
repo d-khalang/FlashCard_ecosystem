@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flashcard"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   { name="FlashCard Team" },
 ]
@@ -30,6 +30,8 @@ dependencies = [
 [project.scripts]
 flashcard-bot = "flashcard.__main__:main"
 flashcard-bot-dev = "flashcard.__main__:dev"
+flashcard-bot-poll = "flashcard.__main__:main_poll"
+flashcard-bot-dev-poll = "flashcard.__main__:dev_poll"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -9,7 +9,7 @@ def _collection_name_map(settings):
         "conjugation": settings.COLLECTION_CONJUGATION,
     }
 
-
+### Having app as source of truth ###
 async def init_mongo(app: FastAPI, settings):
     client = AsyncMongoClient(settings.MONGO_URI)
     db = client[settings.MONGO_DB]
@@ -24,4 +24,20 @@ async def init_mongo(app: FastAPI, settings):
 
 async def close_mongo(app: FastAPI) -> None:
     client: AsyncMongoClient = app.state.mongo_client
+    await client.close()
+
+
+### Having output version to be called and stored on dp ###
+async def init_and_get_mongo(settings):
+    client = AsyncMongoClient(settings.MONGO_URI)
+    db = client[settings.MONGO_DB]
+    
+    # One dict with all collections instead of many attributes
+    # { "users": AsyncCollection, "expression": AsyncCollection, "conjugation": AsyncCollection }
+    cols = {alias: db[name] for alias, name in _collection_name_map(settings).items()}
+
+    return client, db, cols   
+
+
+async def close_mongo_on_client(client: AsyncMongoClient) -> None:
     await client.close()

@@ -13,11 +13,6 @@ async def lifespan(app: FastAPI):
     await init_http_client(app)
     
     # Initialize verb service business logic
-    app.state.verb_service = VerbService(
-                                cols=app.state.cols, 
-                                http_client=app.state.http_client,
-                                )
-
     await init_telegram_bot(app, settings)
 
     try:
