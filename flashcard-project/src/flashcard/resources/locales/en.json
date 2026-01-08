@@ -15,5 +15,13 @@
             "save": "Save",
             "regenerate": "Regenerate"
         }
+    },
+    "import": {
+        "usage_guide": "Hey there! 👋 I can help you add multiple words or expressions at once!\n\nHere is how to do it:\n1️⃣ Start your message with /import\n2️⃣ Write the list of words or expressions you want me to save.\n<i>You can separate them by new lines, commas, bullets, or numbers.</i>\n\n✅ Example:\n/import\ndare una festa\nspesa\nprendere il treno",
+        "processing_error": "Oops! 🙈 I ran into a little trouble processing that request. Please try again later!",
+        "import_failed": "I couldn't quite catch that. 😕 Here is what went wrong:\n{log_msg}",
+        "no_items_found": "I couldn't find any Italian words or expressions in there to save. 🕵️‍♀️ Could you please double-check your spelling?",
+        "success": "Great news! 🎉 I have successfully saved {count} new flashcards for you:\n{items_str}",
+        "all_duplicates": "It looks like I already have all those flashcards saved! ✅ No new items were added."
     }
 }
