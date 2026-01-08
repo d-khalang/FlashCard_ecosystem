@@ -1,13 +1,13 @@
 import html
-import logging
 from aiogram import Router, Bot
 from aiogram.types import ErrorEvent
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from flashcard.settings import settings
 from flashcard.services.i18n import i18n
+from flashcard.utils.logger import get_logger
 
 router = Router()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 @router.error()
 async def error_handler(event: ErrorEvent, logger_bot: Bot):

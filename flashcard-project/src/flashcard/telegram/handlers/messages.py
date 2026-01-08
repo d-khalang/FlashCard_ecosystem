@@ -1,5 +1,4 @@
 from aiogram import Router, F
-import logging
 from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.enums import ChatAction
@@ -16,7 +15,7 @@ router = Router()
 DEFAULT_LEVEL = "B1"
 DEFAULT_LANGS = ["en", "fa"]
 
-logging.basicConfig(level=logging.INFO)
+
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
