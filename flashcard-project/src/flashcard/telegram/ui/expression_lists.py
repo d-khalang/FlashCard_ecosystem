@@ -14,12 +14,12 @@ def format_expression_list(expressions: List[str], plain: bool = False, sort_alp
 
     if plain:
         # Plain mode: Simple header, no grouping, no fancy bullets
-        header = f"<b>📚 Your Flashcard Collection</b>\n<i>{len(expressions)} items stored</i>\n\n"
+        header = f"<b>📚 Your Flashcard Collection</b>\n<i>{len(expressions)} items stored</i>\n"
         bullet = ""
         footer = ""
     else:
         # Fancy mode
-        header = f"<b>📚 Your Flashcard Collection</b>\n<i>{len(expressions)} items stored</i>\n\n"
+        header = f"<b>📚 Your Flashcard Collection</b>\n<i>{len(expressions)} items stored</i>\n"
         bullet = "" # Minimal bullet
         footer = ""
 
