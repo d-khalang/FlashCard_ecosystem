@@ -6,7 +6,8 @@ from aiogram.enums import ChatAction
 
 from flashcard.services.i18n import i18n
 from flashcard.services.verb import VerbService
-
+from flashcard.services.expression import ExpressionService
+from flashcard.telegram.ui.expression_lists import format_expression_list
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -34,8 +35,37 @@ async def cmd_import(message: Message):
 
 
 @router.message(Command("list_my_flashcards"))
-async def cmd_list_my_flashcards(message: Message):
-    await message.answer("list_my_flashcards command")
+@flags.chat_action(ChatAction.TYPING)
+async def cmd_list_my_flashcards(message: Message, expression_service: ExpressionService):
+    msg_text = message.text or ""
+    # Parse arguments
+    # Supports -p, -t, or -pt, -tp, or -p -t etc.
+    args = msg_text.split()
+    
+    plain = False
+    sort_by_time = False
+    
+    for arg in args[1:]: # Skip command itself
+        if arg.startswith("-"):
+            if "p" in arg:
+                plain = True
+            if "t" in arg:
+                sort_by_time = True
+    
+    # Logic:
+    # -t -> sort_by_time=True in service
+    # -p -> plain=True in UI
+    # -t also means sort_alphabetical=False in UI (implied by getting time-sorted list from DB)
+    
+    expressions = await expression_service.get_all_expressions(message.from_user.id, sort_by_time=sort_by_time)
+    
+    # If sorted by time, we disable UI alphabetical sort to preserve DB order
+    sort_alphabetical = not sort_by_time
+    
+    messages = format_expression_list(expressions, plain=plain, sort_alphabetical=sort_alphabetical)
+    
+    for msg in messages:
+        await message.answer(msg)
 
 
 @router.message(Command("story"))
