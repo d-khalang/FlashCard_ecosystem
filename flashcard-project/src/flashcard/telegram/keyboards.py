@@ -82,3 +82,19 @@ def get_verb_keyboard(data: ConjugationResponse) -> InlineKeyboardMarkup:
     )
 
     return builder.as_markup()
+
+def get_review_keyboard(expression_id: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    
+    # Row 1: 0 - I had no idea
+    builder.button(text="0 - I had no idea", callback_data=f"grade:{expression_id}:0")
+    
+    # Row 2: 1, 2, 3, 4
+    for i in range(1, 5):
+        builder.button(text=str(i), callback_data=f"grade:{expression_id}:{i}")
+        
+    # Row 3: 5 - Known like family
+    builder.button(text="5 - Known like family", callback_data=f"grade:{expression_id}:5")
+    
+    builder.adjust(1, 4, 1)
+    return builder.as_markup()

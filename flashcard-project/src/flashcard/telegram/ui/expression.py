@@ -22,3 +22,22 @@ def render_expression_card(card: ExpressionCard) -> Dict[str, str]:
     line4 = f'🧩 Esempio: "{card.example_it}"'
 
     return {"success": True, "content": "\n".join([line1, line2, line3, line4])}
+
+
+def format_review_message(card: ExpressionCard, value: str) -> str:
+    """
+    Formats the review message for the /get command.
+    Includes the 'Your picked expression' header and spoiler content.
+    """
+    translations_str = ""
+    for trans in card.translations:
+        translations_str += f"{trans.label}: {trans.text}\n"
+        
+    spoiler_content = f"""
+🇮🇹 Def: {card.def_it or ''}
+{translations_str.strip()}
+🧩 Esempio: "{card.example_it or ''}"
+""".strip()
+
+    text = f"Your picked expression: \"{value}\"\n-----------\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
+    return text

@@ -9,6 +9,8 @@ from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression_lists import format_expression_list
 from flashcard.telegram.ui.story import format_story_messages
+from flashcard.telegram.ui.expression import format_review_message
+from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.utils.logger import get_logger
 import random
 
@@ -26,8 +28,49 @@ async def cmd_start(message: Message):
 
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_get(message: Message):
-    await message.answer("get command")
+async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService):
+    """
+    Handle /get command to review a flashcard.
+    """
+    user_id = message.from_user.id
+    
+    # 1. Get review candidate
+    candidate = await expression_service.get_review_candidate(user_id)
+    
+    if not candidate:
+        # No cards to review
+        # Using the message from n8n or similar intent
+        await message.answer("Sorry but you don't have any memory (◡︵◡)\n(Or all cards reviewed recently!)")
+        return
+
+    # 2. Generate content (Definition, Translations, Example)
+    try:
+        # Using standard params as requested
+        card = await llm_service.generate_expression_card(
+            raw=candidate['value'],
+            level="A2-B1",
+            lang1_code="en",
+            lang2_code="fa",
+            lang1_label="🇬🇧 EN", 
+            lang2_label="🇮🇷 FA"
+        )
+    except Exception as e:
+        logger.error(f"Error generating card for {candidate['value']}: {e}")
+        await message.answer(i18n.get("get.generation_error", "Error preparing card."))
+        return
+
+    # 3. Format Message
+    text = format_review_message(card, candidate['value'])
+
+    # 4. Keyboard
+    keyboard = get_review_keyboard(str(candidate['_id']))
+    
+    # 5. Send & Update
+    sent_msg = await message.answer(text, reply_markup=keyboard)
+    
+    # Update DB
+    await expression_service.update_expression_sent(str(candidate['_id']), sent_msg.message_id)
+    await expression_service.update_user_last_push(user_id)
 
 
 @router.message(Command("import"))

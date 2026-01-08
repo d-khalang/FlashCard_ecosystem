@@ -1,8 +1,9 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Union
 
 from flashcard.schemas.expression import ExpressionDB
+from flashcard.services.algorithm.priority import calculate_priority
 from flashcard.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -143,3 +144,76 @@ class ExpressionService:
             # though it doesn't guarantee specific order (UI handles alphabetical sort)
             expressions = await self.cols['expression'].distinct("value", {"user_id": str(user_id)})
             return expressions
+
+    async def get_review_candidate(self, user_id: Union[str, int]) -> Optional[dict]:
+        """
+        Selects the best expression for review based on priority algorithm.
+        Filters out expressions sent in the last 8 hours.
+        """
+        # 1. Filter candidates
+        # Active status (implicit if we only have active ones, but good to be explicit if we add status later)
+        # Not sent in last 12 hours
+        cutoff_time = (datetime.now() - timedelta(hours=12)).isoformat()
+        
+        # We find documents where last_sent_at is null OR last_sent_at < cutoff
+        query = {
+            "user_id": str(user_id),
+            "$or": [
+                {"last_sent_at": None},
+                {"last_sent_at": {"$lt": cutoff_time}}
+            ]
+        }
+        
+        cursor = self.cols['expression'].find(query)
+        candidates = []
+        async for doc in cursor:
+            candidates.append(doc)
+            
+        if not candidates:
+            return None
+            
+        #TODO: change to scheduled priority setter on all items of expressions
+        # omitting calculations on all items for each call
+        # or a hirarchical structure to get and remove from candidates based on priority indicators
+        # 2. Calculate priority for each
+        # We select the one with Max priority
+        best_candidate = None
+        max_priority = -1.0
+        
+        for doc in candidates:
+            p = calculate_priority(doc)
+            if p > max_priority:
+                max_priority = p
+                best_candidate = doc
+                
+        return best_candidate
+
+    async def update_expression_sent(self, expression_id: str, message_id: int):
+        """
+        Updates the expression after it has been sent to the user.
+        """
+        from bson import ObjectId
+        await self.cols['expression'].update_one(
+            {"_id": ObjectId(expression_id)},
+            {
+                "$set": {
+                    "last_sent_at": datetime.now().isoformat(),
+                    "pending_message_id": message_id
+                }
+            }
+        )
+
+    async def update_user_last_push(self, user_id: Union[str, int]):
+        """
+        Updates the user's last_push_at timestamp.
+        """
+        await self.cols['users'].update_one(
+            {"user_id": str(user_id)},
+            {
+                "$set": {
+                    "last_push_at": datetime.now().isoformat(),
+                    "has_pending": True 
+                }
+            },
+            upsert=True
+        )
