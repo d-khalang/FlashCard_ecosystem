@@ -57,3 +57,22 @@ class ExpressionService:
         await self.cols['expression'].insert_one(new_expression.model_dump())
         logger.info(f"Inserted new expression for user {user_id}: {value}")
         return True
+
+    async def get_all_expressions(self, user_id: Union[str, int], sort_by_time: bool = False) -> list[str]:
+        """
+        Retrieves all active expressions for a given user.
+        :param sort_by_time: If True, returns expressions sorted by creation time (oldest first).
+        """
+        if sort_by_time:
+            # Use find() and sort by created_at. 1 = Ascending (Oldest first)
+            cursor = self.cols['expression'].find({"user_id": str(user_id)}).sort("created_at", 1)
+            expressions = []
+            async for doc in cursor:
+                if 'value' in doc:
+                    expressions.append(doc['value'])
+            return expressions
+        else:
+            # Default: use distinct which is likely faster for uniqueness, 
+            # though it doesn't guarantee specific order (UI handles alphabetical sort)
+            expressions = await self.cols['expression'].distinct("value", {"user_id": str(user_id)})
+            return expressions
