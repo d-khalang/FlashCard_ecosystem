@@ -1,5 +1,4 @@
-import logging
-from aiogram import Router, flags
+from aiogram import Router, flags, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.enums import ChatAction
@@ -7,10 +6,13 @@ from aiogram.enums import ChatAction
 from flashcard.services.i18n import i18n
 from flashcard.services.verb import VerbService
 from flashcard.services.expression import ExpressionService
+from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression_lists import format_expression_list
+from flashcard.telegram.ui.story import format_story_messages
+from flashcard.utils.logger import get_logger
+import random
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logger = get_logger(__name__)
 router = Router()
 
 @router.message(CommandStart())
@@ -30,8 +32,41 @@ async def cmd_get(message: Message):
 
 @router.message(Command("import"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_import(message: Message):
-    await message.answer("import command")
+async def cmd_import(message: Message, llm_service: LLMService, expression_service: ExpressionService):
+    msg_text = message.text or ""
+    # Remove command itself to get arguments
+    command_args = msg_text[7:] if len(msg_text) >= 7 else ""
+    
+    if not command_args:
+        await message.answer(i18n.get("import.usage_guide"))
+        return
+
+    # Parse with LLM
+    try:
+        import_response = await llm_service.parse_import_list(command_args)
+    except Exception as e:
+        logger.error(f"LLM Import Error: {e}")
+        await message.answer(i18n.get("import.processing_error"))
+        return
+
+    if not import_response.success:
+        log_msg = import_response.log or "Unknown error."
+        await message.answer(i18n.get("import.import_failed", log_msg=log_msg))
+        return
+
+    if not import_response.import_list:
+         await message.answer(i18n.get("import.no_items_found"))
+         return
+
+    # Bulk Insert
+    inserted_items = await expression_service.add_expressions_bulk(message.from_user.id, import_response.import_list)
+    
+    if inserted_items:
+        count = len(inserted_items)
+        items_str = "\n".join(inserted_items)
+        await message.answer(i18n.get("import.success", count=count, items_str=items_str))
+    else:
+        await message.answer(i18n.get("import.all_duplicates"))
 
 
 @router.message(Command("list_my_flashcards"))
@@ -70,8 +105,50 @@ async def cmd_list_my_flashcards(message: Message, expression_service: Expressio
 
 @router.message(Command("story"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_story(message: Message):
-    await message.answer("story command")
+async def cmd_story(message: Message, llm_service: LLMService, expression_service: ExpressionService, logger_bot: Bot):
+    msg_text = message.text or ""
+    args = msg_text.split()[1:] # Ignore command
+    
+    # Defaults
+    story_length = "6-10 sentences"
+    
+    # Check for -l flag
+    if "-l" in args:
+        story_length = "10-16 sentences"
+        
+    # Get user expressions
+    expressions = await expression_service.get_all_expressions(message.from_user.id)
+    
+    if not expressions:
+        await message.answer(i18n.get("story.no_expressions", "No expressions found. Add some first!"))
+        return
+
+    # Select words (Shuffle & Limit to 80)
+    # If <= 80, use all. If > 80, shuffle and take 80.
+    selected_words = expressions
+    if len(expressions) > 80:
+        random.shuffle(expressions)
+        selected_words = expressions[:80]
+        
+    await message.answer(f"Writing a story with {len(selected_words)} words... ✍️")
+        
+    try:
+        story_response = await llm_service.generate_story(
+            words=selected_words, 
+            target_lang="en", # Configurable in future
+            story_length=story_length
+        )
+    except Exception as e:
+        logger.error(f"Story generation error: {e}")
+        await logger_bot.send_message(f"Story generation error for user {message.from_user.id}: {e}")
+        await message.answer("Sorry, I couldn't write the story right now. Please try again later.")
+        return
+
+    # Send paragraphs
+    messages = format_story_messages(story_response, target_lang="en")
+    
+    for text in messages:
+        await message.answer(text)
 
 
 @router.message(Command("verb"))
