@@ -4,15 +4,15 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.enums import ChatAction
 from contextlib import suppress
 from datetime import datetime
-import logging
 
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.telegram.ui.verb import format_verb_conjugation
 from flashcard.services.verb import VerbService
 from flashcard.services.expression import ExpressionService
+from flashcard.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = Router()
 
 

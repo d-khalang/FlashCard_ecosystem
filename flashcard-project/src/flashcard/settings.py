@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     SCRAPER_API_KEY: str
     SCRAPER_URL: str
     SCRAPER_PORT: int
+    LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),
