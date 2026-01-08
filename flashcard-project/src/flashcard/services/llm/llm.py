@@ -1,15 +1,20 @@
 from __future__ import annotations
-import logging
 from google import genai
 from google.genai import types
 from typing import Dict
 
 from flashcard.schemas.expression import ExpressionCard
-from flashcard.services.llm.prompts import EXPRESSION_PROMPT_TEMPLATE
+from flashcard.schemas.import_model import ImportResponse
+from flashcard.schemas.story import StoryResponse
+from flashcard.services.llm.prompts import (
+    EXPRESSION_PROMPT_TEMPLATE,
+    IMPORT_PROMPT_TEMPLATE,
+    STORY_PROMPT_TEMPLATE,
+)
 from flashcard.services.llm.llm_key import LLMKeyProvider
+from flashcard.utils.logger import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class LLMService:
     def __init__(self) -> None:
@@ -54,4 +59,52 @@ class LLMService:
         # parsed is and ExpressionCard instance (validated)
         output = resp.parsed
         logger.info("LLM output: %s", output)
+        return output
+
+    async def parse_import_list(self, raw_text: str) -> ImportResponse:
+        """
+        Parses a raw text containing a list of items to import using the LLM.
+        """
+        prompt = IMPORT_PROMPT_TEMPLATE.format(raw_input=raw_text)
+        
+        resp = self.clients["mey"].models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=ImportResponse,
+            )
+        )
+        
+        output = resp.parsed
+        logger.info(f"LLM Import Output: {output}")
+        return output
+
+    async def generate_story(
+        self,
+        words: list[str],
+        target_lang: str = "en",
+        story_length: str = "6-10 sentences"
+    ) -> StoryResponse:
+        """
+        Generates a short story using the provided words.
+        """
+        prompt = STORY_PROMPT_TEMPLATE.format(
+            words=", ".join(words),
+            level="A2-B1",
+            length=story_length,
+            target_lang=target_lang
+        )
+        
+        resp = self.clients["mey"].models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=StoryResponse,
+            )
+        )
+        
+        output = resp.parsed
+        logger.info("LLM Story Output generated")
         return output
