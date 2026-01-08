@@ -5,7 +5,7 @@ from typing import List, Optional
 
 
 class TranslationLine(BaseModel):
-    label: str = Field(..., description='Line label, e.g. "🇩🇪 DE" or "🇬🇧 EN"')
+    label: str = Field(..., description='Line label, e.g. "🇮🇷 FA" or "🇬🇧 EN"')
     text: str = Field(..., description="1–2 common translations in that language")
 
 class ExpressionCard(BaseModel):
@@ -15,7 +15,6 @@ class ExpressionCard(BaseModel):
     # Normalization result (typo-fix + normalization rules)
     norm: str = Field(..., description="Normalized + typo-corrected intended Italian token/phrase")
 
-    # When success=true
     # When success=true
     def_it: Optional[str] = Field(description="Italian definition at user level")
     translations: List[TranslationLine] = Field(description="Exactly two items, in user order")
