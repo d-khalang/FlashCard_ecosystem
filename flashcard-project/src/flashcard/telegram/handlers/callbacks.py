@@ -114,3 +114,30 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
         )
         
         await callback.answer("👇🏻 Conjugation updated")
+
+@router.callback_query(F.data.startswith("grade:"))
+async def handle_grade(callback: CallbackQuery, expression_service: ExpressionService):
+    """
+    Handle grading callbacks: grade:{expression_id}:{grade}
+    """
+    try:
+        _, expression_id, grade_str = callback.data.split(":")
+        grade = int(grade_str)
+        user_id = callback.from_user.id
+        
+        updated_doc = await expression_service.grade_expression(user_id, expression_id, grade)
+        
+        if updated_doc:
+            value = updated_doc.get("value", "Unknown")
+            # Edit the message to remove buttons and show confirmation
+            await callback.message.edit_text(f"{callback.message.text}\n\n✅You rated it {grade}")
+            await callback.answer("Graded successfully!")
+        else:
+            await callback.answer("Error updating grade. Card might be missing.", show_alert=True)
+            
+    except ValueError:
+        #TODO: change the logic or send to logger bot
+        await callback.answer("Invalid callback data.", show_alert=True)
+    except Exception as e:
+        logger.error(f"Error handling grade callback: {e}", exc_info=True)
+        await callback.answer("An error occurred.", show_alert=True)

@@ -217,3 +217,42 @@ class ExpressionService:
             },
             upsert=True
         )
+
+    async def grade_expression(self, user_id: str, expression_id: str, grade: int) -> Optional[dict]:
+        """
+        Updates the expression with the new grade stats.
+        """
+        from bson import ObjectId
+        from flashcard.services.algorithm.grading import calculate_new_stats
+
+        if not (0 <= grade <= 5):
+            logger.warning(f"Invalid grade {grade} for user {user_id}")
+            return None
+
+        # 1. Get current document
+        doc = await self.cols['expression'].find_one(
+            {"_id": ObjectId(expression_id), "user_id": str(user_id)}
+        )
+        
+        if not doc:
+            logger.warning(f"Expression {expression_id} not found for user {user_id} during grading")
+            return None
+            
+        # 2. Calculate updates
+        updates = calculate_new_stats(doc, float(grade))
+        
+        # 3. Update Expression
+        await self.cols['expression'].update_one(
+            {"_id": ObjectId(expression_id)},
+            {"$set": updates}
+        )
+        
+        # 4. Update User (has_pending = False)
+        await self.cols['users'].update_one(
+            {"user_id": str(user_id)},
+            {"$set": {"has_pending": False}}
+        )
+        
+        # Return updated document (merged) for UI
+        doc.update(updates)
+        return doc
