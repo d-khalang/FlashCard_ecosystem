@@ -17,6 +17,12 @@ import random
 logger = get_logger(__name__)
 router = Router()
 
+LANG_LEVEL = "A2-B1"
+LANG_1_CODE = "en"
+LANG_2_CODE = "fa"
+LANG_1_LABEL = "🇬🇧 EN"
+LANG_2_LABEL = "🇮🇷 FA"
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     # Retrieve welcome message from I18n service
@@ -24,6 +30,12 @@ async def cmd_start(message: Message):
     await message.answer(welcome_text)
     #TODO: translations and detailed explanations be added by buttons
     # also video, possibly in reply markup
+
+
+@router.message(Command("help"))
+async def cmd_help(message: Message):
+    await message.answer("help message")
+    await message.reply("help reply")
 
 
 @router.message(Command("get"))
@@ -48,11 +60,11 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
         # Using standard params as requested
         card = await llm_service.generate_expression_card(
             raw=candidate['value'],
-            level="A2-B1",
-            lang1_code="en",
-            lang2_code="fa",
-            lang1_label="🇬🇧 EN", 
-            lang2_label="🇮🇷 FA"
+            level=LANG_LEVEL,
+            lang1_code=LANG_1_CODE,
+            lang2_code=LANG_2_CODE,
+            lang1_label=LANG_1_LABEL, 
+            lang2_label=LANG_2_LABEL
         )
     except Exception as e:
         logger.error(f"Error generating card for {candidate['value']}: {e}")
