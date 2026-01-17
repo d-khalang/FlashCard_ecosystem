@@ -26,7 +26,7 @@ LANG_2_LABEL = "🇮🇷 FA"
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     # Retrieve welcome message from I18n service
-    welcome_text = i18n.get("start.welcome")
+    welcome_text = i18n.get("commands.start.welcome")
     await message.answer(welcome_text)
     #TODO: translations and detailed explanations be added by buttons
     # also video, possibly in reply markup
@@ -34,8 +34,8 @@ async def cmd_start(message: Message):
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
-    await message.answer("help message")
-    await message.reply("help reply")
+    await message.answer(i18n.get("commands.help.message"))
+    await message.reply(i18n.get("commands.help.reply"))
 
 
 @router.message(Command("get"))
@@ -52,7 +52,7 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
     if not candidate:
         # No cards to review
         # Using the message from n8n or similar intent
-        await message.answer("Sorry but you don't have any memory (◡︵◡)\n(Or all cards reviewed recently!)")
+        await message.answer(i18n.get("commands.get.no_memory"))
         return
 
     # 2. Generate content (Definition, Translations, Example)
@@ -68,7 +68,9 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
         )
     except Exception as e:
         logger.error(f"Error generating card for {candidate['value']}: {e}")
-        await message.answer(i18n.get("get.generation_error", "Error preparing card."))
+    except Exception as e:
+        logger.error(f"Error generating card for {candidate['value']}: {e}")
+        await message.answer(i18n.get("commands.get.generation_error"))
         return
 
     # 3. Format Message
@@ -93,7 +95,7 @@ async def cmd_import(message: Message, llm_service: LLMService, expression_servi
     command_args = msg_text[7:] if len(msg_text) >= 7 else ""
     
     if not command_args:
-        await message.answer(i18n.get("import.usage_guide"))
+        await message.answer(i18n.get("commands.import.usage_guide"))
         return
 
     # Parse with LLM
@@ -101,16 +103,16 @@ async def cmd_import(message: Message, llm_service: LLMService, expression_servi
         import_response = await llm_service.parse_import_list(command_args)
     except Exception as e:
         logger.error(f"LLM Import Error: {e}")
-        await message.answer(i18n.get("import.processing_error"))
+        await message.answer(i18n.get("commands.import.processing_error"))
         return
 
     if not import_response.success:
         log_msg = import_response.log or "Unknown error."
-        await message.answer(i18n.get("import.import_failed", log_msg=log_msg))
+        await message.answer(i18n.get("commands.import.import_failed", log_msg=log_msg))
         return
 
     if not import_response.import_list:
-         await message.answer(i18n.get("import.no_items_found"))
+         await message.answer(i18n.get("commands.import.no_items_found"))
          return
 
     # Bulk Insert
@@ -119,9 +121,9 @@ async def cmd_import(message: Message, llm_service: LLMService, expression_servi
     if inserted_items:
         count = len(inserted_items)
         items_str = "\n".join(inserted_items)
-        await message.answer(i18n.get("import.success", count=count, items_str=items_str))
+        await message.answer(i18n.get("commands.import.success", count=count, items_str=items_str))
     else:
-        await message.answer(i18n.get("import.all_duplicates"))
+        await message.answer(i18n.get("commands.import.all_duplicates"))
 
 
 @router.message(Command("list_my_flashcards"))
@@ -175,7 +177,7 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
     expressions = await expression_service.get_all_expressions(message.from_user.id)
     
     if not expressions:
-        await message.answer(i18n.get("story.no_expressions", "No expressions found. Add some first!"))
+        await message.answer(i18n.get("commands.story.no_expressions", "No expressions found. Add some first!"))
         return
 
     # Select words (Shuffle & Limit to 80)
@@ -185,7 +187,10 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
         random.shuffle(expressions)
         selected_words = expressions[:80]
         
-    await message.answer(f"Writing a story with {len(selected_words)} words... ✍️")
+        random.shuffle(expressions)
+        selected_words = expressions[:80]
+        
+    await message.answer(i18n.get("commands.story.writing", count=len(selected_words)))
         
     try:
         story_response = await llm_service.generate_story(
@@ -195,8 +200,8 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
         )
     except Exception as e:
         logger.error(f"Story generation error: {e}")
-        await logger_bot.send_message(f"Story generation error for user {message.from_user.id}: {e}")
-        await message.answer("Sorry, I couldn't write the story right now. Please try again later.")
+        await logger_bot.send_message(settings.ADMIN_ID, f"Story generation error for user {message.from_user.id}: {e}")
+        await message.answer(i18n.get("commands.story.generation_error"))
         return
 
     # Send paragraphs
@@ -216,24 +221,24 @@ async def cmd_verb(message: Message, verb_service: VerbService):
     extracted_verb = verb_service.extract_verb(message.text)
     
     if not extracted_verb:
-        await message.answer(i18n.get("verb.instruction"))
+        await message.answer(i18n.get("commands.verb.instruction"))
         return
     
     # 2. Validate verb format
     if not verb_service.is_valid_verb(extracted_verb):
         logger.warning(f"Invalid verb: {extracted_verb}")
-        await message.answer(i18n.get("verb.invalid"))
+        await message.answer(i18n.get("commands.verb.invalid"))
         return
 
     # 3. Get verb data (DB or API)
     # Give feedback to user that we are processing
-    status_msg = await message.answer(f"Searching for verb: {extracted_verb}...")
+    status_msg = await message.answer(i18n.get("commands.verb.searching", verb=extracted_verb))
     
     verb_data = await verb_service.get_verb_data(extracted_verb)
      
     if not verb_data:
         # Not found in DB or API, or API error
-        error_text = i18n.get("verb.api_error") # Or "not found" specific message
+        error_text = i18n.get("commands.verb.api_error") # Or "not found" specific message
         await message.answer(error_text)
         return
 

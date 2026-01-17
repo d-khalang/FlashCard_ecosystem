@@ -3,11 +3,12 @@ from aiogram.types import (InlineKeyboardMarkup)
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.schemas.conjugations import ConjugationResponse
+from flashcard.services.i18n import i18n
 
 def expression_action_kb(norm: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="Save", callback_data=f"save:{norm}")
-    builder.button(text="Regen", callback_data=f"regen:{norm}")
+    builder.button(text=i18n.get("messages.buttons.save"), callback_data=f"save:{norm}")
+    builder.button(text=i18n.get("messages.buttons.regenerate"), callback_data=f"regen:{norm}")
     return builder.as_markup()
 
 def get_reply_keyboard():

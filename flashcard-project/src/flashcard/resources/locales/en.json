@@ -1,27 +1,67 @@
 {
-    "start": {
-        "welcome": "👋 Welcome! I’m your Italian learning bot. Here’s how it works:\n\n✏️ Send me any Italian word or expression you want to learn or keep in mind.\n🤖 I’ll reply with translation + explanation.\n💾 You’ll see two buttons:\nSave → add the card to your personal study list.\nRegenerate → regenerate the explanation if you want another version.\n📅 Saved cards will be sent back to you automatically, spaced out for review.  You’ll be asked to rate your familiarity (0–5), and I’ll schedule the next review.\n\n⚠️ Point: you don't receive new FlashCards (reviews) if you don't rate the previous FlashCard or save a new one.\n✨ That’s it — just start sending words and build your flashcard deck!"
+    "callbacks": {
+        "save": {
+            "success_alert": "Saved to collection received!",
+            "success_message": "Saved to collection!",
+            "success_tag": "\n\n🔒 <b>Saved to collection</b>",
+            "already_exists": "Already exists among your FlashCards 🧐"
+        },
+        "regen": {
+            "working": "Working on it...",
+            "failed": "Sorry I failed to regenerate 😞"
+        },
+        "verb": {
+            "not_found": "Verb data not found.",
+            "updated": "👇🏻 Conjugation updated"
+        },
+        "grade": {
+            "rated": "\n\n✅You rated it {grade}",
+            "success": "Graded successfully!",
+            "error_missing": "Error updating grade. Card might be missing.",
+            "invalid_data": "Invalid callback data.",
+            "error_generic": "An error occurred."
+        }
     },
-    "verb": {
-        "instruction": "✋ Small tip!\n\nTo get the conjugation of a verb, type:\n/verb &ltthe verb you want&gt\n\nFor example:\n/verb andare\n\n💡 In the command menu, if you press and hold the /verb command, it will be added to your message box — then you can simply type the verb after it.",
-        "invalid": "Invalid verb format. Only valid Italian verbs are allowed.",
-        "api_error": "☹️ Unfortunetally, I wasn't able to conjugate it.\nPlease try again later or try another verb."
+    "commands": {
+        "start": {
+            "welcome": "👋 Welcome! I’m your Italian learning bot. Here’s how it works:\n\n✏️ Send me any Italian word or expression you want to learn or keep in mind.\n🤖 I’ll reply with translation + explanation.\n💾 You’ll see two buttons:\nSave → add the card to your personal study list.\nRegenerate → regenerate the explanation if you want another version.\n📅 Saved cards will be sent back to you automatically, spaced out for review.  You’ll be asked to rate your familiarity (0–5), and I’ll schedule the next review.\n\n⚠️ Point: you don't receive new FlashCards (reviews) if you don't rate the previous FlashCard or save a new one.\n✨ That’s it — just start sending words and build your flashcard deck!"
+        },
+        "help": {
+            "message": "help message",
+            "reply": "help reply"
+        },
+        "get": {
+            "no_memory": "Sorry but you don't have any memory (◡︵◡)\n(Or all cards reviewed recently!)",
+            "generation_error": "Error preparing card."
+        },
+        "story": {
+            "writing": "Writing a story with {count} words... ✍️",
+            "generation_error": "Sorry, I couldn't write the story right now. Please try again later.",
+            "no_expressions": "No expressions found. Add some first!"
+        },
+        "verb": {
+            "instruction": "✋ Small tip!\n\nTo get the conjugation of a verb, type:\n/verb &ltthe verb you want&gt\n\nFor example:\n/verb andare\n\n💡 In the command menu, if you press and hold the /verb command, it will be added to your message box — then you can simply type the verb after it.",
+            "invalid": "Invalid verb format. Only valid Italian verbs are allowed.",
+            "api_error": "☹️ Unfortunetally, I wasn't able to conjugate it.\nPlease try again later or try another verb.",
+            "searching": "Searching for verb: {verb}..."
+        },
+        "import": {
+            "usage_guide": "Hey there! 👋 I can help you add multiple words or expressions at once!\n\nHere is how to do it:\n1️⃣ Start your message with /import\n2️⃣ Write the list of words or expressions you want me to save.\n<i>You can separate them by new lines, commas, bullets, or numbers.</i>\n\n✅ Example:\n/import\ndare una festa\nspesa\nprendere il treno",
+            "processing_error": "Oops! 🙈 I ran into a little trouble processing that request. Please try again later!",
+            "import_failed": "I couldn't quite catch that. 😕 Here is what went wrong:\n{log_msg}",
+            "no_items_found": "I couldn't find any Italian words or expressions in there to save. 🕵️‍♀️ Could you please double-check your spelling?",
+            "success": "Great news! 🎉 I have successfully saved {count} new flashcards for you:\n{items_str}",
+            "all_duplicates": "It looks like I already have all those flashcards saved! ✅ No new items were added."
+        }
     },
-    "errors": {
-        "service_unavailable": "😔 Oops! I am currently experiencing some technical difficulties.\nPlease try again later."
-    },
-    "common": {
+    "messages": {
+        "working": "Working on it...",
+        "errors": {
+            "service_unavailable": "😔 Oops! I am currently experiencing some technical difficulties.\nPlease try again later."
+        },
         "buttons": {
             "save": "Save",
             "regenerate": "Regenerate"
         }
-    },
-    "import": {
-        "usage_guide": "Hey there! 👋 I can help you add multiple words or expressions at once!\n\nHere is how to do it:\n1️⃣ Start your message with /import\n2️⃣ Write the list of words or expressions you want me to save.\n<i>You can separate them by new lines, commas, bullets, or numbers.</i>\n\n✅ Example:\n/import\ndare una festa\nspesa\nprendere il treno",
-        "processing_error": "Oops! 🙈 I ran into a little trouble processing that request. Please try again later!",
-        "import_failed": "I couldn't quite catch that. 😕 Here is what went wrong:\n{log_msg}",
-        "no_items_found": "I couldn't find any Italian words or expressions in there to save. 🕵️‍♀️ Could you please double-check your spelling?",
-        "success": "Great news! 🎉 I have successfully saved {count} new flashcards for you:\n{items_str}",
-        "all_duplicates": "It looks like I already have all those flashcards saved! ✅ No new items were added."
     }
 }

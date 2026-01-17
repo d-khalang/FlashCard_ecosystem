@@ -9,6 +9,7 @@ from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.telegram.keyboards import expression_action_kb
 from flashcard.telegram.utils.lang_labels import label_for
 from flashcard.telegram.utils.card_generator import generate_and_render_card
+from flashcard.services.i18n import i18n
 
 router = Router()
 
@@ -20,7 +21,7 @@ DEFAULT_LANGS = ["en", "fa"]
 @router.message(F.text)
 @flags.chat_action(ChatAction.TYPING)
 async def handle_text_message(message: Message, llm_service: LLMService):
-    status_msg = await message.answer("Working on it...")
+    status_msg = await message.answer(i18n.get("messages.working"))
 
     text, success, card = await generate_and_render_card(llm_service, message.text)
     

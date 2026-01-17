@@ -48,11 +48,11 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot):
         user_id = None
         if event.update.message:
             user_id = event.update.message.from_user.id
-            await event.update.message.answer(i18n.get("errors.service_unavailable"))
+            await event.update.message.answer(i18n.get("messages.errors.service_unavailable"))
         elif event.update.callback_query:
             user_id = event.update.callback_query.from_user.id
             # Answer callback query to stop loading animation
-            await event.update.callback_query.message.answer(i18n.get("errors.service_unavailable"))
+            await event.update.callback_query.message.answer(i18n.get("messages.errors.service_unavailable"))
             await event.update.callback_query.answer()
             
     except Exception as e:

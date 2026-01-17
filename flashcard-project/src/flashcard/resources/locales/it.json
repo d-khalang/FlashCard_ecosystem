@@ -1,18 +1,60 @@
 {
-    "start": {
-        "welcome": "👋 Benvenuto! Sono il tuo bot per imparare l'italiano. Ecco come funziona:\n\n✏️ Inviami qualsiasi parola o espressione italiana che vuoi imparare.\n🤖 Risponderò con traduzione + spiegazione.\n💾 Vedrai due pulsanti:\nSalva → aggiungi la carta alla tua lista di studio.\nRigenera → rigenera la spiegazione se ne vuoi un'altra versione.\n📅 Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\n⚠️ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\n✨ È tutto — inizia a inviare parole!",
-        "buttons": {
-            "help": "Aiuto"
+    "callbacks": {
+        "save": {
+            "success_alert": "Salvato nella collezione ricevuto!",
+            "success_message": "Salvato nella collezione!",
+            "success_tag": "\n\n🔒 <b>Salvato nella collezione</b>",
+            "already_exists": "Esiste già tra le tue FlashCards 🧐"
+        },
+        "regen": {
+            "working": "Ci sto lavorando...",
+            "failed": "Scusa, non sono riuscito a rigenerare 😞"
+        },
+        "verb": {
+            "not_found": "Dati del verbo non trovati.",
+            "updated": "👇🏻 Coniugazione aggiornata"
+        },
+        "grade": {
+            "rated": "\n\n✅Hai votato {grade}",
+            "success": "Votato con successo!",
+            "error_missing": "Errore nell'aggiornamento del voto. La carta potrebbe mancare.",
+            "invalid_data": "Dati di callback non validi.",
+            "error_generic": "Si è verificato un errore."
         }
     },
-    "verb": {
-        "instruction": "✋ Piccolo consiglio!\n\nPer ottenere la coniugazione di un verbo, scrivi:\n/verb &ltil verbo desiderato&gt;\n\nPer esempio:\n/verb andare",
-        "invalid": "Formato verbo non valido. Sono ammessi solo verbi italiani validi."
+    "commands": {
+        "start": {
+            "welcome": "👋 Benvenuto! Sono il tuo bot per imparare l'italiano. Ecco come funziona:\n\n✏️ Inviami qualsiasi parola o espressione italiana che vuoi imparare.\n🤖 Risponderò con traduzione + spiegazione.\n💾 Vedrai due pulsanti:\nSalva → aggiungi la carta alla tua lista di studio.\nRigenera → rigenera la spiegazione se ne vuoi un'altra versione.\n📅 Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\n⚠️ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\n✨ È tutto — inizia a inviare parole!"
+        },
+        "help": {
+            "message": "messaggio di aiuto",
+            "reply": "risposta di aiuto"
+        },
+        "get": {
+            "no_memory": "Scusa ma non hai nessuna memoria (◡︵◡)\n(O tutte le carte sono state riviste di recente!)",
+            "generation_error": "Errore nella preparazione della carta."
+        },
+        "story": {
+            "writing": "Scrivendo una storia con {count} parole... ✍️",
+            "generation_error": "Scusa, non sono riuscito a scrivere la storia in questo momento. Per favore riprova più tardi.",
+            "no_expressions": "Nessuna espressione trovata. Aggiungine qualcuna prima!"
+        },
+        "verb": {
+            "instruction": "✋ Piccolo consiglio!\n\nPer ottenere la coniugazione di un verbo, scrivi:\n/verb &ltil verbo desiderato&gt;\n\nPer esempio:\n/verb andare",
+            "invalid": "Formato verbo non valido. Sono ammessi solo verbi italiani validi.",
+            "not_found": "Dati del verbo non trovati.",
+            "searching": "Cercando il verbo: {verb}..."
+        },
+        "import": {
+             "help": "Aiuto"
+        }
     },
-    "common": {
+    "messages": {
+        "working": "Ci sto lavorando...",
         "buttons": {
             "save": "Salva",
-            "regenerate": "Rigenera"
+            "regenerate": "Rigenera",
+            "help": "Aiuto"
         }
     }
 }
