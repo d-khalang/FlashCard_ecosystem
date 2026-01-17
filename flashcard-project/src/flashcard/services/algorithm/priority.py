@@ -26,6 +26,8 @@ def hours_since(dt: datetime | None) -> float:
     diff = (now - dt).total_seconds()
     return max(diff / 3600.0, 0.0)
 
+# TODO: write a seperate function that does this calculation and visualizes all numbers
+# to be able to evaluate the priority function
 def calculate_priority(expression_doc: dict) -> float:
     """
     Calculates the priority for review based on SRS factors.
