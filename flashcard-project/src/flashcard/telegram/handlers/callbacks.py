@@ -11,6 +11,8 @@ from flashcard.telegram.ui.verb import format_verb_conjugation
 from flashcard.services.verb import VerbService
 from flashcard.services.expression import ExpressionService
 from flashcard.utils.logger import get_logger
+from flashcard.telegram.utils.card_generator import generate_and_render_card
+
 
 logger = get_logger(__name__)
 router = Router()
@@ -59,7 +61,6 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
             await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
 
 
-from flashcard.telegram.utils.card_generator import generate_and_render_card
 
 @router.callback_query(F.data.startswith("regen:"))
 @flags.chat_action(ChatAction.TYPING)
@@ -116,7 +117,7 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
         await callback.answer("👇🏻 Conjugation updated")
 
 @router.callback_query(F.data.startswith("grade:"))
-async def handle_grade(callback: CallbackQuery, expression_service: ExpressionService):
+async def handle_grade(callback: CallbackQuery, expression_service: ExpressionService, logger_bot: Bot):
     """
     Handle grading callbacks: grade:{expression_id}:{grade}
     """
@@ -136,8 +137,11 @@ async def handle_grade(callback: CallbackQuery, expression_service: ExpressionSe
             await callback.answer("Error updating grade. Card might be missing.", show_alert=True)
             
     except ValueError:
-        #TODO: change the logic or send to logger bot
+        #TODO: Have a consistent schema for logging errors to logger bot
         await callback.answer("Invalid callback data.", show_alert=True)
+        await logger_bot.send_message(settings.ADMIN_ID, f"Invalid callback data: {callback.data}")
+
     except Exception as e:
         logger.error(f"Error handling grade callback: {e}", exc_info=True)
         await callback.answer("An error occurred.", show_alert=True)
+        await logger_bot.send_message(settings.ADMIN_ID, f"Error handling grade callback: {e}")
