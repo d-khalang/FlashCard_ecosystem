@@ -1,10 +1,11 @@
-from aiogram import Router, F, flags
+from aiogram import Bot, Router, F, flags
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.enums import ChatAction
 from contextlib import suppress
 from datetime import datetime
 
+from flashcard import settings
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.telegram.ui.verb import format_verb_conjugation
@@ -12,6 +13,7 @@ from flashcard.services.verb import VerbService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.utils.card_generator import generate_and_render_card
+from flashcard.utils.logger import get_logger
 
 
 logger = get_logger(__name__)
