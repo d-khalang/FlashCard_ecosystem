@@ -2,6 +2,7 @@ from __future__ import annotations
 from google import genai
 from google.genai import types
 from typing import Dict
+import itertools
 
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.import_model import ImportResponse
@@ -19,11 +20,19 @@ logger = get_logger(__name__)
 class LLMService:
     def __init__(self) -> None:
         self.clients = self._create_client()
+        self.client_cycle = itertools.cycle(self.clients.values())
+
+    def _get_client(self) -> genai.Client:
+        client = next(self.client_cycle)
+        # Optional: log used client for debugging if we had client identifiers attached
+        logger.info("Using client: %s", client)
+        return client
 
     def _create_client(self) -> Dict[str, genai.Client]:
         key_provider = LLMKeyProvider()
         model_dict = {
             "mey": genai.Client(api_key=key_provider.get_core_key('mey')),
+            "ako": genai.Client(api_key=key_provider.get_core_key('ako')),
         }
         logger.info("LLM clients created: %s", model_dict)
         return model_dict
@@ -47,7 +56,8 @@ class LLMService:
             lang2_label=lang2_label,
         )
         
-        resp = self.clients["mey"].models.generate_content(
+        client = self._get_client()
+        resp = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -67,7 +77,8 @@ class LLMService:
         """
         prompt = IMPORT_PROMPT_TEMPLATE.format(raw_input=raw_text)
         
-        resp = self.clients["mey"].models.generate_content(
+        client = self._get_client()
+        resp = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -96,7 +107,8 @@ class LLMService:
             target_lang=target_lang
         )
         
-        resp = self.clients["mey"].models.generate_content(
+        client = self._get_client()
+        resp = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=prompt,
             config=types.GenerateContentConfig(
