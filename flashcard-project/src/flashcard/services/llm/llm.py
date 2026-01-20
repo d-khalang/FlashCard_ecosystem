@@ -20,13 +20,13 @@ logger = get_logger(__name__)
 class LLMService:
     def __init__(self) -> None:
         self.clients = self._create_client()
-        self.client_cycle = itertools.cycle(self.clients.values())
+        self.client_cycle = itertools.cycle(self.clients.items())
 
     def _get_client(self) -> genai.Client:
         client = next(self.client_cycle)
         # Optional: log used client for debugging if we had client identifiers attached
-        logger.info("Using client: %s", client)
-        return client
+        logger.info("Using client: %s", client[0])
+        return client[1]
 
     def _create_client(self) -> Dict[str, genai.Client]:
         key_provider = LLMKeyProvider()
