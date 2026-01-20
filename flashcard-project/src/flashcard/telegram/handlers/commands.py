@@ -1,4 +1,4 @@
-from aiogram import Router, flags, Bot
+from aiogram import Router, flags, Bot, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.enums import ChatAction
@@ -252,4 +252,11 @@ async def cmd_verb(message: Message, verb_service: VerbService):
     
     await status_msg.edit_text(text=formatted_text, reply_markup=keyboard)
 
+# Unknown commands
+@router.message(F.text.startswith("/"))
+async def cmd_unknown(message: Message):
+    """
+    Handle unknown commands.
+    """
+    await message.answer(i18n.get("commands.unknown.message"))
 

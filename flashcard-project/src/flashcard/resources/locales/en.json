@@ -15,7 +15,7 @@
             "updated": "👇🏻 Conjugation updated"
         },
         "grade": {
-            "rated": "\n\n✅You rated it {grade}",
+            "rated": "\n\n✅ You rated it <b>{grade}</b>",
             "success": "Graded successfully!",
             "error_missing": "Error updating grade. Card might be missing.",
             "invalid_data": "Invalid callback data.",
@@ -23,6 +23,9 @@
         }
     },
     "commands": {
+        "unknown": {
+            "message": "Sorry, I didn't understand that command. Try /help to see available commands."
+        },
         "start": {
             "welcome": "👋 Welcome! I’m your Italian learning bot. Here’s how it works:\n\n✏️ Send me any Italian word or expression you want to learn or keep in mind.\n🤖 I’ll reply with translation + explanation.\n💾 You’ll see two buttons:\nSave → add the card to your personal study list.\nRegenerate → regenerate the explanation if you want another version.\n📅 Saved cards will be sent back to you automatically, spaced out for review.  You’ll be asked to rate your familiarity (0–5), and I’ll schedule the next review.\n\n⚠️ Point: you don't receive new FlashCards (reviews) if you don't rate the previous FlashCard or save a new one.\n✨ That’s it — just start sending words and build your flashcard deck!"
         },

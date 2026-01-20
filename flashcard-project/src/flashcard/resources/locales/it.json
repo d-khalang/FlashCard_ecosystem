@@ -15,7 +15,7 @@
             "updated": "👇🏻 Coniugazione aggiornata"
         },
         "grade": {
-            "rated": "\n\n✅Hai votato {grade}",
+            "rated": "\n\n✅ Hai votato <b>{grade}</b>",
             "success": "Votato con successo!",
             "error_missing": "Errore nell'aggiornamento del voto. La carta potrebbe mancare.",
             "invalid_data": "Dati di callback non validi.",
