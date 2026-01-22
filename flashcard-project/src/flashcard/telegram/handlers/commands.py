@@ -1,16 +1,17 @@
 from aiogram import Router, flags, Bot, F
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.enums import ChatAction
 
 from flashcard.services.i18n import i18n
 from flashcard.services.verb import VerbService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
+from flashcard.services.user import UserService
 from flashcard.telegram.ui.expression_lists import format_expression_list
 from flashcard.telegram.ui.story import format_story_messages
 from flashcard.telegram.ui.expression import format_review_message
-from flashcard.telegram.keyboards import get_review_keyboard
+from flashcard.telegram.keyboards import get_review_keyboard, get_settings_keyboard
 from flashcard.utils.logger import get_logger
 import random
 
@@ -40,7 +41,7 @@ async def cmd_help(message: Message):
 
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService):
+async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService):
     """
     Handle /get command to review a flashcard.
     """
@@ -84,7 +85,21 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
     
     # Update DB
     await expression_service.update_expression_sent(str(candidate['_id']), sent_msg.message_id)
-    await expression_service.update_user_last_push(user_id)
+    await user_service.update_user_last_push(user_id)
+
+
+@router.message(Command("settings"))
+async def cmd_settings(message: Message, user_service: UserService):
+    user_id = message.from_user.id
+    is_active = await user_service.get_user_status(user_id)
+    
+    status_key = "commands.settings.status_active" if is_active else "commands.settings.status_paused"
+    status_text = i18n.get(status_key)
+    
+    text = i18n.get("commands.settings.menu", status=status_text)
+    
+    keyboard = get_settings_keyboard(is_active)
+    await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
 
 
 @router.message(Command("import"))
