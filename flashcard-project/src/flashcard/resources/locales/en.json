@@ -55,6 +55,11 @@
             "no_items_found": "I couldn't find any Italian words or expressions in there to save. 🕵️‍♀️ Could you please double-check your spelling?",
             "success": "Great news! 🎉 I have successfully saved {count} new flashcards for you:\n{items_str}",
             "all_duplicates": "It looks like I already have all those flashcards saved! ✅ No new items were added."
+        },
+        "settings": {
+            "menu": "⚙️ *Settings*\n\nCurrent Status: {status}\n\nUse the button below to pause or resume daily flashcards.",
+            "status_active": "Active ✅",
+            "status_paused": "Paused ⏸"
         }
     },
     "messages": {
@@ -64,7 +69,14 @@
         },
         "buttons": {
             "save": "Save",
-            "regenerate": "Regenerate"
+            "regenerate": "Regenerate",
+            "pause_learning": "⏸ Pause Learning",
+            "resume_learning": "▶ Resume Learning",
+            "close_settings": "❌ Close Settings"
+        },
+        "notifications": {
+             "resumed": "Scheduler Resumed",
+             "paused": "Scheduler Paused"
         }
     }
 }

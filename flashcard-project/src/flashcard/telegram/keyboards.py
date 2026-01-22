@@ -1,4 +1,4 @@
-from aiogram.types import (InlineKeyboardMarkup)
+from aiogram.types import (InlineKeyboardMarkup, ReplyKeyboardMarkup)
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
@@ -99,3 +99,18 @@ def get_review_keyboard(expression_id: str) -> InlineKeyboardMarkup:
     
     builder.adjust(1, 4, 1)
     return builder.as_markup()
+
+def get_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
+    builder = ReplyKeyboardBuilder()
+    
+    # Toggle button
+    if is_active:
+        text = i18n.get("messages.buttons.pause_learning")
+    else:
+        text = i18n.get("messages.buttons.resume_learning")
+        
+    builder.button(text=text)
+    builder.button(text=i18n.get("messages.buttons.close_settings"))  
+    builder.adjust(1, 1)
+    
+    return builder.as_markup(resize_keyboard=True)
