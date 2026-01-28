@@ -55,3 +55,19 @@ class UserService:
         if not user:
             return True
         return user.get("is_active", True)
+
+    async def get_user(self, user_id: Union[str, int]) -> dict:
+        """
+        Retrieves the full user document.
+        """
+        return await self.cols['users'].find_one({"user_id": str(user_id)}) or {}
+
+    async def update_setting(self, user_id: Union[str, int], field: str, value: any):
+        """
+        Updates a specific field in the user document.
+        """
+        await self.cols['users'].update_one(
+            {"user_id": str(user_id)},
+            {"$set": {field: value}},
+            upsert=True
+        )
