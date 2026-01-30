@@ -57,9 +57,40 @@
             "all_duplicates": "It looks like I already have all those flashcards saved! ✅ No new items were added."
         },
         "settings": {
-            "menu": "⚙️ *Settings*\n\nCurrent Status: {status}\n\nUse the button below to pause or resume daily flashcards.",
+            "menu": {
+                "heading": "⚙️ <b>Settings</b>",
+                "status": "Current Status: <b>{status}</b>",
+                "primary_lang": "Primary Language: <b>{primary_lang}</b>",
+                "secondary_lang": "Secondary Language: <b>{secondary_lang}</b>",
+                "target_level": "Target Level: <b>{target_level}</b>",
+                "review_interval": "Review Interval: <b>{review_interval_minutes} minutes</b>"
+            },
             "status_active": "Active ✅",
-            "status_paused": "Paused ⏸"
+            "status_paused": "Paused ⏸",
+            "status_info": "Current Status: {status}",
+            "menu_options": {
+                "language": "🌍 Language & Level",
+                "interval": "🔔 Review Interval",
+                "api": "🔑 API Config"
+            },
+            "sections": {
+                "language": "Select which setting to edit:",
+                "interval": "Choose how often (in minutes) you want to receive review FlashCards:",
+                "api": "To configure your own API Key, please reach out to admin (Feature pending)."
+            },
+            "prompts": {
+                "primary_lang": "What language do you want to receive translation to? Default -> english.",
+                "secondary_lang": "Recommended to select your mother tongue, this would be the second language you receive the translation too. (Write 'none' if you don't need a secondary language)",
+                "invalid_lang": "🚫 I couldn't recognize that language. Please try typing it again (e.g. 'English', 'DE', 'Farsi').",
+                "success_lang": "✅ {type} language set to <b>{lang}</b> {flag}.",
+                "level_select": "Please select your target proficiency level:"
+            },
+            "buttons": {
+                "set_primary": "Primary Language",
+                "set_secondary": "Secondary Language",
+                "set_level": "Your Italian Level",
+                "back": "⬅️ Back"
+            }
         }
     },
     "messages": {
