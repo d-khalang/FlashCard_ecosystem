@@ -10,7 +10,7 @@ from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
 from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
-from flashcard.telegram.handlers import messages, commands, callbacks, errors, reply_commands
+from flashcard.telegram.handlers import messages, commands, callbacks, errors, reply_commands, user_settings
 from flashcard.services.expression import ExpressionService
 from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
@@ -32,6 +32,7 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     dp.message.middleware(ChatActionMiddleware())
     
     # Include routers
+    dp.include_router(user_settings.router)
     dp.include_router(commands.router)
     dp.include_router(reply_commands.router)
     dp.include_router(messages.router)
