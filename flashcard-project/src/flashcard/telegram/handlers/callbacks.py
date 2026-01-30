@@ -112,8 +112,7 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
         await callback.message.edit_text(
             text=html_text,
             # Pass the same keyboard back if you want the buttons to stay
-            reply_markup=callback.message.reply_markup, 
-            parse_mode="HTML"
+            reply_markup=callback.message.reply_markup
         )
         
         await callback.answer(i18n.get("callbacks.verb.updated"))
