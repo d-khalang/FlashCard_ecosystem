@@ -5,7 +5,7 @@ from aiogram.enums import ChatAction
 from aiogram import flags
 
 from flashcard.services.user import UserService
-from flashcard.telegram.keyboards import get_settings_keyboard
+from flashcard.telegram.keyboards import get_reply_settings_keyboard
 from flashcard.services.i18n import i18n
 
 router = Router()
@@ -25,7 +25,7 @@ async def handle_status_change(message: Message, user_service: UserService):
     feedback_text = i18n.get(action_key)
     
     # We send a message with the new keyboard
-    keyboard = get_settings_keyboard(new_status)
+    keyboard = get_reply_settings_keyboard(new_status)
     await message.answer(feedback_text, reply_markup=keyboard)
 
 
