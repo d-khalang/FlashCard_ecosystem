@@ -30,16 +30,17 @@ class I18nService:
                 except Exception as e:
                     print(f"Error loading locale {lang_code}: {e}")
 
-    def get(self, key: str, lang: str = "en", **kwargs) -> str:
+    def get(self, key: str, locale: str = "en", **kwargs) -> str:
         """
         Retrieves a translation string.
         Supports nested keys using dot notation (e.g., 'start.welcome').
         """
-        if lang not in self.translations:
-            lang = self.default_lang
+        if locale not in self.translations:
+            # Try default if locale not found, but we might just use default_lang
+            locale = self.default_lang
         
         keys = key.split(".")
-        value = self.translations.get(lang, {})
+        value = self.translations.get(locale, {})
         
         for k in keys:
             if isinstance(value, dict):
@@ -50,8 +51,8 @@ class I18nService:
         
         if value is None:
             # Fallback to default lang
-            if lang != self.default_lang:
-                return self.get(key, lang=self.default_lang, **kwargs)
+            if locale != self.default_lang:
+                return self.get(key, locale=self.default_lang, **kwargs)
             return key  # Return key if not found
             
         if isinstance(value, str) and kwargs:
