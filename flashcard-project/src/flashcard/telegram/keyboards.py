@@ -1,9 +1,11 @@
+# src/flashcard/telegram/keyboards.py
 from aiogram.types import (InlineKeyboardMarkup, ReplyKeyboardMarkup)
-
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
+from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
 from flashcard.schemas.conjugations import ConjugationResponse
 from flashcard.services.i18n import i18n
+from flashcard.schemas.languages import get_language_flag, get_language_name
 
 def expression_action_kb(norm: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -11,11 +13,6 @@ def expression_action_kb(norm: str) -> InlineKeyboardMarkup:
     builder.button(text=i18n.get("messages.buttons.regenerate"), callback_data=f"regen:{norm}")
     return builder.as_markup()
 
-def get_reply_keyboard():
-    builder = ReplyKeyboardBuilder()
-    builder.button(text="Test1")
-    builder.button(text="Test2")
-    return builder.as_markup()
 
 def get_verb_keyboard(data: ConjugationResponse) -> InlineKeyboardMarkup:
     verb = data.queried
@@ -100,7 +97,7 @@ def get_review_keyboard(expression_id: str) -> InlineKeyboardMarkup:
     builder.adjust(1, 4, 1)
     return builder.as_markup()
 
-def get_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
+def get_reply_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     
     # Toggle button
@@ -114,3 +111,101 @@ def get_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
     builder.adjust(1, 1)
     
     return builder.as_markup(resize_keyboard=True)
+
+# -------------------------------------------------------------------------
+# Settings Keyboards
+# -------------------------------------------------------------------------
+
+def get_main_settings_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    
+    # 🌍 Language & Level
+    builder.button(text=i18n.get("commands.settings.menu_options.language"), callback_data=SettingsCallback(action="nav", section="lang_menu").pack())
+    
+    # 🔔 Schedule/Interval
+    builder.button(text=i18n.get("commands.settings.menu_options.interval"), callback_data=SettingsCallback(action="nav", section="interval").pack())
+    
+    # 🔑 API Config
+    builder.button(text=i18n.get("commands.settings.menu_options.api"), callback_data=SettingsCallback(action="nav", section="api").pack())
+    
+    builder.adjust(2, 1)
+    return builder.as_markup()
+
+def get_language_settings_keyboard(current_data: dict) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    
+    # Get Current Settings
+    curr_p = current_data.get("primary_language", "en")
+    curr_s = current_data.get("secondary_language")
+    curr_l = current_data.get("target_level", "A2")
+    
+    # 1. Primary Language (Always has a value or default)
+    flag_p = get_language_flag(curr_p)
+    btn_p = f"{flag_p} {i18n.get('commands.settings.buttons.set_primary')}"
+    
+    builder.button(
+        text=btn_p, 
+        callback_data=SettingsCallback(action="nav", section="set_lang_p").pack()
+    )
+    
+    # 2. Secondary Language (Can be None)
+    if curr_s and curr_s.lower() != "none":
+        flag_s = get_language_flag(curr_s)
+    else:
+        flag_s = "⚪" # Placeholder for None
+        
+    btn_s = f"{flag_s} {i18n.get('commands.settings.buttons.set_secondary')}"
+    
+    builder.button(
+        text=btn_s, 
+        callback_data=SettingsCallback(action="nav", section="set_lang_s").pack()
+    )
+
+    # 3. Target Level
+    btn_l = f"{i18n.get('commands.settings.buttons.set_level')}: {curr_l}"
+    builder.button(
+        text=btn_l,
+        callback_data=SettingsCallback(action="nav", section="set_level").pack()
+    )
+
+    # 4. Back
+    builder.button(
+        text=i18n.get("commands.settings.buttons.back"), 
+        callback_data=SettingsCallback(action="nav", section="main").pack()
+    )
+    
+    builder.adjust(1)
+    return builder.as_markup()
+
+def get_level_selection_keyboard(current_level: str = "A2") -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    levels = ["A1", "A2", "B1", "B2", "C1", "C2"]
+    
+    for level in levels:
+        text = f"{level} {'✅' if level == current_level else ''}"
+        builder.button(
+            text=text, 
+            callback_data=SettingsCallback(action="select", section="target_level", value=level).pack()
+        )
+        
+    builder.button(
+        text=i18n.get("commands.settings.buttons.back"),
+        callback_data=SettingsCallback(action="nav", section="lang_menu").pack()
+    )
+        
+    builder.adjust(3, 3, 1)
+    return builder.as_markup()
+
+def get_interval_settings_keyboard(current_minutes: int = 30) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    
+    options = [30, 60, 90, 120]
+    
+    for opt in options:
+        text = f"{opt} min {'✅' if current_minutes == opt else ''}"
+        builder.button(text=text, callback_data=SettingsCallback(action="select", section="interval", value=str(opt)).pack())
+        
+    builder.button(text=i18n.get("commands.settings.buttons.back"), callback_data=SettingsCallback(action="nav", section="main").pack())
+    
+    builder.adjust(2, 2, 1)
+    return builder.as_markup()
