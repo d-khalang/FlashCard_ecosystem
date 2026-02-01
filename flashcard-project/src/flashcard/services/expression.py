@@ -149,13 +149,20 @@ class ExpressionService:
         """
         Selects the best expression for review based on priority algorithm.
         Filters out expressions sent in the last 8 hours.
+        Returns dictionay with 'doc' (ExpressionDB) and 'direction' ('forward' or 'reverse')
         """
+        # 0. Get user review mode
+        user = await self.cols['users'].find_one({"user_id": str(user_id)})
+        review_mode = user.get("review_mode", "standard") if user else "standard"
+        
         # 1. Filter candidates
         # Active status (implicit if we only have active ones, but good to be explicit if we add status later)
         # Not sent in last 12 hours
+        #TODO: change 12 hours to get from a config file
         cutoff_time = (datetime.now() - timedelta(hours=12)).isoformat()
         
         # We find documents where last_sent_at is null OR last_sent_at < cutoff
+        # Regardless of review mode, if reveresed is checked recently we should not review even if forward is not checked recently
         query = {
             "user_id": str(user_id),
             "$or": [
@@ -173,20 +180,38 @@ class ExpressionService:
             return None
             
         #TODO: change to scheduled priority setter on all items of expressions
-        # omitting calculations on all items for each call
-        # or a hirarchical structure to get and remove from candidates based on priority indicators
         # 2. Calculate priority for each
         # We select the one with Max priority
         best_candidate = None
+        best_direction = "forward"
         max_priority = -1.0
         
         for doc in candidates:
-            p = calculate_priority(doc)
-            if p > max_priority:
-                max_priority = p
+            # 2a. Forward Priority
+            p_fwd = calculate_priority(doc)
+            
+            if p_fwd > max_priority:
+                max_priority = p_fwd
                 best_candidate = doc
+                best_direction = "forward"
                 
-        return best_candidate
+            # 2b. Reverse Priority (if Dual Mode)
+            if review_mode == "dual":
+                # Ensure reverse_stats exists or use defaults (simulated new item)
+                rev_stats = doc.get("reverse_stats") or {"reps": 0, "ewma_grade": 0.0, "success_streak": 0, "lapses": 0}
+                p_rev = calculate_priority(rev_stats)
+                
+                if p_rev > max_priority:
+                    max_priority = p_rev
+                    best_candidate = doc
+                    best_direction = "reverse"
+                
+        if best_candidate:
+            return {
+                "doc": best_candidate,
+                "direction": best_direction
+            }
+        return None
 
     async def update_expression_sent(self, expression_id: str, message_id: int):
         """
@@ -218,7 +243,7 @@ class ExpressionService:
             upsert=True
         )
 
-    async def grade_expression(self, user_id: str, expression_id: str, grade: int) -> Optional[dict]:
+    async def grade_expression(self, user_id: str, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
         """
         Updates the expression with the new grade stats.
         """
@@ -239,20 +264,34 @@ class ExpressionService:
             return None
             
         # 2. Calculate updates
-        updates = calculate_new_stats(doc, float(grade))
+        is_reverse = direction == "reverse"
+        # For reverse, we pass the existing reverse_stats (or empty dict which implies new)
+        stats_input = doc if not is_reverse else (doc.get("reverse_stats") or {})
         
-        # 3. Update Expression
+        updates_dict = calculate_new_stats(stats_input, float(grade), is_reverse=is_reverse)
+        
+        # 3. Apply Updates
+        mongo_updates = {}
+        if is_reverse:
+             # Need to set fields under "reverse_stats." prefix
+             for k, v in updates_dict.items():
+                 mongo_updates[f"reverse_stats.{k}"] = v
+        else:
+            mongo_updates = updates_dict
+            
         await self.cols['expression'].update_one(
             {"_id": ObjectId(expression_id)},
-            {"$set": updates}
+            {"$set": mongo_updates}
         )
         
         # 4. Update User (has_pending = False)
+        # Only clear pending if this was the pending item? 
+        # For now assume mostly one flow.
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {"$set": {"has_pending": False}}
         )
         
-        # Return updated document (merged) for UI
-        doc.update(updates)
-        return doc
+        # Return updated document (merged) for UI - approximate sync
+        # Note: this might not be perfect in-memory representation but enough for immediate feedback if needed
+        return doc # UI usually doesn't need the exact new stats immediately

@@ -24,16 +24,35 @@ class ExpressionCard(BaseModel):
     note_it: Optional[str] = Field(description='E.g. "Parola non chiara"')
     suggestions: List[str] = Field(description="Candidate intended tokens")
 
+
+class ExpressionStats(BaseModel):
+    """
+    Stats for a specific direction (Forward or Reverse).
+    """
+    reps: int = 0
+    lapses: int = 0
+    success_streak: int = 0
+    ewma_grade: float = 0.0
+    last_grade: int = 0
+    last_review_at: Optional[str] = None
+    # next_review_at: Optional[str] = None # Calculated next review time
+
 class ExpressionDB(BaseModel):
     user_id: str = Field(..., description="User ID as string")
     value: str = Field(..., description="The expression text")
     created_at: str = Field(..., description="Creation timestamp ISO")
     last_sent_at: Optional[str] = None
     last_interaction_at: Optional[str] = None
+    
+    # Forward Stats (Root Level - Backward Compatibility)
     reps: int = 0
     lapses: int = 0
     success_streak: int = 0
     ewma_grade: float = 0.0
     last_grade: int = 0
+    
+    # Dual Mode
+    reverse_stats: Optional[ExpressionStats] = None
+    
     pending_message_id: Optional[str] = None
     status: str = "active"

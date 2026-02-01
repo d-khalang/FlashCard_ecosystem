@@ -24,6 +24,7 @@ class UserDB(BaseModel):
     primary_language: LanguageCode = Field("en", description="Primary interface language (e.g. 'en', 'fa')")
     secondary_language: Optional[LanguageCode] = Field(None, description="Secondary translation language")
     target_level: LanguageLevel = Field("A2", description="Target CEFR level (A1-C2)")
+    review_mode: str = Field("standard", description="Review mode: standard or dual")
     review_interval_minutes: int = Field(30, description="Minutes between review batches")
     api_config: Optional[UserAPIConfig] = Field(None, description="Custom User API Config")
     

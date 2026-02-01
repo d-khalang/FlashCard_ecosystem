@@ -120,18 +120,31 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
 @router.callback_query(F.data.startswith("grade:"))
 async def handle_grade(callback: CallbackQuery, expression_service: ExpressionService, logger_bot: Bot):
     """
-    Handle grading callbacks: grade:{expression_id}:{grade}
+    Handle grading callbacks: grade:{expression_id}:{grade}:{direction_code}
+    direction_code: 'fwd' | 'rev' (optional, defaults to 'fwd' for backward compat)
     """
     try:
-        _, expression_id, grade_str = callback.data.split(":")
+        parts = callback.data.split(":")
+        expression_id = parts[1]
+        grade_str = parts[2]
         grade = int(grade_str)
+        
+        # Check for direction in data
+        direction_code = "fwd"
+        if len(parts) > 3:
+            direction_code = parts[3]
+            
+        direction = "reverse" if direction_code == "rev" else "forward"
+        
         user_id = callback.from_user.id
         
-        updated_doc = await expression_service.grade_expression(user_id, expression_id, grade)
+        updated_doc = await expression_service.grade_expression(user_id, expression_id, grade, direction)
         
         if updated_doc:
             value = updated_doc.get("value", "Unknown")
             # Edit the message to remove buttons and show confirmation
+            # We might want to be nuanced about what we show for success, 
+            # but current pattern is fine.
             await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
             await callback.answer(i18n.get("callbacks.grade.success"))
         else:

@@ -81,18 +81,22 @@ def get_verb_keyboard(data: ConjugationResponse) -> InlineKeyboardMarkup:
 
     return builder.as_markup()
 
-def get_review_keyboard(expression_id: str) -> InlineKeyboardMarkup:
+def get_review_keyboard(expression_id: str, direction: str = "forward") -> InlineKeyboardMarkup:
+    # Let's use 'fwd' and 'rev'.
+    
+    dir_code = "rev" if direction == "reverse" else "fwd"
+    
     builder = InlineKeyboardBuilder()
     
     # Row 1: 0 - I had no idea
-    builder.button(text="0 - I had no idea", callback_data=f"grade:{expression_id}:0")
+    builder.button(text="0 - I had no idea", callback_data=f"grade:{expression_id}:0:{dir_code}")
     
     # Row 2: 1, 2, 3, 4
     for i in range(1, 5):
-        builder.button(text=str(i), callback_data=f"grade:{expression_id}:{i}")
+        builder.button(text=str(i), callback_data=f"grade:{expression_id}:{i}:{dir_code}")
         
     # Row 3: 5 - Known like family
-    builder.button(text="5 - Known like family", callback_data=f"grade:{expression_id}:5")
+    builder.button(text="5 - Known like family", callback_data=f"grade:{expression_id}:5:{dir_code}")
     
     builder.adjust(1, 4, 1)
     return builder.as_markup()
@@ -116,7 +120,7 @@ def get_reply_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
 # Settings Keyboards
 # -------------------------------------------------------------------------
 
-def get_main_settings_keyboard() -> InlineKeyboardMarkup:
+def get_main_settings_keyboard(user_data: dict = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     # 🌍 Language & Level
@@ -125,10 +129,20 @@ def get_main_settings_keyboard() -> InlineKeyboardMarkup:
     # 🔔 Schedule/Interval
     builder.button(text=i18n.get("commands.settings.menu_options.interval"), callback_data=SettingsCallback(action="nav", section="interval").pack())
     
+    # 🔄 Review Mode (Standard/Dual)
+    mode = "Standard"
+    if user_data:
+        mode = user_data.get("review_mode", "standard").capitalize()
+        if mode == "Dual": mode = "Dual 🔄" 
+        else: mode = "Standard ➡️"
+        
+    # We use a toggle action effectively
+    builder.button(text=f"Mode: {mode}", callback_data=SettingsCallback(action="select", section="review_mode", value="toggle").pack())
+
     # 🔑 API Config
     builder.button(text=i18n.get("commands.settings.menu_options.api"), callback_data=SettingsCallback(action="nav", section="api").pack())
     
-    builder.adjust(2, 1)
+    builder.adjust(2, 1, 1) # Language|Interval, Mode, API
     return builder.as_markup()
 
 def get_language_settings_keyboard(current_data: dict) -> InlineKeyboardMarkup:

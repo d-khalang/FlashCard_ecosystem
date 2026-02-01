@@ -38,7 +38,9 @@ async def cmd_help(message: Message):
     await message.answer(i18n.get("commands.help.message"))
     await message.reply(i18n.get("commands.help.reply"))
 
-
+#TODO: Think about how to adapt last_sent and last_interacted when the last one was revereced
+# as we use that for retreival (probably no problem) but first level doc does not give a clue
+# about the the last interaction if it was reveresed. semantically wrong. last sent!!!
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
 async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService):
@@ -48,13 +50,17 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
     user_id = message.from_user.id
     
     # 1. Get review candidate
-    candidate = await expression_service.get_review_candidate(user_id)
+    # Result is now a dict {doc: ..., direction: ...} or None
+    result = await expression_service.get_review_candidate(user_id)
     
-    if not candidate:
+    if not result:
         # No cards to review
         # Using the message from n8n or similar intent
         await message.answer(i18n.get("commands.get.no_memory"))
         return
+        
+    candidate = result["doc"]
+    direction = result.get("direction", "forward")
 
     # 2. Generate content (Definition, Translations, Example)
     try:
@@ -69,16 +75,15 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
         )
     except Exception as e:
         logger.error(f"Error generating card for {candidate['value']}: {e}")
-    except Exception as e:
-        logger.error(f"Error generating card for {candidate['value']}: {e}")
         await message.answer(i18n.get("commands.get.generation_error"))
         return
 
     # 3. Format Message
-    text = format_review_message(card, candidate['value'])
+    # We pass direction to formatter to decide what to show/hide
+    text = format_review_message(card, candidate['value'], direction=direction)
 
     # 4. Keyboard
-    keyboard = get_review_keyboard(str(candidate['_id']))
+    keyboard = get_review_keyboard(str(candidate['_id']), direction=direction)
     
     # 5. Send & Update
     sent_msg = await message.answer(text, reply_markup=keyboard)
@@ -264,3 +269,5 @@ async def cmd_unknown(message: Message):
     """
     await message.answer(i18n.get("commands.unknown.message"))
 
+
+#TODO: Add /feedback or talk to admin command

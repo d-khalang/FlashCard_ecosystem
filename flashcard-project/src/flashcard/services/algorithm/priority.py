@@ -28,35 +28,47 @@ def hours_since(dt: datetime | None) -> float:
 
 # TODO: write a seperate function that does this calculation and visualizes all numbers
 # to be able to evaluate the priority function
-def calculate_priority(expression_doc: dict) -> float:
+def calculate_priority(stats: dict) -> float:
     """
     Calculates the priority for review based on SRS factors.
     Priority = 0.4*Recency + 0.35*Difficulty + 0.10*Stability + 0.05*Novelty + 0.05*Lapses + Randomness
+    
+    Args:
+        stats: A dict containing keys: 
+               - last_interaction_at (or created_at)
+               - ewma_grade
+               - success_streak
+               - lapses
+               - reps
     """
     # 1) Recency (hours since last interaction)
-    last_interaction = expression_doc.get("last_interaction_at") or expression_doc.get("created_at")
+    # For forward stats (root), last_interaction_at is used.
+    # For reverse stats, we might use last_review_at. 
+    # The caller ensures common keys or we handle fallback here.
+    
+    last_interaction = stats.get("last_interaction_at") or stats.get("last_review_at") or stats.get("created_at")
     last_dt = parse_iso(last_interaction)
-    t = hours_since(last_dt)
+    t = hours_since(last_dt) if last_dt else 200 # 200 hours is about 8 days to give new cards more chance to be reviewed
     recency = t / (1.0 + t)
 
     # 2) Difficulty (EWMA grade 0..5, where 0 is hard/unknown)
     # We want Difficulty score D to be high if grade is low.
-    ewma = float(expression_doc.get("ewma_grade") or 0)
+    ewma = float(stats.get("ewma_grade") or 0)
     D = 1.0 - (ewma / 5.0)
 
     # 3) Stability (success streak)
     # We want Stability score S to be high if streak is low (less stable).
     # Wait, in the n8n logic: S = 1.0 / (1.0 + streak)
     # So if streak is 0, S=1 (high priority). If streak is 10, S is low. Correct.
-    streak = float(expression_doc.get("success_streak") or 0)
+    streak = float(stats.get("success_streak") or 0)
     S = 1.0 / (1.0 + streak)
 
     # 4) Lapses (capped at 5)
-    lapses = float(expression_doc.get("lapses") or 0)
+    lapses = float(stats.get("lapses") or 0)
     L = min(lapses, 5.0) / 5.0
 
     # 5) Novelty (reps == 0)
-    reps = int(expression_doc.get("reps") or 0)
+    reps = int(stats.get("reps") or 0)
     N = 1.0 if reps == 0 else 0.0
 
     # 6) Randomness

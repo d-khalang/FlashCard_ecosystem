@@ -30,7 +30,7 @@ async def cmd_settings(message: Message, user_service: UserService):
     text = _get_settings_menu_text(user_data)
     
     # Send Main Inline Menu
-    await message.answer(text, reply_markup=get_main_settings_keyboard())
+    await message.answer(text, reply_markup=get_main_settings_keyboard(user_data))
     
     # also ensure Reply Keyboard is present (optional, user might have closed it)
     quick_kb = get_reply_settings_keyboard(is_active)
@@ -48,7 +48,7 @@ async def handle_settings_nav(callback: CallbackQuery, callback_data: SettingsCa
         
         await callback.message.edit_text(
             text=text,
-            reply_markup=get_main_settings_keyboard()
+            reply_markup=get_main_settings_keyboard(user_data)
         )
     
     elif section == "lang_menu":
@@ -113,6 +113,23 @@ async def handle_settings_select(callback: CallbackQuery, callback_data: Setting
             await callback.message.edit_reply_markup(reply_markup=kb)
         except ValueError:
             pass
+            
+    elif section == "review_mode":
+        # Toggle Logic
+        user_data = await user_service.get_user(user_id)
+        current_mode = user_data.get("review_mode", "standard")
+        new_mode = "dual" if current_mode == "standard" else "standard"
+        
+        await user_service.update_setting(user_id, "review_mode", new_mode)
+        
+        # Update text and keyboard to reflect change
+        user_data["review_mode"] = new_mode # local update for display
+        text = _get_settings_menu_text(user_data)
+        kb = get_main_settings_keyboard(user_data)
+        
+        await callback.message.edit_text(text=text, reply_markup=kb)
+        await callback.answer(f"Switched to {new_mode.capitalize()} Mode")
+        return # return early as we edited text
             
     await callback.answer("Saved!")
 
@@ -182,6 +199,11 @@ def _get_settings_menu_text(user_data: dict) -> str:
     text += i18n.get("commands.settings.menu.primary_lang", primary_lang=primary_lang) + "\n"
     text += i18n.get("commands.settings.menu.secondary_lang", secondary_lang=secondary_lang) + "\n"
     text += i18n.get("commands.settings.menu.target_level", target_level=target_level) + "\n"
-    text += i18n.get("commands.settings.menu.review_interval", review_interval_minutes=review_interval_minutes)
+    text += i18n.get("commands.settings.menu.review_interval", review_interval_minutes=review_interval_minutes) + "\n"
+    
+    review_mode = user_data.get("review_mode", "standard").capitalize()
+    text += f"Review Mode: <b>🔄 {review_mode}</b>"
     
     return text
+
+#TODO: Add dualmode review toggle to settings
