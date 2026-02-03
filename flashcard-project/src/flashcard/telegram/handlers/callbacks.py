@@ -8,6 +8,7 @@ from datetime import datetime
 from flashcard import settings
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
+from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.telegram.ui.verb import format_verb_conjugation
 from flashcard.services.verb import VerbService
 from flashcard.services.expression import ExpressionService
@@ -26,11 +27,8 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
     norm = callback.data.split(":", 1)[1]
     user_id = callback.from_user.id
     
-    # Use message date or current time
-    click_date = datetime.now()
-    
     # Attempt to add expression via service
-    saved = await expression_service.add_expression(user_id, norm, click_date)
+    saved = await expression_service.add_expression(user_id, norm)
 
     if saved:
         print("Saved to collection received!")
@@ -117,23 +115,17 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
         
         await callback.answer(i18n.get("callbacks.verb.updated"))
 
-@router.callback_query(F.data.startswith("grade:"))
-async def handle_grade(callback: CallbackQuery, expression_service: ExpressionService, logger_bot: Bot):
+@router.callback_query(GradeCallback.filter())
+async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, expression_service: ExpressionService, logger_bot: Bot):
     """
     Handle grading callbacks: grade:{expression_id}:{grade}:{direction_code}
     direction_code: 'fwd' | 'rev' (optional, defaults to 'fwd' for backward compat)
     """
-    try:
-        parts = callback.data.split(":")
-        expression_id = parts[1]
-        grade_str = parts[2]
-        grade = int(grade_str)
-        
-        # Check for direction in data
-        direction_code = "fwd"
-        if len(parts) > 3:
-            direction_code = parts[3]
-            
+    try:    
+        expression_id = callback_data.expression_id
+        grade = callback_data.grade
+        direction_code = callback_data.direction
+
         direction = "reverse" if direction_code == "rev" else "forward"
         
         user_id = callback.from_user.id
@@ -142,9 +134,6 @@ async def handle_grade(callback: CallbackQuery, expression_service: ExpressionSe
         
         if updated_doc:
             value = updated_doc.get("value", "Unknown")
-            # Edit the message to remove buttons and show confirmation
-            # We might want to be nuanced about what we show for success, 
-            # but current pattern is fine.
             await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
             await callback.answer(i18n.get("callbacks.grade.success"))
         else:

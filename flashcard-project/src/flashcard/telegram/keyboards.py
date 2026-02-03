@@ -3,6 +3,7 @@ from aiogram.types import (InlineKeyboardMarkup, ReplyKeyboardMarkup)
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
+from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.schemas.conjugations import ConjugationResponse
 from flashcard.services.i18n import i18n
 from flashcard.schemas.languages import get_language_flag, get_language_name
@@ -89,14 +90,14 @@ def get_review_keyboard(expression_id: str, direction: str = "forward") -> Inlin
     builder = InlineKeyboardBuilder()
     
     # Row 1: 0 - I had no idea
-    builder.button(text="0 - I had no idea", callback_data=f"grade:{expression_id}:0:{dir_code}")
+    builder.button(text="0 - I had no idea", callback_data=GradeCallback(expression_id=expression_id, grade=0, direction=dir_code).pack())
     
     # Row 2: 1, 2, 3, 4
     for i in range(1, 5):
-        builder.button(text=str(i), callback_data=f"grade:{expression_id}:{i}:{dir_code}")
+        builder.button(text=str(i), callback_data=GradeCallback(expression_id=expression_id, grade=i, direction=dir_code).pack())
         
     # Row 3: 5 - Known like family
-    builder.button(text="5 - Known like family", callback_data=f"grade:{expression_id}:5:{dir_code}")
+    builder.button(text="5 - Known like family", callback_data=GradeCallback(expression_id=expression_id, grade=5, direction=dir_code).pack())
     
     builder.adjust(1, 4, 1)
     return builder.as_markup()
