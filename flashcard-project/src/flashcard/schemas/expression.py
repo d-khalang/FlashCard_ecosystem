@@ -41,8 +41,9 @@ class ExpressionDB(BaseModel):
     user_id: str = Field(..., description="User ID as string")
     value: str = Field(..., description="The expression text")
     created_at: str = Field(..., description="Creation timestamp ISO")
-    last_sent_at: Optional[str] = None
-    last_interaction_at: Optional[str] = None
+    last_sent_at: Optional[str] = Field(None, description="Timestamp of last send of both sides")
+    last_interaction_at: Optional[str] = Field(None, description="Timestamp of last review of the forward side")
+    last_activity_at: Optional[str] = Field(None, description="Timestamp of last send/grade event (global cooldown)")
     
     # Forward Stats (Root Level - Backward Compatibility)
     reps: int = 0
