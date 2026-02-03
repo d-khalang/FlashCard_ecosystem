@@ -2,6 +2,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional, Union
 
+from flashcard.utils.time import iso_z, now_utc
+
 from flashcard.schemas.expression import ExpressionDB
 from flashcard.services.algorithm.priority import calculate_priority
 from flashcard.utils.logger import get_logger
@@ -35,7 +37,7 @@ class ExpressionService:
             return False
 
         # 2. Update User Data
-        current_iso = message_date.isoformat()
+        current_iso = iso_z(now_utc())
         
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
@@ -90,7 +92,7 @@ class ExpressionService:
             
         # 2. Filter new items
         new_items = []
-        current_iso = datetime.now().isoformat()
+        current_iso = iso_z(now_utc())
         
         to_insert = []
         for val in unique_inputs:
@@ -159,15 +161,15 @@ class ExpressionService:
         # Active status (implicit if we only have active ones, but good to be explicit if we add status later)
         # Not sent in last 12 hours
         #TODO: change 12 hours to get from a config file
-        cutoff_time = (datetime.now() - timedelta(hours=12)).isoformat()
+        cutoff_time = iso_z(now_utc() - timedelta(hours=12))
         
-        # We find documents where last_sent_at is null OR last_sent_at < cutoff
-        # Regardless of review mode, if reveresed is checked recently we should not review even if forward is not checked recently
+        # We find documents where last_activity_at is null OR last_activity_at < cutoff (New COOLDOWN field)
+        
         query = {
             "user_id": str(user_id),
             "$or": [
-                {"last_sent_at": None},
-                {"last_sent_at": {"$lt": cutoff_time}}
+                {"last_activity_at": None},
+                {"last_activity_at": {"$lt": cutoff_time}}
             ]
         }
         
@@ -222,7 +224,8 @@ class ExpressionService:
             {"_id": ObjectId(expression_id)},
             {
                 "$set": {
-                    "last_sent_at": datetime.now().isoformat(),
+                    "last_sent_at": iso_z(now_utc()),
+                    "last_activity_at": iso_z(now_utc()),
                     "pending_message_id": message_id
                 }
             }
@@ -236,7 +239,7 @@ class ExpressionService:
             {"user_id": str(user_id)},
             {
                 "$set": {
-                    "last_push_at": datetime.now().isoformat(),
+                    "last_push_at": iso_z(now_utc()),
                     "has_pending": True 
                 }
             },
@@ -275,9 +278,13 @@ class ExpressionService:
         if is_reverse:
              # Need to set fields under "reverse_stats." prefix
              for k, v in updates_dict.items():
-                 mongo_updates[f"reverse_stats.{k}"] = v
+                mongo_updates[f"reverse_stats.{k}"] = v
         else:
             mongo_updates = updates_dict
+
+        # Global updates (Cooldown + Clear Pending)
+        mongo_updates["last_activity_at"] = iso_z(now_utc())
+        mongo_updates["pending_message_id"] = None
             
         await self.cols['expression'].update_one(
             {"_id": ObjectId(expression_id)},

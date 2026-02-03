@@ -1,15 +1,7 @@
-from datetime import datetime, timezone
+from flashcard.utils.time import iso_z, now_utc
 
-UTC = timezone.utc
 ALPHA = 0.30          # EWMA smoothing
 PASS_THRESHOLD = 3    # >=3 counts as success
-
-def now_utc():
-    return datetime.now(UTC)
-
-def iso_z(ts: datetime) -> str:
-    # Ensure it's UTC and format like '2023-01-01T12:00:00Z'
-    return ts.astimezone(UTC).replace(tzinfo=None).isoformat(timespec="seconds") + "Z"
 
 def calculate_new_stats(stats: dict, grade: float, is_reverse: bool = False) -> dict:
     """
@@ -54,5 +46,5 @@ def calculate_new_stats(stats: dict, grade: float, is_reverse: bool = False) -> 
     else:
         # Standard/Forward updates (Root level)
         new_stats_values["last_interaction_at"] = current_time_iso
-        new_stats_values["pending_message_id"] = None
+        # pending_message_id handled in service for global consistency
         return new_stats_values
