@@ -1,14 +1,14 @@
+from typing import Union
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.telegram.utils.lang_labels import label_for
 from flashcard.schemas.expression import ExpressionCard
-
-# Defaults
-DEFAULT_LEVEL = "B1"
-DEFAULT_LANGS = ["en", "fa"]
+from flashcard.services.user import UserService
 
 async def generate_and_render_card(
     llm_service: LLMService,
+    user_service: UserService,
+    user_id: Union[str, int],
     text: str,
 ) -> tuple[str, bool, ExpressionCard]:
     """
@@ -21,18 +21,17 @@ async def generate_and_render_card(
     Returns:
         tuple[str, bool, ExpressionCard]: (rendered_text, success, card_object)
     """
-    # TODO later: load from DB by user_id/chat_id
-    level = DEFAULT_LEVEL
-    langs = DEFAULT_LANGS
+
+    user = await user_service.get_user(user_id)
     
-    lang1_code = langs[0]
-    lang2_code = langs[1] if len(langs) > 1 else ""
+    lang1_code = user.primary_language
+    lang2_code = user.secondary_language
     lang1_label = label_for(lang1_code)
-    lang2_label = label_for(lang2_code) if lang2_code else ""
+    lang2_label = label_for(lang2_code) if lang2_code else None
 
     card = await llm_service.generate_expression_card(
         raw=text,
-        level=level,
+        level=user.target_level,
         lang1_code=lang1_code,
         lang2_code=lang2_code,
         lang1_label=lang1_label,

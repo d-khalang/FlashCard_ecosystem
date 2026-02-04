@@ -43,19 +43,31 @@ class LLMService:
         *,
         level: str,
         lang1_code: str,
-        lang2_code: str,
+        lang2_code: str | None = None,
         lang1_label: str,
-        lang2_label: str,
+        lang2_label: str | None = None,
     ) -> ExpressionCard:
+        # Construct dynamic language lists
+        langs = [lang1_code]
+        if lang2_code:
+            langs.append(lang2_code)
+            
+        labels = [f"- {lang1_label}"]
+        if lang2_code and lang2_label:
+            labels.append(f"- {lang2_label}")
+            
+        target_langs_str = ", ".join(langs)
+        target_labels_str = "\n".join(labels)
+
         prompt = EXPRESSION_PROMPT_TEMPLATE.format(
             raw=raw,
             level=level,
-            lang1_code=lang1_code,
-            lang2_code=lang2_code,
-            lang1_label=lang1_label,
-            lang2_label=lang2_label,
+            target_langs=target_langs_str,
+            target_labels=target_labels_str,
         )
         
+        # logger.info("LLM Prompt: %s", prompt)
+
         client = self._get_client()
         resp = client.models.generate_content(
             model="gemini-2.5-flash-lite",
@@ -95,6 +107,7 @@ class LLMService:
         self,
         words: list[str],
         target_lang: str = "en",
+        target_level: str = "B1",
         story_length: str = "6-10 sentences"
     ) -> StoryResponse:
         """
@@ -102,7 +115,7 @@ class LLMService:
         """
         prompt = STORY_PROMPT_TEMPLATE.format(
             words=", ".join(words),
-            level="A2-B1",
+            level=target_level,
             length=story_length,
             target_lang=target_lang
         )

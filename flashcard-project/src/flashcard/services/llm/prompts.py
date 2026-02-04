@@ -6,10 +6,9 @@ INPUT (raw user text):
 
 USER SETTINGS:
 - Italian level: {level}
-- Preferred translation languages (exact order): {lang1_code}, {lang2_code}
-- Line labels (use EXACTLY these labels):
-  1) {lang1_label}
-  2) {lang2_label}
+- Preferred translation languages (in order): {target_langs}
+- Line labels (use EXACTLY these labels for the translation lines):
+{target_labels}
 
 TASK:
 Return JSON that matches the provided schema.
@@ -24,8 +23,8 @@ OUTPUT RULES:
 2) If the input is understood:
    - success=true
    - def_it: 1–2 sentences Italian definition at the given level; pick the most frequent general sense; <=20 words.
-   - translations: exactly 2 objects, in the same order as user settings:
-       - label must match exactly the provided label.
+   - translations: exactly one translation object per requested language, in the same order.
+       - label must match exactly the provided label for that language.
        - text: 1–2 common translations in the target language.
    - example_it: an everyday Italian sentence using the word/expression (Italian only; no translation).
 

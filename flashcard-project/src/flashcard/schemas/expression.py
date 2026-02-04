@@ -17,7 +17,7 @@ class ExpressionCard(BaseModel):
 
     # When success=true
     def_it: Optional[str] = Field(description="Italian definition at user level")
-    translations: List[TranslationLine] = Field(description="Exactly two items, in user order")
+    translations: List[TranslationLine] = Field(description="List of translations matching the requested languages (1 or 2 items).")
     example_it: Optional[str] = Field(description='Italian example sentence, no translation')
 
     # When success=false

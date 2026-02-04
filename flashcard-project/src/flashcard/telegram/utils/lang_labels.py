@@ -15,4 +15,4 @@ LANG_LABELS: dict[str, str] = {
 
 def label_for(lang: str) -> str:
     lang = (lang or "").strip().lower()
-    return LANG_LABELS.get(lang, f"🏳️ {lang.upper() if lang else '??'}")
+    return LANG_LABELS.get(lang, f"🏳️ {lang.upper()}")
