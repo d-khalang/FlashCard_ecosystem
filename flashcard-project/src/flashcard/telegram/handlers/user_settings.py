@@ -15,6 +15,7 @@ from flashcard.telegram.keyboards import (
 )
 from flashcard.telegram.states.settings import SettingsPrompts
 from flashcard.schemas.languages import normalize_language_input, get_language_flag, get_language_name
+from flashcard.schemas.user import UserDB
 
 router = Router()
 
@@ -24,7 +25,7 @@ async def cmd_settings(message: Message, user_service: UserService):
     
     # Get user data
     user_data = await user_service.get_user(user_id)
-    is_active = user_data.get("is_active")
+    is_active = user_data.is_active
 
     # Get Text
     text = _get_settings_menu_text(user_data)
@@ -75,14 +76,14 @@ async def handle_settings_nav(callback: CallbackQuery, callback_data: SettingsCa
         
     elif section == "set_level":
         user_data = await user_service.get_user(user_id)
-        current = user_data.get("target_level", "")
+        current = user_data.target_level
         text = i18n.get("commands.settings.prompts.level_select")
         kb = get_level_selection_keyboard(current)
         await callback.message.edit_text(text=text, reply_markup=kb)
         
     elif section == "interval":
         user_data = await user_service.get_user(user_id)
-        current = user_data.get("review_interval_minutes")
+        current = user_data.review_interval_minutes
         text = i18n.get("commands.settings.sections.interval")
         kb = get_interval_settings_keyboard(current)
         await callback.message.edit_text(text=text, reply_markup=kb, parse_mode="Markdown")
@@ -114,16 +115,17 @@ async def handle_settings_select(callback: CallbackQuery, callback_data: Setting
         except ValueError:
             pass
             
+
     elif section == "review_mode":
         # Toggle Logic
         user_data = await user_service.get_user(user_id)
-        current_mode = user_data.get("review_mode", "standard")
+        current_mode = user_data.review_mode
         new_mode = "dual" if current_mode == "standard" else "standard"
         
         await user_service.update_setting(user_id, "review_mode", new_mode)
         
         # Update text and keyboard to reflect change
-        user_data["review_mode"] = new_mode # local update for display
+        user_data.review_mode = new_mode # local update for display
         text = _get_settings_menu_text(user_data)
         kb = get_main_settings_keyboard(user_data)
         
@@ -174,20 +176,20 @@ async def answer_setting_prompt(message: Message, state: FSMContext, user_servic
         await state.clear()
 
 
-def _get_settings_menu_text(user_data: dict) -> str:
-    is_active = user_data.get("is_active")
-    primary_lang_code = user_data.get("primary_language", "en")
+def _get_settings_menu_text(user_data: UserDB) -> str:
+    is_active = user_data.is_active
+    primary_lang_code = user_data.primary_language
     primary_lang = f"{get_language_flag(primary_lang_code)} {get_language_name(primary_lang_code)}"
     
-    secondary_lang_code = user_data.get("secondary_language")
+    secondary_lang_code = user_data.secondary_language
     if secondary_lang_code and secondary_lang_code.lower() != "none":
         secondary_lang = f"{get_language_flag(secondary_lang_code)} {get_language_name(secondary_lang_code)}"
     else:
         secondary_lang = "None"
         
-    # TODO: evaluate removing default values, ensuring no source of faliure    
-    target_level = user_data.get("target_level", "A2")
-    review_interval_minutes = user_data.get("review_interval_minutes", 30)
+ 
+    target_level = user_data.target_level
+    review_interval_minutes = user_data.review_interval_minutes
 
     # Get status text
     status_key = "commands.settings.status_active" if is_active else "commands.settings.status_paused"
@@ -201,9 +203,8 @@ def _get_settings_menu_text(user_data: dict) -> str:
     text += i18n.get("commands.settings.menu.target_level", target_level=target_level) + "\n"
     text += i18n.get("commands.settings.menu.review_interval", review_interval_minutes=review_interval_minutes) + "\n"
     
-    review_mode = user_data.get("review_mode", "standard").capitalize()
+    review_mode = user_data.review_mode.capitalize()
     text += f"Review Mode: <b>🔄 {review_mode}</b>"
     
     return text
 
-#TODO: Add dualmode review toggle to settings

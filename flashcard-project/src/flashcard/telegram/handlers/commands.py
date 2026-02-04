@@ -171,7 +171,7 @@ async def cmd_list_my_flashcards(message: Message, expression_service: Expressio
 
 @router.message(Command("story"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_story(message: Message, llm_service: LLMService, expression_service: ExpressionService, logger_bot: Bot):
+async def cmd_story(message: Message, llm_service: LLMService, expression_service: ExpressionService, user_service: UserService, logger_bot: Bot):
     msg_text = message.text or ""
     args = msg_text.split()[1:] # Ignore command
     
@@ -200,11 +200,16 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
         selected_words = expressions[:80]
         
     await message.answer(i18n.get("commands.story.writing", count=len(selected_words)))
-        
+
+    ## TODO: Can be changed to calling a specific util for user level    
+    user = await user_service.get_user(message.from_user.id)
+    target_level = user.level
+    
     try:
         story_response = await llm_service.generate_story(
             words=selected_words, 
             target_lang="en", # Configurable in future
+            target_level=target_level,
             story_length=story_length
         )
     except Exception as e:

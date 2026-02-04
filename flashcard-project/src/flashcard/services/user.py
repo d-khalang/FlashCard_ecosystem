@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional, Union
 from flashcard.utils.logger import get_logger
+from flashcard.schemas.user import UserDB
 
 logger = get_logger(__name__)
 
@@ -56,11 +57,15 @@ class UserService:
             return True
         return user.get("is_active", True)
 
-    async def get_user(self, user_id: Union[str, int]) -> dict:
+    async def get_user(self, user_id: Union[str, int]) -> UserDB:
         """
         Retrieves the full user document.
         """
-        return await self.cols['users'].find_one({"user_id": str(user_id)}) or {}
+        doc = await self.cols['users'].find_one({"user_id": str(user_id)}) or {}
+        if not doc:
+            return UserDB(user_id=str(user_id))
+            
+        return UserDB.model_validate(doc)
 
     async def update_setting(self, user_id: Union[str, int], field: str, value: any):
         """

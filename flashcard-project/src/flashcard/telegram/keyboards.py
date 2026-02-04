@@ -121,7 +121,9 @@ def get_reply_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
 # Settings Keyboards
 # -------------------------------------------------------------------------
 
-def get_main_settings_keyboard(user_data: dict = None) -> InlineKeyboardMarkup:
+from flashcard.schemas.user import UserDB
+
+def get_main_settings_keyboard(user_data: UserDB = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     # 🌍 Language & Level
@@ -133,7 +135,7 @@ def get_main_settings_keyboard(user_data: dict = None) -> InlineKeyboardMarkup:
     # 🔄 Review Mode (Standard/Dual)
     mode = "Standard"
     if user_data:
-        mode = user_data.get("review_mode", "standard").capitalize()
+        mode = user_data.review_mode.capitalize()
         if mode == "Dual": mode = "Dual 🔄" 
         else: mode = "Standard ➡️"
         
@@ -146,13 +148,14 @@ def get_main_settings_keyboard(user_data: dict = None) -> InlineKeyboardMarkup:
     builder.adjust(2, 1, 1) # Language|Interval, Mode, API
     return builder.as_markup()
 
-def get_language_settings_keyboard(current_data: dict) -> InlineKeyboardMarkup:
+def get_language_settings_keyboard(current_data: UserDB) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     # Get Current Settings
-    curr_p = current_data.get("primary_language", "en")
-    curr_s = current_data.get("secondary_language")
-    curr_l = current_data.get("target_level", "A2")
+    # Get Current Settings
+    curr_p = current_data.primary_language
+    curr_s = current_data.secondary_language
+    curr_l = current_data.target_level
     
     # 1. Primary Language (Always has a value or default)
     flag_p = get_language_flag(curr_p)
