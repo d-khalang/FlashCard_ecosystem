@@ -17,11 +17,12 @@ def render_expression_card(card: ExpressionCard) -> Dict[str, str]:
     t1 = card.translations[0] if len(card.translations) > 0 else None
     t2 = card.translations[1] if len(card.translations) > 1 else None
 
-    line2 = f"{t1.label}: {t1.text}" if t1 else "—"
-    line3 = f"{t2.label}: {t2.text}" if t2 else "—"
+    line2 = f"{t1.label}: {t1.text}" if t1 else ""
+    line3 = f"{t2.label}: {t2.text}" if t2 else ""
     line4 = f'🧩 Esempio: "{card.example_it}"'
 
-    return {"success": True, "content": "\n".join([line1, line2, line3, line4])}
+    lines = [line1, line2, line3, line4]
+    return {"success": True, "content": "\n".join(filter(None, lines))}
 
 
 def format_review_message(card: ExpressionCard, value: str, direction: str = "forward") -> str:
@@ -57,7 +58,7 @@ def format_review_message(card: ExpressionCard, value: str, direction: str = "fo
 🧩 Esempio: "{card.example_it or ''}"
 """.strip()
 
-        text = f"🔄 Reverse Review: \n{question_part}\n-----------\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
+        text = f"🔄 Reverse Review 🔄 \n{question_part}\n-----------\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
 
     else:
         # Forward Mode (Standard): Show Word -> Hide Meaning

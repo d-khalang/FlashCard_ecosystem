@@ -14,7 +14,7 @@ class ExpressionService:
     def __init__(self, cols: dict):
         self.cols = cols
 
-    async def add_expression(self, user_id: Union[str, int], value: str, message_date: datetime) -> bool:
+    async def add_expression(self, user_id: Union[str, int], value: str) -> bool:
         """
         Adds a new expression if it doesn't already exist.
         1. Check for duplicates (case-insensitive)
