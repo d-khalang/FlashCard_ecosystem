@@ -22,7 +22,7 @@ OUTPUT RULES:
 
 2) If the input is understood:
    - success=true
-   - def_it: 1–2 sentences Italian definition at the given level; pick the most frequent general sense; <=20 words.
+   - def_it: 1–2 sentences Italian definition at the given level; pick the most frequent general sense; <=20 words; add 1-2 relevant emojis at the end.
    - translations: exactly one translation object per requested language, in the same order.
        - label must match exactly the provided label for that language.
        - text: 1–2 common translations in the target language.
