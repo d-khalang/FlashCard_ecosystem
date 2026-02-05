@@ -53,7 +53,7 @@ def format_review_message(card: ExpressionCard, value: str, direction: str = "fo
         
         # We can put everything else in spoiler to be safe
         spoiler_content = f"""
-🎯 Expression: "{value}"
+🎯 Expression: <b>{value}</b>
 {translations_str.strip()}
 🧩 Esempio: "{card.example_it or ''}"
 """.strip()
