@@ -91,6 +91,12 @@
                 "set_level": "Your Italian Level",
                 "back": "⬅️ Back"
             }
+        },
+        "feedback": {
+            "prompt": "Please write your feedback/message (or type /cancel to cancel):",
+            "placeholder": "Type your message here...",
+            "success": "Message sent! Thank you for your feedback.",
+            "cancelled": "Feedback cancelled."
         }
     },
     "messages": {
