@@ -10,7 +10,7 @@ from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
 from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
-from flashcard.telegram.handlers import messages, commands, callbacks, errors, reply_commands, user_settings
+from flashcard.telegram.handlers import messages, commands, callbacks, errors, reply_commands, user_settings, feedback
 from flashcard.services.expression import ExpressionService
 from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
@@ -33,6 +33,7 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     
     # Include routers
     dp.include_router(user_settings.router)
+    dp.include_router(feedback.router)
     dp.include_router(commands.router)
     dp.include_router(reply_commands.router)
     dp.include_router(messages.router)
@@ -65,7 +66,7 @@ async def init_telegram_bot(app: FastAPI, settings):
     app.state.bot = bot
     app.state.dispatcher = dp
 
-    logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN)
+    logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     app.state.logger_bot = logger_bot
 
     # Initialize Services
@@ -130,7 +131,7 @@ async def close_telegram_bot(app: FastAPI):
 async def init_telegram_without_fastapi(settings):
     bot, dp = build_bot_dispatcher()
 
-    logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN)
+    logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 
     # Initialize Services
     # May later be removed from app.state if not needed globally as they are passed to handlers
