@@ -14,6 +14,7 @@ class UserConsumption(BaseModel):
     saved_today: int = Field(0, description="Number of flashcards saved today")
     story_today: int = Field(0, description="Number of stories generated today")
 
+# TODO: add created_at and last_reviewed_at 
 class UserDB(BaseModel):
     user_id: str = Field(..., description="User ID as string")
     last_push_at: Optional[str] = Field(None, description="ISO timestamp of last push")
