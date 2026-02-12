@@ -58,7 +58,7 @@ def format_review_message(card: ExpressionCard, value: str, direction: str = "fo
 🧩 Esempio: "{card.example_it or ''}"
 """.strip()
 
-        text = f"🔄 Reverse Review 🔄 \n{question_part}\n-----------\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
+        text = f"🔄 Reverse Review 🔄\n-----------\n{question_part}\n-----------\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
 
     else:
         # Forward Mode (Standard): Show Word -> Hide Meaning
