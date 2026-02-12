@@ -274,5 +274,3 @@ async def cmd_unknown(message: Message):
     """
     await message.answer(i18n.get("commands.unknown.message"))
 
-
-#TODO: Add /feedback or talk to admin command
