@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     SCRAPER_URL: str
     SCRAPER_PORT: int
     LOG_LEVEL: str = "INFO"
+    SCHEDULER_CHECK_INTERVAL_SECONDS: int = 600  # 10 minutes
 
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

@@ -100,6 +100,19 @@ async def init_telegram_bot(app: FastAPI, settings):
             llm_service=llm_service
         )
     )
+    
+    # Start scheduler in background
+    from flashcard.scheduler.scheduler import scheduler_loop
+    app.state.scheduler_task = asyncio.create_task(
+        scheduler_loop(
+            bot=bot,
+            logger_bot=logger_bot,
+            expression_service=expression_service,
+            user_service=user_service,
+            llm_service=llm_service,
+            admin_id=settings.ADMIN_ID
+        )
+    )
 
 
 # async def close_telegram_bot(app: FastAPI):
@@ -114,6 +127,14 @@ async def init_telegram_bot(app: FastAPI, settings):
 
 async def close_telegram_bot(app: FastAPI):
     await close_mongo_on_client(app.state.mongo_client)
+    
+    # Stop scheduler task
+    scheduler_task = getattr(app.state, "scheduler_task", None)
+    if scheduler_task:
+        scheduler_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await scheduler_task
+
     # Stop polling task
     task = getattr(app.state, "polling_task", None)
     if task:
@@ -157,16 +178,38 @@ async def init_telegram_without_fastapi(settings):
             llm_service=llm_service
         )
     )
+    
+    # Start scheduler in background
+    from flashcard.scheduler.scheduler import scheduler_loop
+    scheduler_task = asyncio.create_task(
+        scheduler_loop(
+            bot=bot,
+            logger_bot=logger_bot,
+            expression_service=expression_service,
+            user_service=user_service,
+            llm_service=llm_service,
+            admin_id=settings.ADMIN_ID
+        )
+    )
 
     return {
         "mongo_client": mongo_client,
         "bot": bot,
         "logger_bot": logger_bot,
         "http_client": http_client,
-        "polling_task": polling_task
+        "polling_task": polling_task,
+        "scheduler_task": scheduler_task
     }
 
 async def close_telegram_without_fastapi(resources: dict):
+    # Stop scheduler task
+    if "scheduler_task" in resources:
+        task = resources["scheduler_task"]
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+    
+    # Stop polling task
     if "polling_task" in resources:
         task = resources["polling_task"]
         task.cancel()
