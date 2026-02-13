@@ -1,7 +1,7 @@
 from typing import Union
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import render_expression_card
-from flashcard.telegram.utils.lang_labels import label_for
+from flashcard.schemas.languages import get_language_flag
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.services.user import UserService
 
@@ -26,8 +26,8 @@ async def generate_and_render_card(
     
     lang1_code = user.primary_language
     lang2_code = user.secondary_language
-    lang1_label = label_for(lang1_code)
-    lang2_label = label_for(lang2_code) if lang2_code else None
+    lang1_label = get_language_flag(lang1_code)
+    lang2_label = get_language_flag(lang2_code) if lang2_code else None
 
     card = await llm_service.generate_expression_card(
         raw=text,

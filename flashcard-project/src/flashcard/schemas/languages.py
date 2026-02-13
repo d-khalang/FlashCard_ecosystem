@@ -85,7 +85,7 @@ LanguageLevel = Literal["A1", "A2", "B1", "B2", "C1", "C2"]
 # -------------------------------------------------------------------------
 # 5. Helper Functions
 # -------------------------------------------------------------------------
-def get_language_flag(code: str) -> str:
+def get_language_flag(code: str|None) -> str:
     """Returns the flag emoji for a given language code, or a default globe."""
     return LANGUAGE_DATA.get(code, {}).get("flag", "🌍")
 

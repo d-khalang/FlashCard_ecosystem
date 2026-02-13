@@ -1,5 +1,5 @@
 from flashcard.schemas.story import StoryResponse
-from flashcard.telegram.utils.lang_labels import label_for
+from flashcard.schemas.languages import get_language_flag
 
 def format_story_messages(story_response: StoryResponse, target_lang: str = "en") -> list[str]:
     """
@@ -9,7 +9,7 @@ def format_story_messages(story_response: StoryResponse, target_lang: str = "en"
     2. The translation (hidden behind a spoiler) with the language flag.
     """
     messages = []
-    lang_flag = label_for(target_lang)
+    lang_flag = get_language_flag(target_lang)
     
     for paragraph in story_response.paragraphs:
         # 1. Italian Paragraph

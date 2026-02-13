@@ -3,6 +3,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.enums import ChatAction
 
+from flashcard import settings
 from flashcard.services.i18n import i18n
 from flashcard.services.verb import VerbService
 from flashcard.services.expression import ExpressionService
@@ -13,16 +14,16 @@ from flashcard.telegram.ui.story import format_story_messages
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard, get_reply_settings_keyboard
 from flashcard.utils.logger import get_logger
+from flashcard.schemas.languages import get_language_flag
 import random
 
 logger = get_logger(__name__)
 router = Router()
 
-LANG_LEVEL = "A2-B1"
-LANG_1_CODE = "en"
-LANG_2_CODE = "fa"
-LANG_1_LABEL = "🇬🇧 EN"
-LANG_2_LABEL = "🇮🇷 FA"
+# Default settings (used as fallbacks if user preferences not set)
+DEFAULT_LANG_LEVEL = "A2-B1"
+DEFAULT_LANG_1_CODE = "en"
+DEFAULT_LANG_1_LABEL = "🇬🇧 EN"
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -62,30 +63,33 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
     candidate = result["doc"]
     direction = result.get("direction", "forward")
 
-    # 2. Generate content (Definition, Translations, Example)
+    # 2. Get user preferences
+    user = await user_service.get_user(user_id)
+    
+    # 3. Generate content (Definition, Translations, Example)
     try:
-        # Using standard params as requested
+        # Using user preferences
         card = await llm_service.generate_expression_card(
             raw=candidate['value'],
-            level=LANG_LEVEL,
-            lang1_code=LANG_1_CODE,
-            lang2_code=LANG_2_CODE,
-            lang1_label=LANG_1_LABEL, 
-            lang2_label=LANG_2_LABEL
+            level=user.target_level or DEFAULT_LANG_LEVEL,
+            lang1_code=user.primary_language or DEFAULT_LANG_1_CODE,
+            lang2_code=user.secondary_language,
+            lang1_label=get_language_flag(user.primary_language),  
+            lang2_label=get_language_flag(user.secondary_language)  
         )
     except Exception as e:
         logger.error(f"Error generating card for {candidate['value']}: {e}")
         await message.answer(i18n.get("commands.get.generation_error"))
         return
 
-    # 3. Format Message
+    # 4. Format Message
     # We pass direction to formatter to decide what to show/hide
     text = format_review_message(card, candidate['value'], direction=direction)
 
-    # 4. Keyboard
+    # 5. Keyboard
     keyboard = get_review_keyboard(str(candidate['_id']), direction=direction)
     
-    # 5. Send & Update
+    # 6. Send & Update
     sent_msg = await message.answer(text, reply_markup=keyboard)
     
     # Update DB

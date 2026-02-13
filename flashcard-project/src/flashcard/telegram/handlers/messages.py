@@ -7,7 +7,6 @@ from aiogram import flags
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.telegram.keyboards import expression_action_kb
-from flashcard.telegram.utils.lang_labels import label_for
 from flashcard.telegram.utils.card_generator import generate_and_render_card
 from flashcard.services.i18n import i18n
 from flashcard.services.user import UserService
