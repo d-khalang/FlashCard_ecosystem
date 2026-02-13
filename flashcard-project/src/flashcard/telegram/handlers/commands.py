@@ -3,7 +3,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.enums import ChatAction
 
-from flashcard import settings
+from flashcard.settings import settings
 from flashcard.services.i18n import i18n
 from flashcard.services.verb import VerbService
 from flashcard.services.expression import ExpressionService

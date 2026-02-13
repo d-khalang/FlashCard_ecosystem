@@ -5,7 +5,7 @@ from aiogram.enums import ChatAction
 from contextlib import suppress
 from datetime import datetime
 
-from flashcard import settings
+from flashcard.settings import settings
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback

@@ -40,3 +40,4 @@ def get_setting() -> Settings:
 
 
 settings = get_setting()
+print("admin id: ", settings.ADMIN_ID)
