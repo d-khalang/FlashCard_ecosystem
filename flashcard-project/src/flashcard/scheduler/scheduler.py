@@ -186,11 +186,11 @@ async def send_admin_metrics(
             user_id = failure['user_id']
             error = failure['error']
             # Truncate error message to first 100 chars
-            error_snippet = error[:100] + "..." if len(error) > 100 else error
+            error_snippet = error[:300] + "..." if len(error) > 300 else error
             failure_line = f"• {user_id}: {error_snippet}\n"
             
             # Split message if too long
-            if len(current_msg + failure_line) > 4000:
+            if len(current_msg + failure_line) > 3700:
                 messages.append(current_msg)
                 current_msg = f"<b>Failed Users (continued):</b>\n" + failure_line
             else:
