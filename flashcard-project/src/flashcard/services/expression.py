@@ -291,12 +291,14 @@ class ExpressionService:
             {"$set": mongo_updates}
         )
         
-        # 4. Update User (has_pending = False)
-        # Only clear pending if this was the pending item? 
-        # For now assume mostly one flow.
+        # 4. Update User (has_pending = False, last_reviewed_at)
+        # Track when user last interacted with a review for scheduler timing
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
-            {"$set": {"has_pending": False}}
+            {"$set": {
+                "has_pending": False,
+                "last_reviewed_at": iso_z(now_utc())
+            }}
         )
         
         # Return updated document (merged) for UI - approximate sync

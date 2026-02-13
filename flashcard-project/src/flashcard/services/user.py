@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, Union
 from flashcard.utils.logger import get_logger
 from flashcard.schemas.user import UserDB
+from flashcard.utils.time import iso_z, now_utc
 
 logger = get_logger(__name__)
 
@@ -17,7 +18,7 @@ class UserService:
             {"user_id": str(user_id)},
             {
                 "$set": {
-                    "last_push_at": datetime.now().isoformat(),
+                    "last_push_at": iso_z(now_utc()),
                     "has_pending": True 
                 }
             },
