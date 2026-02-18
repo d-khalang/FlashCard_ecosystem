@@ -122,7 +122,7 @@ class VerbService:
 
         except Exception as e:
             logger.error(f"Failed to get verb from api: {e}")
-            return None
+            raise
 
 
     async def _save_verb_to_db(self, verb: str, data: ConjugationResponse):

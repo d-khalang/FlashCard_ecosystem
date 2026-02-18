@@ -10,20 +10,22 @@ from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
 from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
-from flashcard.telegram.handlers import messages, commands, callbacks, errors, reply_commands, user_settings, feedback
+from flashcard.telegram.handlers import (
+    user_settings, 
+    feedback, 
+    reply_commands,
+    start,
+    review,
+    verb,
+    story,
+    collection,
+    unknown,
+    creation,
+    errors
+)
 from flashcard.services.expression import ExpressionService
 from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
-
-# def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
-#     bot = Bot(token=settings.BOT_TOKEN)
-#     dp = Dispatcher()
-    
-#     # Include routers
-#     dp.include_router(messages.router)
-#     dp.include_router(callbacks.router)
-    
-#     return bot, dp
 
 def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -31,36 +33,31 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
 
     dp.message.middleware(ChatActionMiddleware())
     
-    # Include routers
+    # Include routers in strict order of priority
+    # 1. Settings & Feedback (High priority FSMs)
     dp.include_router(user_settings.router)
     dp.include_router(feedback.router)
-    dp.include_router(commands.router)
+    
+    # 2. Reply Commands (Text replies that map to commands)
     dp.include_router(reply_commands.router)
-    dp.include_router(messages.router)
-    dp.include_router(callbacks.router)
+    
+    # 3. Domain Features
+    dp.include_router(start.router)      # /start, /help
+    dp.include_router(review.router)     # /get + grade callback
+    dp.include_router(verb.router)       # /verb + conjugation callback
+    dp.include_router(story.router)      # /story
+    dp.include_router(collection.router) # /import, /list_my_flashcards
+    
+    # 4. Unknown Commands (catch-all for unrecognized /commands)
+    dp.include_router(unknown.router)
+    
+    # 5. Content Creation (Catch-all for text messages)
+    dp.include_router(creation.router)
+    
+    # 6. Errors (Last resort)
     dp.include_router(errors.router)
 
     return bot, dp
-
-
-# async def init_telegram_bot(app: FastAPI, settings):
-#     bot, dp = build_bot_dispatcher()
-    
-#     # Store in app.state for access in handlers/other parts of the app
-#     app.state.bot = bot
-#     app.state.dispatcher = dp
-    
-#     # Set webhook
-#     webhook_url = settings.webhook_url
-#     print(f"Setting webhook to: {webhook_url}")
-#     await bot.set_webhook(
-#         url=webhook_url,
-#         secret_token=settings.WEBHOOK_SECRET,
-#         drop_pending_updates=True, # optional, good for dev
-#         allowed_updates=["message", "callback_query"]
-#     )
-
-
 async def init_telegram_bot(app: FastAPI, settings):
     bot, dp = build_bot_dispatcher()
     app.state.bot = bot
@@ -87,6 +84,16 @@ async def init_telegram_bot(app: FastAPI, settings):
     app.state.user_service = user_service
     app.state.llm_service = llm_service
 
+    # Webhook vs Polling
+    # Use polling by default unless WEBHOOK_URL is set/configured
+    # For now, we keep the existing logic: polling in background task
+    
+    # If we wanted to enable webhook:
+    # webhook_url = settings.WEBHOOK_URL
+    # if webhook_url:
+    #     await bot.set_webhook(...)
+    # else:
+    
     # Run polling in background
     app.state.polling_task = asyncio.create_task(
         dp.start_polling(
@@ -113,16 +120,6 @@ async def init_telegram_bot(app: FastAPI, settings):
             admin_id=settings.ADMIN_ID
         )
     )
-
-
-# async def close_telegram_bot(app: FastAPI):
-#     # Retrieve bot from state
-#     bot: Bot = app.state.bot
-#     
-#     # Shutdown
-#     print("Deleting webhook...")
-#     await bot.delete_webhook()
-#     await bot.session.close()
 
 
 async def close_telegram_bot(app: FastAPI):
