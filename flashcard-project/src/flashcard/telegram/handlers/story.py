@@ -44,19 +44,15 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
         random.shuffle(expressions)
         selected_words = expressions[:80]
         
-        random.shuffle(expressions)
-        selected_words = expressions[:80]
-        
     await message.answer(i18n.get("commands.story.writing", count=len(selected_words)))
 
-    ## TODO: Can be changed to calling a specific util for user level    
     user = await user_service.get_user(message.from_user.id)
-    target_level = user.level
+    target_level = user.target_level
     
     try:
         story_response = await llm_service.generate_story(
             words=selected_words, 
-            target_lang="en", # Configurable in future
+            target_lang=user.primary_language,
             target_level=target_level,
             story_length=story_length
         )
@@ -67,7 +63,7 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
         return
 
     # Send paragraphs
-    messages = format_story_messages(story_response, target_lang="en")
+    messages = format_story_messages(story_response, target_lang=user.primary_language)
     
     for text in messages:
         await message.answer(text)
