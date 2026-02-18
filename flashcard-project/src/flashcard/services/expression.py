@@ -168,8 +168,9 @@ class ExpressionService:
         query = {
             "user_id": str(user_id),
             "$or": [
-                {"last_activity_at": None},
-                {"last_activity_at": {"$lt": cutoff_time}}
+                {"last_activity_at": {"$lt": cutoff_time}},
+                # Never interacted: use created_at as cooldown reference
+                {"last_activity_at": None, "created_at": {"$lt": cutoff_time}}
             ]
         }
         
