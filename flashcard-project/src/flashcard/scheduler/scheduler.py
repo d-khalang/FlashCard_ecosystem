@@ -1,4 +1,5 @@
 import asyncio
+import html
 from datetime import datetime, timedelta
 from typing import Optional
 from aiogram import Bot
@@ -18,10 +19,7 @@ logger = get_logger(__name__)
 # Scheduler configuration
 SCHEDULER_CHECK_INTERVAL_SECONDS = settings.SCHEDULER_CHECK_INTERVAL_SECONDS
 
-# Default language settings (overridden by user preferences)
-DEFAULT_LANG_1_CODE = "en"
-DEFAULT_LANG_1_LABEL = "🇬🇧 EN"
-DEFAULT_LANG_LEVEL = "A2-B1"
+from flashcard.schemas.defaults import DEFAULT_LANG_LEVEL, DEFAULT_LANG_1_CODE, DEFAULT_LANG_1_LABEL, DEFAULT_SCHEDULER_INTERVAL_MINUTES
 
 
 async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
@@ -44,7 +42,7 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
     # Use minimum possible interval (e.g., 30 minutes) as a conservative cutoff for MongoDB query
     # This filters out definitely-not-due users at database level for performance
     # We still check exact intervals per-user in Python since intervals vary by user
-    min_interval_minutes = 30  # Shortest interval we support
+    min_interval_minutes = DEFAULT_SCHEDULER_INTERVAL_MINUTES
     cutoff_time = (now - timedelta(minutes=min_interval_minutes)).isoformat()
     
     # Optimized MongoDB query: pre-filter by approximate timing
@@ -249,7 +247,7 @@ async def scheduler_loop(
                     
                 except Exception as e:
                     # Log error but continue to next user
-                    error_msg = f"{type(e).__name__}: {str(e)}"
+                    error_msg = f"{type(e).__name__}: {html.escape(str(e))}"
                     logger.error(f"Failed to send review to user {user.user_id}: {error_msg}")
                     failed_details.append({
                         "user_id": user.user_id,
@@ -277,7 +275,8 @@ async def scheduler_loop(
             # Catch loop-level errors (e.g., database connection issues)
             logger.error(f"Scheduler loop error: {e}", exc_info=True)
             try:
-                await logger_bot.send_message(admin_id, f"🚨 <b>Scheduler Loop Error</b>\n\n{type(e).__name__}: {str(e)}")
+                error_text = html.escape(f"{type(e).__name__}: {str(e)[:300]}")
+                await logger_bot.send_message(admin_id, f"🚨 <b>Scheduler Loop Error</b>\n\n{error_text}")
             except Exception as notify_error:
                 logger.error(f"Failed to notify admin about scheduler error: {notify_error}")
         
