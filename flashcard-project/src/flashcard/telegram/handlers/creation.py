@@ -40,7 +40,7 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
     saved = await expression_service.add_expression(user_id, norm)
 
     if saved:
-        print("Saved to collection received!")
+        logger.info(f"Saved to collection received for user {user_id}!")
         await callback.answer(i18n.get("callbacks.save.success_message"), show_alert=True)
         # Edit message to show saved status
         # Just extra check, could be omitted
