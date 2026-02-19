@@ -7,6 +7,7 @@ from flashcard.settings import settings
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.user import UserService
+from flashcard.services.consumption import ConsumptionService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.story import format_story_messages
 from flashcard.utils.logger import get_logger
@@ -19,7 +20,7 @@ router = Router()
 
 @router.message(Command("story"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_story(message: Message, llm_service: LLMService, expression_service: ExpressionService, user_service: UserService, logger_bot: Bot):
+async def cmd_story(message: Message, llm_service: LLMService, expression_service: ExpressionService, user_service: UserService, consumption_service: ConsumptionService, logger_bot: Bot):
     msg_text = message.text or ""
     args = msg_text.split()[1:] # Ignore command
     
@@ -67,3 +68,6 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
     
     for text in messages:
         await message.answer(text)
+    
+    # Track consumption
+    await consumption_service.increment(message.from_user.id, "stories_generated", uses_own_key=user.api_config is not None)

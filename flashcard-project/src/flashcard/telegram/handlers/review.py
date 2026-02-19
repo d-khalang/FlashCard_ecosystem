@@ -7,6 +7,7 @@ from flashcard.settings import settings
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.user import UserService
+from flashcard.services.consumption import ConsumptionService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard
@@ -24,7 +25,7 @@ router = Router()
 # about the the last interaction if it was reveresed. semantically wrong. last sent!!!
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService):
+async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
     """
     Handle /get command to review a flashcard.
     """
@@ -75,6 +76,9 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
     # Update DB
     await expression_service.update_expression_sent(str(candidate['_id']), sent_msg.message_id)
     await user_service.update_user_last_push(user_id)
+    
+    # Track consumption
+    await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)
 
 
 @router.callback_query(GradeCallback.filter())

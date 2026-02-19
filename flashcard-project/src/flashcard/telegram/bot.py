@@ -26,6 +26,7 @@ from flashcard.telegram.handlers import (
 from flashcard.services.expression import ExpressionService
 from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
+from flashcard.services.consumption import ConsumptionService
 
 def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -79,9 +80,11 @@ async def init_telegram_bot(app: FastAPI, settings):
     verb_service = VerbService(cols=app.state.cols, http_client=app.state.http_client)
     expression_service = ExpressionService(cols=app.state.cols)
     user_service = UserService(cols=app.state.cols)
+    consumption_service = ConsumptionService(cols=app.state.cols)
     llm_service = LLMService()
     app.state.expression_service = expression_service
     app.state.user_service = user_service
+    app.state.consumption_service = consumption_service
     app.state.llm_service = llm_service
 
     # Webhook vs Polling
@@ -104,6 +107,7 @@ async def init_telegram_bot(app: FastAPI, settings):
             verb_service=verb_service,
             expression_service=expression_service,
             user_service=user_service,
+            consumption_service=consumption_service,
             llm_service=llm_service
         )
     )
@@ -116,6 +120,7 @@ async def init_telegram_bot(app: FastAPI, settings):
             logger_bot=logger_bot,
             expression_service=expression_service,
             user_service=user_service,
+            consumption_service=consumption_service,
             llm_service=llm_service,
             admin_id=settings.ADMIN_ID
         )
@@ -160,6 +165,7 @@ async def init_telegram_without_fastapi(settings):
     verb_service = VerbService(cols=cols, http_client=http_client)
     expression_service = ExpressionService(cols=cols)
     user_service = UserService(cols=cols)
+    consumption_service = ConsumptionService(cols=cols)
     llm_service = LLMService()
 
     # Run polling in background
@@ -172,6 +178,7 @@ async def init_telegram_without_fastapi(settings):
             verb_service=verb_service,
             expression_service=expression_service,
             user_service=user_service,
+            consumption_service=consumption_service,
             llm_service=llm_service
         )
     )
@@ -184,6 +191,7 @@ async def init_telegram_without_fastapi(settings):
             logger_bot=logger_bot,
             expression_service=expression_service,
             user_service=user_service,
+            consumption_service=consumption_service,
             llm_service=llm_service,
             admin_id=settings.ADMIN_ID
         )
