@@ -9,10 +9,17 @@ class UserAPIConfig(BaseModel):
     api_key: str = Field(..., description="API Key")
 
 
+class LLMUsage(BaseModel):
+    """Tracks LLM API call counts (daily)."""
+    cards_generated: int = Field(0, description="Card generations (text→card, regen, /get, scheduled)")
+    stories_generated: int = Field(0, description="Story generations (/story)")
+
 class UserConsumption(BaseModel):
-    review_today: int = Field(0, description="Number of reviews done today")
-    saved_today: int = Field(0, description="Number of flashcards saved today")
-    story_today: int = Field(0, description="Number of stories generated today")
+    """Daily consumption tracking with lazy reset."""
+    consumption_date: Optional[str] = Field(None, description="ISO date of current daily counters (e.g. '2026-02-19')")
+    system_api: LLMUsage = Field(LLMUsage(), description="Usage on system API keys (tier-limited)")
+    user_api: LLMUsage = Field(LLMUsage(), description="Usage on user's own API keys")
+    verb_lookups: int = Field(0, description="Third-party verb API lookups")
 
 class UserDB(BaseModel):
     user_id: str = Field(..., description="User ID as string")
