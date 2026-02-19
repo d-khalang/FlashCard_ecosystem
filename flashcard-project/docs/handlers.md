@@ -118,7 +118,7 @@ Finite State Machine states for multi-step conversations:
 
 | File | Purpose |
 |------|---------|
-| [`card_generator.py`](../src/flashcard/telegram/helpers/card_generator.py) | `generate_and_render_card()` — orchestrates LLM call + message formatting for card creation/regeneration |
+| [`card_generator.py`](../src/flashcard/telegram/helpers/card_generator.py) | `generate_and_render_card()` — orchestrates LLM call + formatting. Returns `(content, success, card, user)`. |
 
 ## i18n Strings
 
