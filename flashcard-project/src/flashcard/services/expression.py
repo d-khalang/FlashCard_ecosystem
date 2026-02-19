@@ -6,7 +6,9 @@ from flashcard.utils.time import iso_z, now_utc
 
 from flashcard.schemas.expression import ExpressionDB
 from flashcard.services.algorithm.priority import calculate_priority
+from flashcard.services.algorithm.grading import calculate_new_stats
 from flashcard.utils.logger import get_logger
+from bson import ObjectId
 
 logger = get_logger(__name__)
 
@@ -69,14 +71,8 @@ class ExpressionService:
         if not expressions:
             return []
 
-        # 1. Normalize input: remove duplicates within the user input inside logic if needed,
-        # but existing logic below handles one-by-one check against DB or bulk check.
-        # Let's do a bulk check for existing items to minimize DB reads.
-        
+        # 1. Normalize input: remove duplicates within the user input inside logic if needed,        
         # We need case-insensitive check. 
-        # Constructing a large $or regex query can be heavy if list is huge, 
-        # but for typical telegram message (< 4096 chars), it's reasonable (e.g. max ~50-100 items).
-        
         unique_inputs = list(set(expressions))
         regex_list = [re.compile(f"^{re.escape(v)}$", re.I) for v in unique_inputs]
         
@@ -220,7 +216,6 @@ class ExpressionService:
         """
         Updates the expression after it has been sent to the user.
         """
-        from bson import ObjectId
         await self.cols['expression'].update_one(
             {"_id": ObjectId(expression_id)},
             {
@@ -251,8 +246,6 @@ class ExpressionService:
         """
         Updates the expression with the new grade stats.
         """
-        from bson import ObjectId
-        from flashcard.services.algorithm.grading import calculate_new_stats
 
         if not (0 <= grade <= 5):
             logger.warning(f"Invalid grade {grade} for user {user_id}")
@@ -277,9 +270,13 @@ class ExpressionService:
         # 3. Apply Updates
         mongo_updates = {}
         if is_reverse:
-             # Need to set fields under "reverse_stats." prefix
-             for k, v in updates_dict.items():
-                mongo_updates[f"reverse_stats.{k}"] = v
+            if doc.get("reverse_stats") is None:
+                # reverse_stats is null — set the whole object at once
+                mongo_updates["reverse_stats"] = updates_dict
+            else:
+                # reverse_stats exists — use dot-notation for partial update
+                for k, v in updates_dict.items():
+                    mongo_updates[f"reverse_stats.{k}"] = v
         else:
             mongo_updates = updates_dict
 
