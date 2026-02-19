@@ -8,6 +8,7 @@ from flashcard.schemas.user import UserDB
 from flashcard.schemas.languages import get_language_flag
 from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
+from flashcard.services.consumption import ConsumptionService
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard
@@ -86,7 +87,8 @@ async def send_scheduled_review(
     user: UserDB,
     expression_service: ExpressionService,
     llm_service: LLMService,
-    user_service: UserService
+    user_service: UserService,
+    consumption_service: ConsumptionService,
 ) -> None:
     """
     Sends a scheduled review to a user.
@@ -133,6 +135,9 @@ async def send_scheduled_review(
     # 6. Update database
     await expression_service.update_expression_sent(str(candidate['_id']), sent_msg.message_id)
     await user_service.update_user_last_push(user_id)
+    
+    # Track consumption
+    await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)
     
     logger.info(f"Scheduled review sent to user {user_id}: {candidate['value']}")
 
@@ -210,6 +215,7 @@ async def scheduler_loop(
     logger_bot: Bot,
     expression_service: ExpressionService,
     user_service: UserService,
+    consumption_service: ConsumptionService,
     llm_service: LLMService,
     admin_id: int
 ) -> None:
@@ -241,7 +247,8 @@ async def scheduler_loop(
                         user=user,
                         expression_service=expression_service,
                         llm_service=llm_service,
-                        user_service=user_service
+                        user_service=user_service,
+                        consumption_service=consumption_service,
                     )
                     successful_ids.append(user.user_id)
                     
