@@ -5,6 +5,7 @@ from aiogram.enums import ChatAction
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
+from flashcard.services.consumption import ConsumptionService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.telegram.keyboards import expression_action_kb
@@ -17,10 +18,13 @@ router = Router()
 
 @router.message(F.text)
 @flags.chat_action(ChatAction.TYPING)
-async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService):
+async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
     status_msg = await message.answer(i18n.get("messages.working"))
 
-    text, success, card = await generate_and_render_card(llm_service, user_service, message.from_user.id, message.text)
+    text, success, card, user = await generate_and_render_card(llm_service, user_service, message.from_user.id, message.text)
+    
+    if success:
+        await consumption_service.increment(message.from_user.id, "cards_generated", uses_own_key=user.api_config is not None)
     
     kb = expression_action_kb(card.norm) if success else None
     
@@ -72,16 +76,17 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
 
 @router.callback_query(F.data.startswith("regen:"))
 @flags.chat_action(ChatAction.TYPING)
-async def handle_regen(callback: CallbackQuery, llm_service: LLMService, user_service: UserService):
+async def handle_regen(callback: CallbackQuery, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
     callback_markup = callback.message.reply_markup
     await callback.message.edit_text(i18n.get("callbacks.regen.working"))
 
     expression = callback.data.split(":", 1)[1]
     user_id = callback.from_user.id
 
-    text, success, card = await generate_and_render_card(llm_service, user_service, user_id, expression)
+    text, success, card, user = await generate_and_render_card(llm_service, user_service, user_id, expression)
 
     if success:
+        await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)
         await callback.message.edit_text(
             text=text,
             reply_markup=callback_markup
