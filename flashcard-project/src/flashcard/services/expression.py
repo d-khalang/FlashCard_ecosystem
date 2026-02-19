@@ -150,7 +150,7 @@ class ExpressionService:
     async def get_review_candidate(self, user_id: Union[str, int]) -> Optional[dict]:
         """
         Selects the best expression for review based on priority algorithm.
-        Filters out expressions sent in the last 8 hours.
+        Filters out expressions sent in the last 12 hours.
         Returns dictionay with 'doc' (ExpressionDB) and 'direction' ('forward' or 'reverse')
         """
         # 0. Get user review mode
