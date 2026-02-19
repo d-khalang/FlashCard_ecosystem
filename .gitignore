@@ -13,5 +13,5 @@ build/
 *llm_key.json
 generate_tree.py
 
-docs/
+private-docs/
 tests/
