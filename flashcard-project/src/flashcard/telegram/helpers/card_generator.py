@@ -16,8 +16,10 @@ async def generate_and_render_card(
     
     Args:
         llm_service: Instance of LLMService.
+        user_service: Instance of UserService.
+        user_id: User ID.
         text: Input text (raw or normalized).
-        
+
     Returns:
         tuple[str, bool, ExpressionCard]: (rendered_text, success, card_object)
     """
