@@ -201,10 +201,10 @@ Services are injected into handlers via aiogram's middleware system. In `bot.py`
 
 ```python
 # In bot.py
-dp.start_polling(bot, expression_service=expression_service, user_service=user_service, ...)
+dp.start_polling(bot, expression_service=expression_service, user_service=user_service, consumption_service=consumption_service, ...)
 
 # In any handler — aiogram injects automatically by parameter name
-async def cmd_get(message: Message, expression_service: ExpressionService, user_service: UserService):
+async def cmd_get(message: Message, expression_service: ExpressionService, user_service: UserService, consumption_service: ConsumptionService):
     ...
 ```
 

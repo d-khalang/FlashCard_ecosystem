@@ -88,7 +88,30 @@ Defined in [`schemas/user.py`](../src/flashcard/schemas/user.py):
 | `last_push_at` | `str?` | `None` | ISO timestamp of last push |
 | `last_reviewed_at` | `str?` | `None` | ISO timestamp of last review |
 | `api_config` | `UserAPIConfig?` | `None` | Custom LLM provider/model/key config |
-| `consumption` | `UserConsumption` | `{0,0,0}` | Daily usage counters (reviews, saves, stories) |
+| `consumption` | `UserConsumption` | `{...}` | Nested usage counters (`cards_generated`, etc.) with daily reset |
+
+---
+
+## ConsumptionService
+
+**File:** [`services/consumption.py`](../src/flashcard/services/consumption.py)
+**Collection:** `users` (subdocument `consumption`)
+**Dependencies:** `cols`
+
+Tracks resource usage (LLM tokens, API calls) with lazy daily resets.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `increment` | `(user_id, metric, uses_own_key=False)` | Increments a daily counter. Auto-resets if day changed. |
+| `get_consumption` | `(user_id) → UserConsumption` | Returns current usage stats. Auto-resets if stale. |
+
+### Metrics
+
+| Metric | Bucket | Description |
+|--------|--------|-------------|
+| `cards_generated` | `system_api` / `user_api` | LLM card generations (text→card, regen, /get, scheduled) |
+| `stories_generated` | `system_api` / `user_api` | LLM story generations (/story) |
+| `verb_lookups` | top-level | Third-party verb scraper calls (always system-side) |
 
 ---
 
