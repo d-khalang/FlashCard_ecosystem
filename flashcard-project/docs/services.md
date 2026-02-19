@@ -87,6 +87,8 @@ Defined in [`schemas/user.py`](../src/flashcard/schemas/user.py):
 | `has_pending` | `bool` | `False` | Whether user has pending reviews |
 | `last_push_at` | `str?` | `None` | ISO timestamp of last push |
 | `last_reviewed_at` | `str?` | `None` | ISO timestamp of last review |
+| `api_config` | `UserAPIConfig?` | `None` | Custom LLM provider/model/key config |
+| `consumption` | `UserConsumption` | `{0,0,0}` | Daily usage counters (reviews, saves, stories) |
 
 ---
 
@@ -207,7 +209,7 @@ The `calculate_new_stats(stats, grade, is_reverse=False)` function updates SRS s
 
 | Constant | Value | Used by |
 |----------|-------|---------|
-| `DEFAULT_LANG_LEVEL` | `"A2"` | Review card generation, scheduler |
+| `DEFAULT_LANG_LEVEL` | `"A2-B1"` | Review card generation, scheduler |
 | `DEFAULT_LANG_1_CODE` | `"en"` | Fallback language code |
-| `DEFAULT_LANG_1_LABEL` | `"🇬🇧"` | Fallback language flag |
+| `DEFAULT_LANG_1_LABEL` | `"🇬🇧 EN"` | Fallback language flag |
 | `DEFAULT_SCHEDULER_INTERVAL_MINUTES` | `30` | Scheduler review cutoff |

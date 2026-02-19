@@ -70,9 +70,9 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `DEFAULT_LANG_LEVEL` | `"A2"` | Fallback CEFR level for card generation |
+| `DEFAULT_LANG_LEVEL` | `"A2-B1"` | Fallback CEFR level for card generation |
 | `DEFAULT_LANG_1_CODE` | `"en"` | Fallback primary language code |
-| `DEFAULT_LANG_1_LABEL` | `"🇬🇧"` | Fallback primary language flag |
+| `DEFAULT_LANG_1_LABEL` | `"🇬🇧 EN"` | Fallback primary language flag |
 | `DEFAULT_SCHEDULER_INTERVAL_MINUTES` | `30` | Minimum review interval for scheduler query |
 
 ---
