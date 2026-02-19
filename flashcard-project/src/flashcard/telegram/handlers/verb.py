@@ -9,9 +9,11 @@ from aiogram.exceptions import TelegramBadRequest
 from flashcard.settings import settings
 
 from flashcard.services.verb import VerbService
-from flashcard.telegram.ui.verb import format_verb_conjugation
+from flashcard.telegram.ui.verb import format_verb_conjugation, format_verb_message
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.services.i18n import i18n
+from flashcard.services.consumption import ConsumptionService
+from flashcard.telegram.keyboards import get_verb_keyboard
 from flashcard.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -20,7 +22,7 @@ router = Router()
 
 @router.message(Command("verb"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_verb(message: Message, verb_service: VerbService, logger_bot: Bot):
+async def cmd_verb(message: Message, verb_service: VerbService, consumption_service: ConsumptionService, logger_bot: Bot):
     """
     Handle /verb command.
     """
@@ -57,13 +59,13 @@ async def cmd_verb(message: Message, verb_service: VerbService, logger_bot: Bot)
 
     # Editing searching message
     # 4. Return success response
-    from flashcard.telegram.ui.verb import format_verb_message
-    from flashcard.telegram.keyboards import get_verb_keyboard
-    
     formatted_text = format_verb_message(verb_data)
     keyboard = get_verb_keyboard(verb_data)
     
     await status_msg.edit_text(text=formatted_text, reply_markup=keyboard)
+    
+    # Track consumption (verb lookups always use system/third-party)
+    await consumption_service.increment(message.from_user.id, "verb_lookups")
 
 
 @router.callback_query(VerbCallback.filter())
