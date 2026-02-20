@@ -62,6 +62,7 @@ flashcard-project/src/flashcard/
 │   └── import_model.py      # Import parsing model
 │
 ├── services/                # Business logic
+│   ├── trace_logger.py      # Flat-file async execution tracing
 │   ├── expression.py        # CRUD + review candidate selection
 │   ├── user.py              # User CRUD + settings
 │   ├── verb.py              # Verb lookup (DB cache + scraper API)
@@ -77,6 +78,8 @@ flashcard-project/src/flashcard/
 │
 ├── telegram/                # Telegram bot layer
 │   ├── bot.py               # Bot & dispatcher setup, service wiring
+│   ├── middlewares/         # aiogram middlewares
+│   │   └── trace_middleware.py # Injects trace context per update
 │   ├── keyboards.py         # Reply keyboard builder
 │   ├── handlers/            # Command, callback & message handlers
 │   ├── helpers/             # Telegram-specific utilities
@@ -91,6 +94,7 @@ flashcard-project/src/flashcard/
 │
 ├── utils/                   # General utilities
 │   ├── logger.py            # Logging setup
+│   ├── tracing.py           # Trace/span models & @observe decorator
 │   └── time.py              # UTC time helpers
 │
 └── resources/               # Static resources

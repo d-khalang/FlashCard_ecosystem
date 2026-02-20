@@ -11,6 +11,7 @@ graph TD
     H --> VS[VerbService]
     H --> LLM[LLMService]
     H --> I18N[I18nService]
+    H -.-> TL[TraceLogger]
     
     ES --> DB[(MongoDB)]
     US --> DB
@@ -138,6 +139,21 @@ Handles all LLM-powered features using Google Gemini with structured JSON output
 |------|---------|
 | [`llm_key.py`](../src/flashcard/services/llm/llm_key.py) | API key resolution from env vars |
 | [`prompts.py`](../src/flashcard/services/llm/prompts.py) | System prompt templates for each LLM task |
+
+---
+
+## TraceLogger
+
+**File:** [`services/trace_logger.py`](../src/flashcard/services/trace_logger.py)  
+
+Writes execution traces to flat files in JSON Lines format for performance monitoring.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `log_trace` | `(trace_data: TraceData)` | Writes a completed trace to the active log file asynchronously on a background thread. |
+| `shutdown` | `()` | Ensures all pending logs are flushed to disk before application exit. |
+
+Traces are automatically rotated and keep track of latencies, token usage, errors, and nested `@observe` spans.
 
 ---
 
