@@ -14,6 +14,7 @@ from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.utils.logger import get_logger
 from flashcard.settings import settings
+from flashcard.utils.time import now_utc, iso_z
 
 logger = get_logger(__name__)
 
@@ -38,13 +39,14 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
     """
     
     
-    now = datetime.now()
+    now = now_utc()
     
     # Use minimum possible interval (e.g., 30 minutes) as a conservative cutoff for MongoDB query
     # This filters out definitely-not-due users at database level for performance
     # We still check exact intervals per-user in Python since intervals vary by user
+    # TODO: must be dynamic based on user's review_interval_minutes
     min_interval_minutes = DEFAULT_SCHEDULER_INTERVAL_MINUTES
-    cutoff_time = (now - timedelta(minutes=min_interval_minutes)).isoformat()
+    cutoff_time = iso_z(now - timedelta(minutes=min_interval_minutes))
     
     # Optimized MongoDB query: pre-filter by approximate timing
     users_cursor = user_service.cols['users'].find({
@@ -74,7 +76,7 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
         last_reviewed_dt = datetime.fromisoformat(last_reviewed.replace('Z', '+00:00'))
         
         # Calculate time elapsed
-        elapsed_seconds = (now - last_reviewed_dt.replace(tzinfo=None)).total_seconds()
+        elapsed_seconds = (now - last_reviewed_dt).total_seconds()
         
         if elapsed_seconds >= interval_minutes * 60:
             users_due.append(user)
@@ -230,7 +232,7 @@ async def scheduler_loop(
     logger.info(f"Scheduler started. Check interval: {SCHEDULER_CHECK_INTERVAL_SECONDS}s")
     
     while True:
-        cycle_start = datetime.now()
+        cycle_start = now_utc()
         successful_ids = []
         failed_details = []
         
@@ -262,7 +264,7 @@ async def scheduler_loop(
                     })
             
             # Calculate cycle time
-            cycle_end = datetime.now()
+            cycle_end = now_utc()
             total_time = (cycle_end - cycle_start).total_seconds()
             
             # Send admin metrics (only if there were users to process)
