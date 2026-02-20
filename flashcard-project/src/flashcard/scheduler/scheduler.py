@@ -12,7 +12,7 @@ from flashcard.services.consumption import ConsumptionService
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard
-from flashcard.utils.logger import get_logger
+from flashcard.utils.logger import get_logger, notify_admin_with_trace
 from flashcard.settings import settings
 from flashcard.utils.time import now_utc, iso_z
 
