@@ -77,3 +77,27 @@ def get_logger(name: str) -> logging.Logger:
     This is the primary compatible entry point for the codebase.
     """
     return FlashCardLogger.get_logger(name)
+
+
+async def notify_admin_with_trace(bot, text: str):
+    """
+    Sends a message to the bot Admin, safely checking if there is an active Trace ID.
+    If yes, injects it at the bottom to allow easy crossing-referencing with JSON lines logs.
+    """
+    from flashcard.utils.tracing import get_current_trace
+    from flashcard.settings import settings
+    
+    trace_id_str = ""
+    try:
+        trace = get_current_trace()
+        if trace and hasattr(trace, 'trace_id'):
+            trace_id_str = f"\n\n[Trace ID: {trace.trace_id}]"
+    except Exception as e:
+        pass # Failsafe so the alert itself never crashes
+        
+    final_text = f"{text}{trace_id_str}"
+    
+    try:
+        await bot.send_message(chat_id=settings.ADMIN_ID, text=final_text, parse_mode="HTML")
+    except Exception as e:
+        get_logger(__name__).error(f"Failed to send admin notification: {e}")

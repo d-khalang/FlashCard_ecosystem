@@ -10,7 +10,7 @@ from flashcard.services.user import UserService
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.story import format_story_messages
-from flashcard.utils.logger import get_logger
+from flashcard.utils.logger import get_logger, notify_admin_with_trace
 
 import random
 
@@ -59,7 +59,7 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
         )
     except Exception as e:
         logger.error(f"Story generation error: {e}")
-        await logger_bot.send_message(settings.ADMIN_ID, f"Story generation error for user {message.from_user.id}: {e}")
+        await notify_admin_with_trace(logger_bot, f"Story generation error for user {message.from_user.id}: {e}")
         await message.answer(i18n.get("commands.story.generation_error"))
         return
 

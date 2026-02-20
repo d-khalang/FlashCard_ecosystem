@@ -6,6 +6,7 @@ from aiogram.types import ForceReply
 from flashcard.telegram.states.feedback import FeedbackStates
 from flashcard.services.i18n import i18n
 from flashcard.settings import settings
+from flashcard.utils.logger import notify_admin_with_trace
 
 router = Router()
 
@@ -47,7 +48,7 @@ async def process_feedback(message: types.Message, state: FSMContext, logger_bot
     )
     
     try:
-        await logger_bot.send_message(chat_id=settings.ADMIN_ID, text=admin_msg)
+        await notify_admin_with_trace(logger_bot, admin_msg)
         await message.answer(i18n.get("commands.feedback.success"), reply_markup=types.ReplyKeyboardRemove())
     except Exception as e:
         await message.answer(f"Error sending feedback: {e}")

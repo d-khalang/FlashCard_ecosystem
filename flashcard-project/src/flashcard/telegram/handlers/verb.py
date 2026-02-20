@@ -14,7 +14,7 @@ from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.services.i18n import i18n
 from flashcard.services.consumption import ConsumptionService
 from flashcard.telegram.keyboards import get_verb_keyboard
-from flashcard.utils.logger import get_logger
+from flashcard.utils.logger import get_logger, notify_admin_with_trace
 
 logger = get_logger(__name__)
 router = Router()
@@ -47,7 +47,7 @@ async def cmd_verb(message: Message, verb_service: VerbService, consumption_serv
         verb_data = await verb_service.get_verb_data(extracted_verb)
     except Exception as e:
         logger.error(f"Verb data retrieval error for '{extracted_verb}': {e}")
-        await logger_bot.send_message(settings.ADMIN_ID, f"Verb data error for '{extracted_verb}' (user {message.from_user.id}): {str(e)}")
+        await notify_admin_with_trace(logger_bot, f"Verb data error for '{extracted_verb}' (user {message.from_user.id}): {str(e)}")
         await message.answer(i18n.get("commands.verb.api_error"))
         return
      

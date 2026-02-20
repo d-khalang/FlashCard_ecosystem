@@ -207,7 +207,7 @@ async def send_admin_metrics(
     
     # Send all messages
     for msg in messages:
-        await logger_bot.send_message(admin_id, msg)
+        await notify_admin_with_trace(logger_bot, msg)
     
     logger.info(f"Admin metrics sent: {len(successful_ids)} successful, {len(failed_details)} failed")
 
@@ -285,7 +285,7 @@ async def scheduler_loop(
             logger.error(f"Scheduler loop error: {e}", exc_info=True)
             try:
                 error_text = html.escape(f"{type(e).__name__}: {str(e)[:300]}")
-                await logger_bot.send_message(admin_id, f"🚨 <b>Scheduler Loop Error</b>\n\n{error_text}")
+                await notify_admin_with_trace(logger_bot, f"🚨 <b>Scheduler Loop Error</b>\n\n{error_text}")
             except Exception as notify_error:
                 logger.error(f"Failed to notify admin about scheduler error: {notify_error}")
         

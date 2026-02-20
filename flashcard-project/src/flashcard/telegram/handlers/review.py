@@ -14,7 +14,7 @@ from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.schemas.languages import get_language_flag
 from flashcard.schemas.defaults import DEFAULT_LANG_LEVEL, DEFAULT_LANG_1_CODE
-from flashcard.utils.logger import get_logger
+from flashcard.utils.logger import get_logger, notify_admin_with_trace
 
 logger = get_logger(__name__)
 router = Router()
@@ -108,9 +108,9 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, ex
     except ValueError:
         #TODO: Have a consistent schema for logging errors to logger bot
         await callback.answer(i18n.get("callbacks.grade.invalid_data"), show_alert=True)
-        await logger_bot.send_message(settings.ADMIN_ID, f"Invalid callback data: {callback.data}")
+        await notify_admin_with_trace(logger_bot, f"Invalid callback data: {callback.data}")
 
     except Exception as e:
         logger.error(f"Error handling grade callback: {e}", exc_info=True)
         await callback.answer(i18n.get("callbacks.grade.error_generic"), show_alert=True)
-        await logger_bot.send_message(settings.ADMIN_ID, f"Error handling grade callback: {e}")
+        await notify_admin_with_trace(logger_bot, f"Error handling grade callback: {e}")

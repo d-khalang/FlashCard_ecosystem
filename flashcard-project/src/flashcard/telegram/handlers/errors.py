@@ -19,16 +19,16 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot):
 
     # Send error notification to logger bot
     try:
+        from flashcard.utils.logger import notify_admin_with_trace
         exception_text = html.escape(str(event.exception)[:1000])
-        await logger_bot.send_message(
-            chat_id=settings.ADMIN_ID,
+        await notify_admin_with_trace(
+            logger_bot,
             text=(
                 f"⚠️ <b>Error Occurred</b>\n"
                 f"User ID: {event.update.message.from_user.id if event.update.message else (event.update.callback_query.from_user.id if event.update.callback_query else 'Unknown')}\n"
                 f"Update Type: {event.update.event_type}\n"
                 f"Exception: {exception_text}"
-            ),
-            parse_mode="HTML"
+            )
         )
     except Exception as e:
         logger.error(f"Failed to send error notification to logger bot: {e}")
