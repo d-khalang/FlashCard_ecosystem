@@ -14,6 +14,7 @@ from flashcard.services.llm.prompts import (
 )
 from flashcard.services.llm.llm_key import LLMKeyProvider
 from flashcard.utils.logger import get_logger
+from flashcard.utils.tracing import observe
 
 logger = get_logger(__name__)
 
@@ -37,6 +38,7 @@ class LLMService:
         logger.info("LLM clients created: %s", model_dict)
         return model_dict
 
+    @observe(name="LLMService.generate_expression_card")
     async def generate_expression_card(
         self,
         raw: str,
@@ -103,6 +105,7 @@ class LLMService:
         logger.info(f"LLM Import Output: {output}")
         return output
 
+    @observe(name="LLMService.generate_story")
     async def generate_story(
         self,
         words: list[str],

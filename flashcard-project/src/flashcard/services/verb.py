@@ -7,6 +7,7 @@ from flashcard.settings import settings
 from flashcard.schemas.conjugations import ConjugationDBResponse, ConjugationAPIResponse, ConjugationResponse
 from flashcard.telegram.keyboards import get_verb_keyboard
 from flashcard.utils.logger import get_logger
+from flashcard.utils.tracing import observe
 
 logger = get_logger(__name__)
 
@@ -55,6 +56,7 @@ class VerbService:
         """
         return get_verb_keyboard(data)
 
+    @observe(name="VerbService.get_verb_data")
     async def get_verb_data(self, verb: str) -> Optional[ConjugationResponse]:
         """
         Orchestrates retrieving verb data:

@@ -8,6 +8,7 @@ from flashcard.schemas.expression import ExpressionDB
 from flashcard.services.algorithm.priority import calculate_priority
 from flashcard.services.algorithm.grading import calculate_new_stats
 from flashcard.utils.logger import get_logger
+from flashcard.utils.tracing import observe
 from bson import ObjectId
 
 logger = get_logger(__name__)
@@ -143,6 +144,7 @@ class ExpressionService:
             expressions = await self.cols['expression'].distinct("value", {"user_id": str(user_id)})
             return expressions
 
+    @observe(name="ExpressionService.get_review_candidate")
     async def get_review_candidate(self, user_id: Union[str, int]) -> Optional[dict]:
         """
         Selects the best expression for review based on priority algorithm.
