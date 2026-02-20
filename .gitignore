@@ -16,3 +16,4 @@ generate_tree.py
 private-docs/
 tests/
 .agent
+logs/
