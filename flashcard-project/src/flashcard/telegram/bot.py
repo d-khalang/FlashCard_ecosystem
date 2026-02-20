@@ -23,15 +23,19 @@ from flashcard.telegram.handlers import (
     creation,
     errors
 )
+from flashcard.telegram.middlewares.trace_middleware import TraceMiddleware
 from flashcard.services.expression import ExpressionService
 from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
 from flashcard.services.consumption import ConsumptionService
+from flashcard.services.trace_logger import get_trace_logger
 
 def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
+    # Start tracing before anything else
+    dp.update.middleware(TraceMiddleware())
     dp.message.middleware(ChatActionMiddleware())
     
     # Include routers in strict order of priority
@@ -150,6 +154,8 @@ async def close_telegram_bot(app: FastAPI):
     logger_bot: Bot = app.state.logger_bot
     await logger_bot.session.close()
 
+    get_trace_logger().shutdown()
+
 
 async def init_telegram_without_fastapi(settings):
     bot, dp = build_bot_dispatcher()
@@ -226,3 +232,5 @@ async def close_telegram_without_fastapi(resources: dict):
     await close_http_client_on_client(resources["http_client"])
     await resources["bot"].session.close()
     await resources["logger_bot"].session.close()
+    
+    get_trace_logger().shutdown()
