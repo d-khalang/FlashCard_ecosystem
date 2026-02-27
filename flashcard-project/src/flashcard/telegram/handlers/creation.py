@@ -15,7 +15,7 @@ from flashcard.utils.logger import get_logger
 logger = get_logger(__name__)
 router = Router()
 
-
+# TODO: block the suspicious messages or at least very long ones
 @router.message(F.text)
 @flags.chat_action(ChatAction.TYPING)
 async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
