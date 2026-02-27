@@ -33,6 +33,17 @@ flashcard-bot-dev = "flashcard.__main__:dev"
 flashcard-bot-poll = "flashcard.__main__:main_poll"
 flashcard-bot-dev-poll = "flashcard.__main__:dev_poll"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.0.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
 
