@@ -4,6 +4,7 @@ Unit tests for flashcard.services.algorithm.grading.calculate_new_stats
 Tests the SRS grading engine that updates expression stats after a user
 rates a flashcard. This is a pure function — no I/O, no mocking needed.
 """
+import pytest
 from unittest.mock import patch
 
 from flashcard.services.algorithm.grading import (
@@ -176,20 +177,15 @@ class TestNullSafety:
 class TestDirection:
     """is_reverse flag controls which timestamp field is set."""
 
+    @pytest.mark.parametrize("is_reverse, present_key, absent_key", [
+        (False, "last_interaction_at", "last_review_at"),
+        (True, "last_review_at", "last_interaction_at"),
+    ])
     @patch("flashcard.services.algorithm.grading.now_utc")
-    def test_forward_sets_last_interaction_at(self, mock_now):
+    def test_direction_sets_correct_timestamp(self, mock_now, is_reverse, present_key, absent_key):
         from datetime import datetime, timezone
         mock_now.return_value = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-        result = calculate_new_stats(_empty_stats(), grade=4, is_reverse=False)
-        assert "last_interaction_at" in result
-        assert "last_review_at" not in result
-
-    @patch("flashcard.services.algorithm.grading.now_utc")
-    def test_reverse_sets_last_review_at(self, mock_now):
-        from datetime import datetime, timezone
-        mock_now.return_value = datetime(2026, 1, 1, tzinfo=timezone.utc)
-
-        result = calculate_new_stats(_empty_stats(), grade=4, is_reverse=True)
-        assert "last_review_at" in result
-        assert "last_interaction_at" not in result
+        result = calculate_new_stats(_empty_stats(), grade=4, is_reverse=is_reverse)
+        assert present_key in result
+        assert absent_key not in result

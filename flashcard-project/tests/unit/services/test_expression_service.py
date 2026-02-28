@@ -117,21 +117,7 @@ def _make_expression_doc(**overrides):
     return base
 
 
-class _AsyncIterator:
-    """Wraps a list as an async iterator to simulate MongoDB cursor."""
-
-    def __init__(self, items):
-        self._items = iter(items)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        try:
-            return next(self._items)
-        except StopIteration:
-            raise StopAsyncIteration
-
+from tests.helpers import AsyncCursorMock as _AsyncIterator
 
 # ===================================================================
 # get_review_candidate

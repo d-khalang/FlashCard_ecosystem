@@ -137,8 +137,13 @@ class TestTraceLogger:
         json_str = trace.model_dump_json()
         assert '"trace_id":"json-test"' in json_str
 
-    def test_logger_writes_to_file(self):
-        logger = get_trace_logger()
+    def test_logger_writes_to_file(self, tmp_path):
+        """Trace logger should write JSONL to the target file."""
+        trace_file = tmp_path / "traces.jsonl"
+
+        # Create a fresh logger pointing at tmp_path
+        from flashcard.services.trace_logger import TraceLogger
+        logger = TraceLogger(log_dir=str(tmp_path))
 
         trace = TraceData(
             trace_id="file-test",
@@ -151,6 +156,5 @@ class TestTraceLogger:
         logger.log_trace_json(trace.model_dump_json())
         logger.shutdown()
 
-        assert os.path.exists("logs/traces.jsonl")
-        with open("logs/traces.jsonl", "r", encoding="utf-8") as f:
-            assert "file-test" in f.read()
+        assert trace_file.exists()
+        assert "file-test" in trace_file.read_text(encoding="utf-8")

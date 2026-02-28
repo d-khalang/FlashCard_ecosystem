@@ -134,19 +134,16 @@ class TestUserDB:
 # ===================================================================
 class TestLanguageNormalization:
 
-    def test_code_lowercase(self):
-        assert normalize_language_input("en") == "en"
-
-    def test_code_uppercase(self):
-        assert normalize_language_input("EN") == "en"
-
-    def test_alias_to_code(self):
-        assert normalize_language_input("Farsi") == "fa"
-        assert normalize_language_input("persian") == "fa"
-
-    def test_alias_english_variants(self):
-        assert normalize_language_input("english") == "en"
-        assert normalize_language_input("eng") == "en"
+    @pytest.mark.parametrize("raw, expected", [
+        ("en", "en"),       # lowercase code
+        ("EN", "en"),       # uppercase code
+        ("Farsi", "fa"),    # alias
+        ("persian", "fa"),  # alias variant
+        ("english", "en"),  # full name
+        ("eng", "en"),      # abbreviation
+    ])
+    def test_normalizes_valid_input(self, raw, expected):
+        assert normalize_language_input(raw) == expected
 
     def test_unknown_language_raises(self):
         with pytest.raises(ValueError, match="Unsupported language"):
