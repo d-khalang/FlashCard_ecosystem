@@ -1,16 +1,16 @@
 """
-Unit tests for ExpressionService — P0 critical methods.
+Unit tests for ExpressionService
 
-Tests the remaining untested methods with mocked MongoDB:
+Covers all ExpressionService methods:
+  - add_expression (single): new + duplicate
+  - get_all_expressions: distinct query
   - get_review_candidate: cooldown filtering, priority selection, dual mode
   - grade_expression: forward + reverse stat updates, validation
-  - add_expressions_bulk: duplicate filtering, bulk insert
+  - add_expressions_bulk: duplicate filtering, case-insensitivity, bulk insert
   - update_expression_sent: timestamp + pending message tracking
-
-These complement the existing test_expression_service.py (add/get basics).
 """
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from bson import ObjectId
 
 from flashcard.services.expression import ExpressionService
@@ -381,6 +381,18 @@ class TestAddExpressionsBulk:
         user_update = cols["users"].update_one.call_args[0][1]["$set"]
         assert "last_push_at" in user_update
         assert user_update["has_pending"] is False
+
+    async def test_case_insensitive_duplicate_detection(self):
+        """'Casa' in DB should prevent 'casa' from being re-inserted."""
+        service, cols = _make_service()
+        cols["expression"].find = MagicMock(
+            return_value=_AsyncIterator([{"value": "Casa"}])
+        )
+
+        result = await service.add_expressions_bulk("123", ["casa", "gatto"])
+
+        assert "casa" not in result
+        assert "gatto" in result
 
 
 # ===================================================================

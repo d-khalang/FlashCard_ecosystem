@@ -60,6 +60,19 @@ class TestGradeClassification:
         assert result["lapses"] == 1
         assert result["success_streak"] == 0
 
+    def test_grade_zero_is_failure(self):
+        """Lowest possible grade should be a clean failure."""
+        result = calculate_new_stats(_empty_stats(), grade=0)
+        assert result["lapses"] == 1
+        assert result["success_streak"] == 0
+
+    def test_grade_five_is_success(self):
+        """Highest possible grade should be a clean success."""
+        result = calculate_new_stats(_empty_stats(), grade=5)
+        assert result["reps"] == 1
+        assert result["success_streak"] == 1
+        assert result["lapses"] == 0
+
 
 # ---------------------------------------------------------------------------
 # Counter updates
@@ -89,6 +102,14 @@ class TestCounterUpdates:
 
         assert result["lapses"] == 4
         assert result["reps"] == 0
+
+    def test_double_grading_accumulates(self):
+        """Grading the output of a previous grading should accumulate correctly."""
+        first_result = calculate_new_stats(_empty_stats(), grade=4)
+        second_result = calculate_new_stats(first_result, grade=4)
+
+        assert second_result["reps"] == 2
+        assert second_result["success_streak"] == 2
 
 
 # ---------------------------------------------------------------------------
