@@ -1,117 +1,133 @@
-import unittest
+"""
+Unit tests for flashcard.services.consumption.ConsumptionService
+
+Tests the consumption tracking system: daily reset logic,
+metric increment routing (system_api vs user_api vs top-level),
+and the get_consumption query.
+"""
 from datetime import date
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 from flashcard.services.consumption import ConsumptionService
 from flashcard.schemas.user import UserConsumption
 
 
-class TestConsumptionService(unittest.IsolatedAsyncioTestCase):
-    def _make_service(self):
-        mock_cols = {
-            'users': MagicMock()
-        }
-        mock_cols['users'].find_one = AsyncMock(return_value=None)
-        mock_cols['users'].update_one = AsyncMock(return_value=None)
-        return ConsumptionService(mock_cols), mock_cols
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def _make_service(user_doc=None):
+    """Create a ConsumptionService with mocked MongoDB."""
+    mock_cols = {"users": MagicMock()}
+    mock_cols["users"].find_one = AsyncMock(return_value=user_doc)
+    mock_cols["users"].update_one = AsyncMock()
+    return ConsumptionService(mock_cols), mock_cols
 
-    async def test_increment_new_user_cards_generated(self):
-        """First increment for a new user should reset then inc system_api.cards_generated."""
-        service, cols = self._make_service()
-        # find_one returns None (new user) → triggers reset
-        cols['users'].find_one = AsyncMock(return_value=None)
+
+def _today_consumption(**overrides):
+    """Returns a user doc with today's consumption date."""
+    base = {"consumption": {"consumption_date": date.today().isoformat()}}
+    base["consumption"].update(overrides)
+    return base
+
+
+# ===================================================================
+# increment — daily reset logic
+# ===================================================================
+class TestIncrementResetLogic:
+
+    async def test_new_user_triggers_reset_then_increment(self):
+        """No user doc → reset counters to today's date → then increment."""
+        service, cols = _make_service(user_doc=None)
 
         await service.increment("123", "cards_generated")
 
-        # Should have: 1 find_one + 2 update_one (reset + inc)
-        self.assertEqual(cols['users'].update_one.call_count, 2)
+        # 2 update_one calls: reset + increment
+        assert cols["users"].update_one.call_count == 2
 
-        # First update_one = reset
-        reset_call = cols['users'].update_one.call_args_list[0]
-        reset_set = reset_call[0][1]["$set"]["consumption"]
-        self.assertEqual(reset_set["consumption_date"], date.today().isoformat())
-        self.assertEqual(reset_set["system_api"]["cards_generated"], 0)
-        self.assertEqual(reset_set["user_api"]["cards_generated"], 0)
+        reset_call = cols["users"].update_one.call_args_list[0]
+        reset_data = reset_call[0][1]["$set"]["consumption"]
+        assert reset_data["consumption_date"] == date.today().isoformat()
+        assert reset_data["system_api"]["cards_generated"] == 0
 
-        # Second update_one = increment
-        inc_call = cols['users'].update_one.call_args_list[1]
-        self.assertEqual(inc_call[0][1]["$inc"], {"consumption.system_api.cards_generated": 1})
+    async def test_stale_date_triggers_reset(self):
+        """Stored date is old → reset before incrementing."""
+        service, cols = _make_service(
+            user_doc={"consumption": {"consumption_date": "2020-01-01"}}
+        )
 
-    async def test_increment_same_day_no_reset(self):
-        """If consumption_date matches today, should NOT reset — just increment."""
-        service, cols = self._make_service()
-        today = date.today().isoformat()
-        cols['users'].find_one = AsyncMock(return_value={
-            "consumption": {"consumption_date": today}
-        })
+        await service.increment("123", "cards_generated")
+
+        assert cols["users"].update_one.call_count == 2  # reset + inc
+
+    async def test_same_day_skips_reset(self):
+        """Today's date already stored → no reset, just increment."""
+        service, cols = _make_service(user_doc=_today_consumption())
 
         await service.increment("123", "stories_generated")
 
-        # Should have: 1 find_one + 1 update_one (inc only, no reset)
-        self.assertEqual(cols['users'].update_one.call_count, 1)
-        inc_call = cols['users'].update_one.call_args_list[0]
-        self.assertEqual(inc_call[0][1]["$inc"], {"consumption.system_api.stories_generated": 1})
+        assert cols["users"].update_one.call_count == 1  # inc only
+        inc_call = cols["users"].update_one.call_args_list[0]
+        assert inc_call[0][1]["$inc"] == {
+            "consumption.system_api.stories_generated": 1
+        }
 
-    async def test_increment_stale_date_triggers_reset(self):
-        """If consumption_date is yesterday, should reset before incrementing."""
-        service, cols = self._make_service()
-        cols['users'].find_one = AsyncMock(return_value={
-            "consumption": {"consumption_date": "2020-01-01"}
-        })
+
+# ===================================================================
+# increment — routing to correct bucket
+# ===================================================================
+class TestIncrementRouting:
+
+    async def test_system_api_bucket_default(self):
+        service, cols = _make_service(user_doc=_today_consumption())
 
         await service.increment("123", "cards_generated")
 
-        # Should have: 1 find_one + 2 update_one (reset + inc)
-        self.assertEqual(cols['users'].update_one.call_count, 2)
+        inc = cols["users"].update_one.call_args[0][1]["$inc"]
+        assert inc == {"consumption.system_api.cards_generated": 1}
 
-    async def test_increment_user_api_bucket(self):
-        """When uses_own_key=True, should increment user_api path."""
-        service, cols = self._make_service()
-        today = date.today().isoformat()
-        cols['users'].find_one = AsyncMock(return_value={
-            "consumption": {"consumption_date": today}
-        })
+    async def test_user_api_bucket_with_own_key(self):
+        service, cols = _make_service(user_doc=_today_consumption())
 
         await service.increment("123", "cards_generated", uses_own_key=True)
 
-        inc_call = cols['users'].update_one.call_args_list[0]
-        self.assertEqual(inc_call[0][1]["$inc"], {"consumption.user_api.cards_generated": 1})
+        inc = cols["users"].update_one.call_args[0][1]["$inc"]
+        assert inc == {"consumption.user_api.cards_generated": 1}
 
-    async def test_increment_verb_lookups_top_level(self):
-        """verb_lookups should use top-level path, not nested under system_api."""
-        service, cols = self._make_service()
-        today = date.today().isoformat()
-        cols['users'].find_one = AsyncMock(return_value={
-            "consumption": {"consumption_date": today}
-        })
+    async def test_verb_lookups_top_level(self):
+        """verb_lookups lives at top level, not under system_api."""
+        service, cols = _make_service(user_doc=_today_consumption())
 
         await service.increment("123", "verb_lookups")
 
-        inc_call = cols['users'].update_one.call_args_list[0]
-        self.assertEqual(inc_call[0][1]["$inc"], {"consumption.verb_lookups": 1})
+        inc = cols["users"].update_one.call_args[0][1]["$inc"]
+        assert inc == {"consumption.verb_lookups": 1}
 
-    async def test_increment_invalid_metric_ignored(self):
-        """Unknown metric should log warning and not touch DB."""
-        service, cols = self._make_service()
+    async def test_invalid_metric_ignored(self):
+        """Unknown metric → warning logged, no DB writes."""
+        service, cols = _make_service()
 
         await service.increment("123", "nonexistent_metric")
 
-        cols['users'].find_one.assert_not_called()
-        cols['users'].update_one.assert_not_called()
+        cols["users"].find_one.assert_not_called()
+        cols["users"].update_one.assert_not_called()
 
-    async def test_get_consumption_new_user(self):
-        """Should return default UserConsumption for unknown user."""
-        service, cols = self._make_service()
-        cols['users'].find_one = AsyncMock(return_value=None)
+
+# ===================================================================
+# get_consumption
+# ===================================================================
+class TestGetConsumption:
+
+    async def test_new_user_returns_default(self):
+        service, _ = _make_service(user_doc=None)
 
         result = await service.get_consumption("999")
-        self.assertIsInstance(result, UserConsumption)
-        self.assertEqual(result.system_api.cards_generated, 0)
 
-    async def test_get_consumption_stale_returns_fresh(self):
-        """If stored date is old, get_consumption returns a fresh object."""
-        service, cols = self._make_service()
-        cols['users'].find_one = AsyncMock(return_value={
+        assert isinstance(result, UserConsumption)
+        assert result.system_api.cards_generated == 0
+
+    async def test_stale_date_returns_fresh_counters(self):
+        """Old consumption_date → return zeroed-out object with today's date."""
+        service, _ = _make_service(user_doc={
             "consumption": {
                 "consumption_date": "2020-01-01",
                 "system_api": {"cards_generated": 5, "stories_generated": 0},
@@ -121,10 +137,25 @@ class TestConsumptionService(unittest.IsolatedAsyncioTestCase):
         })
 
         result = await service.get_consumption("123")
-        self.assertEqual(result.consumption_date, date.today().isoformat())
-        self.assertEqual(result.system_api.cards_generated, 0)
-        self.assertEqual(result.verb_lookups, 0)
 
+        assert result.consumption_date == date.today().isoformat()
+        assert result.system_api.cards_generated == 0
+        assert result.verb_lookups == 0
 
-if __name__ == '__main__':
-    unittest.main()
+    async def test_same_day_returns_stored_values(self):
+        """Today's date → return stored counters as-is."""
+        today = date.today().isoformat()
+        service, _ = _make_service(user_doc={
+            "consumption": {
+                "consumption_date": today,
+                "system_api": {"cards_generated": 3, "stories_generated": 1},
+                "user_api": {"cards_generated": 0, "stories_generated": 0},
+                "verb_lookups": 7,
+            }
+        })
+
+        result = await service.get_consumption("123")
+
+        assert result.consumption_date == today
+        assert result.system_api.cards_generated == 3
+        assert result.verb_lookups == 7

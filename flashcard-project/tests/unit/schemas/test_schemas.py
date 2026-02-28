@@ -90,7 +90,7 @@ class TestExpressionDB:
         )
         dump = doc.model_dump()
         for field in ["reps", "lapses", "success_streak", "ewma_grade", "status"]:
-            assert field in dump, f"Missing field: {field}" #??
+            assert field in dump, f"Missing field: {field}" 
 
     def test_expression_stats_defaults(self):
         """ExpressionStats (used for reverse_stats) should have safe defaults."""

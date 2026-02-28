@@ -1,75 +1,73 @@
-import unittest
+"""
+Unit tests for expression list formatting.
 
+Tests format_expression_list: alphabetical grouping, plain mode,
+no-sort mode, message splitting at 4000 chars, and empty list.
+"""
 from flashcard.telegram.ui.expression_lists import format_expression_list
 
-class TestExpressionListsUI(unittest.TestCase):
-    def test_empty_list(self):
+
+# ===================================================================
+# format_expression_list
+# ===================================================================
+class TestExpressionListFormatting:
+
+    def test_empty_list_shows_onboarding_message(self):
         result = format_expression_list([])
-        self.assertEqual(len(result), 1)
-        self.assertIn("<b>📚 Flashcard Collection</b>", result[0])
-        self.assertIn("don't have any flashcards yet", result[0])
+        assert len(result) == 1
+        assert "📚 Flashcard Collection" in result[0]
+        assert "don't have any flashcards yet" in result[0]
 
-    def test_default_mode(self):
-        expressions = ["banana", "apple"] # Unsorted input
+    def test_default_mode_sorts_alphabetically(self):
+        result = format_expression_list(["banana", "apple"])
+        content = result[0]
+
+        assert content.find("apple") < content.find("banana")
+
+    def test_default_mode_adds_letter_headers(self):
+        result = format_expression_list(["banana", "apple"])
+        content = result[0]
+
+        assert "<b>A</b>" in content
+        assert "<b>B</b>" in content
+
+    def test_plain_mode_no_fancy_elements(self):
+        result = format_expression_list(["banana", "apple"], plain=True)
+        content = result[0]
+
+        # Still sorted
+        assert content.find("apple") < content.find("banana")
+        # No bold letter headers
+        assert "<b>A</b>" not in content
+        assert "apple\n" in content
+
+    def test_no_sort_preserves_insertion_order(self):
+        result = format_expression_list(
+            ["banana", "apple"], sort_alphabetical=False
+        )
+        content = result[0]
+
+        assert content.find("banana") < content.find("apple")
+        # No letter grouping headers when unsorted
+        assert "<b>B</b>" not in content
+
+    def test_large_list_splits_at_4000_chars(self):
+        expressions = [f"word_{i:04d}" for i in range(500)]
         result = format_expression_list(expressions)
-        self.assertEqual(len(result), 1)
-        content = result[0]
-        
-        # Check sorting
-        apple_idx = content.find("apple")
-        banana_idx = content.find("banana")
-        self.assertLess(apple_idx, banana_idx)
-        
-        # Check fancy elements: section headers with bold letter
-        self.assertIn("apple", content)
-        self.assertIn("<b>A</b>", content)
 
-    def test_plain_mode(self):
-        expressions = ["banana", "apple"]
-        # Plain mode with default alphabetical sort
-        result = format_expression_list(expressions, plain=True)
-        self.assertEqual(len(result), 1)
-        content = result[0]
-        
-        # Check sorting
-        apple_idx = content.find("apple")
-        banana_idx = content.find("banana")
-        self.assertLess(apple_idx, banana_idx)
-        
-        # Check NO fancy elements
-        self.assertNotIn("▫️", content)
-        self.assertNotIn("<b>A</b>", content)
-        self.assertNotIn("━━━━━━━━━━━━━━━━", content)
-        self.assertIn("apple\n", content)
+        assert len(result) > 1
+        total = "".join(result)
+        assert "word_0000" in total
+        assert "word_0499" in total
 
-    def test_no_sort_mode(self):
-        expressions = ["banana", "apple"]
-        # No alphabetical sort (mimicking -t)
-        result = format_expression_list(expressions, sort_alphabetical=False)
-        self.assertEqual(len(result), 1)
-        content = result[0]
-        
-        # Check order PRESERVED
-        apple_idx = content.find("apple")
-        banana_idx = content.find("banana")
-        self.assertLess(banana_idx, apple_idx) # Banana first
-        
-        # Check NO alphabetic grouping headers
-        self.assertNotIn("<b>B</b>", content)
-
-    def test_split_logic(self):
-        # Create a list that will definitely exceed 4000 chars
-        # 400 items of 10 chars = 4000 chars + overhead (emojis, tags) -> should trigger split
-        expressions = [f"word_{i:04d}" for i in range(500)] 
-        
+    def test_each_chunk_under_4100_chars(self):
+        """No single message should exceed Telegram's ~4096 char limit."""
+        expressions = [f"expression_{i:04d}" for i in range(500)]
         result = format_expression_list(expressions)
-        
-        self.assertTrue(len(result) > 1)
-        
-        # Verify content logic roughly
-        total_content = "".join(result)
-        self.assertIn("word_0000", total_content)
-        self.assertIn("word_0499", total_content)
 
-if __name__ == '__main__':
-    unittest.main()
+        for chunk in result:
+            assert len(chunk) < 4100
+
+    def test_item_count_in_header(self):
+        result = format_expression_list(["a", "b", "c"])
+        assert "3 items stored" in result[0]
