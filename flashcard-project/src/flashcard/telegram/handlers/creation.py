@@ -49,7 +49,7 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
         # Edit message to show saved status
         # Just extra check, could be omitted
         original_text = callback.message.text or callback.message.caption or ""
-        await callback.message.edit_text(f"{original_text}{i18n.get('callbacks.save.success_tag')}")
+        await callback.message.edit_text(f"{original_text}{i18n.get('callbacks.save.success_tag', norm=norm)}")
     else:
         # Duplicate case
         await callback.answer(i18n.get("callbacks.save.already_exists"), show_alert=True)
