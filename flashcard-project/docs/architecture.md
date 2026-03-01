@@ -100,6 +100,17 @@ flashcard-project/src/flashcard/
 └── resources/               # Static resources
     └── locales/
         └── en.json          # English UI strings
+
+tests/                           # Test suite (234 unit tests)
+├── conftest.py                  # Env var setup for test isolation
+├── helpers.py                   # Shared test utilities (AsyncCursorMock)
+└── unit/
+    ├── algorithm/               # Grading & priority tests
+    ├── services/                # Service layer tests (mocked DB)
+    ├── schemas/                 # Pydantic model tests
+    ├── telegram/                # UI, keyboards, callback tests
+    ├── scheduler/               # Scheduler logic tests
+    └── utils/                   # Tracing & time utility tests
 ```
 
 ## Data Flow

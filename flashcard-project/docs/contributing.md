@@ -103,6 +103,19 @@ async def handle_quiz_answer(callback: CallbackQuery):
     # Process answer...
 ```
 
+### 5. Add tests
+
+Create `tests/unit/telegram/test_quiz.py` — see [Testing](./testing.md) for patterns:
+
+```python
+class TestQuizCommand:
+    async def test_returns_random_card(self):
+        # Mock the service and verify behavior
+        ...
+```
+
+Run with `pytest tests/unit/telegram/test_quiz.py -v --tb=short`.
+
 ---
 
 ## Adding a New Service
@@ -212,4 +225,5 @@ commands.quiz.startMessage    ❌ Bad (camelCase)
 | [Services](./services.md) | Service layer API reference |
 | [Handlers](./handlers.md) | Handler inventory, router order, UI layer |
 | [Configuration](./configuration.md) | Env vars, defaults, Docker setup |
+| [Testing](./testing.md) | Test suite structure, patterns, conventions |
 | This guide | How to contribute |

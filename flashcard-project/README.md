@@ -76,7 +76,20 @@ The root [`docker-compose.yml`](../docker-compose.yml) builds and runs all servi
 | [Services](docs/services.md) | Service layer reference (methods, schemas, algorithm) |
 | [Handlers](docs/handlers.md) | Handler inventory, DI, UI layer, i18n |
 | [Configuration](docs/configuration.md) | All env vars, defaults, Docker |
+| [Testing](docs/testing.md) | Test suite structure, patterns, conventions |
 | [Contributing](docs/contributing.md) | How to add features, conventions |
+
+## Testing
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run all tests (234 unit tests)
+pytest tests/ -v --tb=short
+```
+
+See [docs/testing.md](docs/testing.md) for full details on test structure, mocking patterns, and conventions.
 
 ## Dependencies
 
