@@ -16,5 +16,8 @@ generate_tree.py
 .pytest_cache/
 private-docs/
 */tests/manual/
-.agent
+.agent/*
+!.agent/skills/
+!.agent/workflows/
+.learnings/
 logs/
