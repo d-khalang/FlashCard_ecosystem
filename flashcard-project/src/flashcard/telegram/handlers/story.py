@@ -35,7 +35,7 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
     expressions = await expression_service.get_all_expressions(message.from_user.id)
     
     if not expressions:
-        await message.answer(i18n.get("commands.story.no_expressions", "No expressions found. Add some first!"))
+        await message.answer(i18n.get("commands.story.no_expressions"))
         return
 
     # Select words (Shuffle & Limit to 80)

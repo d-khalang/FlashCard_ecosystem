@@ -1,4 +1,5 @@
 from typing import List
+from flashcard.services.i18n import i18n
 
 def format_expression_list(expressions: List[str], plain: bool = False, sort_alphabetical: bool = True) -> List[str]:
     """
@@ -6,7 +7,7 @@ def format_expression_list(expressions: List[str], plain: bool = False, sort_alp
     Telegram limit is 4096 chars. We stay safer with ~4000.
     """
     if not expressions:
-        return ["<b>📚 Flashcard Collection</b>\n\nIt seems you don't have any flashcards yet! 😅\nWrite a word or an expression to add it."] 
+        return [i18n.get("messages.collection.empty")] 
 
     # Sort alphabetically if requested (default behavior)
     if sort_alphabetical:
@@ -14,12 +15,12 @@ def format_expression_list(expressions: List[str], plain: bool = False, sort_alp
 
     if plain:
         # Plain mode: Simple header, no grouping, no fancy bullets
-        header = f"<b>📚 Your Flashcard Collection</b>\n<i>{len(expressions)} items stored</i>\n"
+        header = i18n.get("messages.collection.header", count=len(expressions))
         bullet = ""
         footer = ""
     else:
         # Fancy mode
-        header = f"<b>📚 Your Flashcard Collection</b>\n<i>{len(expressions)} items stored</i>\n"
+        header = i18n.get("messages.collection.header", count=len(expressions))
         bullet = "" # Minimal bullet
         footer = ""
 

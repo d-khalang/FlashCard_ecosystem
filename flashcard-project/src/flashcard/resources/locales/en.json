@@ -57,6 +57,12 @@
             "all_duplicates": "It looks like I already have all those flashcards saved! ✅ No new items were added."
         },
         "settings": {
+            "closed": "Settings closed.",
+            "controls": "Controls:",
+            "switched_mode": "Switched to {mode} Mode",
+            "saved": "Saved!",
+            "mode_dual": "Dual 🔄",
+            "mode_standard": "Standard ➡️",
             "menu": {
                 "heading": "⚙️ <b>Settings</b>",
                 "status": "Current Status: <b>{status}</b>",
@@ -101,15 +107,23 @@
     },
     "messages": {
         "working": "Working on it...",
+        "collection": {
+            "empty": "<b>📚 Flashcard Collection</b>\n\nIt seems you don't have any flashcards yet! 😅\nWrite a word or an expression to add it.",
+            "header": "<b>📚 Your Flashcard Collection</b>\n<i>{count} items stored</i>\n"
+        },
         "errors": {
-            "service_unavailable": "😔 Oops! I am currently experiencing some technical difficulties.\nPlease try again later."
+            "service_unavailable": "😔 Oops! I am currently experiencing some technical difficulties.\nPlease try again later.",
+            "feedback_failed": "Error sending feedback: {error}"
         },
         "buttons": {
             "save": "Save",
             "regenerate": "Regenerate",
             "pause_learning": "⏸ Pause Learning",
             "resume_learning": "▶ Resume Learning",
-            "close_settings": "❌ Close Settings"
+            "close_settings": "❌ Close Settings",
+            "verb_web_table": "📖 Tabella completa sul web",
+            "grade_0": "0 - I had no idea",
+            "grade_5": "5 - Known like family"
         },
         "notifications": {
              "resumed": "Scheduler Resumed",

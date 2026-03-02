@@ -47,14 +47,42 @@
         },
         "import": {
              "help": "Aiuto"
+        },
+        "feedback": {
+            "prompt": "Scrivi il tuo feedback/messaggio (o scrivi /cancel per annullare):",
+            "placeholder": "Scrivi il tuo messaggio qui...",
+            "success": "Messaggio inviato! Grazie per il tuo feedback.",
+            "cancelled": "Feedback annullato."
+        },
+        "settings": {
+            "closed": "Impostazioni chiuse.",
+            "controls": "Controlli:",
+            "switched_mode": "Passato in modalità {mode}",
+            "saved": "Salvato!",
+            "mode_dual": "Dual 🔄",
+            "mode_standard": "Standard ➡️"
         }
     },
     "messages": {
         "working": "Ci sto lavorando...",
+        "collection": {
+            "empty": "<b>📚 Collezione Flashcard</b>\n\nSembra che tu non abbia ancora nessuna flashcard! 😅\nScrivi una parola o espressione per aggiungerla.",
+            "header": "<b>📚 La Tua Collezione Flashcard</b>\n<i>{count} elementi salvati</i>\n"
+        },
+        "errors": {
+            "service_unavailable": "😔 Oops! Al momento stiamo riscontrando dei problemi tecnici.\nRiprova più tardi.",
+            "feedback_failed": "Errore nell'invio del feedback: {error}"
+        },
         "buttons": {
             "save": "Salva",
             "regenerate": "Rigenera",
-            "help": "Aiuto"
+            "help": "Aiuto",
+            "pause_learning": "⏸ Pausa Apprendimento",
+            "resume_learning": "▶ Riprendi Apprendimento",
+            "close_settings": "❌ Chiudi Impostazioni",
+            "verb_web_table": "📖 Tabella completa sul web",
+            "grade_0": "0 - Non ne avevo idea",
+            "grade_5": "5 - Conosciuto come la famiglia"
         }
     }
 }

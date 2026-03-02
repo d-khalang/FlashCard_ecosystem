@@ -51,6 +51,6 @@ async def process_feedback(message: types.Message, state: FSMContext, logger_bot
         await notify_admin_with_trace(logger_bot, admin_msg)
         await message.answer(i18n.get("commands.feedback.success"), reply_markup=types.ReplyKeyboardRemove())
     except Exception as e:
-        await message.answer(f"Error sending feedback: {e}")
+        await message.answer(i18n.get("messages.errors.feedback_failed", error=str(e)))
         
     await state.clear()

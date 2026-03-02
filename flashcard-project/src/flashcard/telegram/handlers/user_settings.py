@@ -35,7 +35,7 @@ async def cmd_settings(message: Message, user_service: UserService):
     
     # also ensure Reply Keyboard is present (optional, user might have closed it)
     quick_kb = get_reply_settings_keyboard(is_active)
-    await message.answer("Controls:", reply_markup=quick_kb)
+    await message.answer(i18n.get("commands.settings.controls"), reply_markup=quick_kb)
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "nav"))
@@ -130,10 +130,10 @@ async def handle_settings_select(callback: CallbackQuery, callback_data: Setting
         kb = get_main_settings_keyboard(user_data)
         
         await callback.message.edit_text(text=text, reply_markup=kb)
-        await callback.answer(f"Switched to {new_mode.capitalize()} Mode")
+        await callback.answer(i18n.get("commands.settings.switched_mode", mode=new_mode.capitalize()))
         return # return early as we edited text
             
-    await callback.answer("Saved!")
+    await callback.answer(i18n.get("commands.settings.saved"))
 
 
 @router.message(SettingsPrompts.waiting_primary_lang)
