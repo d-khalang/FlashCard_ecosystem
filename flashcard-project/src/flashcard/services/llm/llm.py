@@ -3,6 +3,7 @@ from google import genai
 from google.genai import types
 from typing import Dict
 import itertools
+import asyncio
 
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.import_model import ImportResponse
@@ -38,6 +39,28 @@ class LLMService:
         logger.info("LLM clients created: %s", model_dict)
         return model_dict
 
+    async def _generate_with_retry(self, model: str, contents: str, config: types.GenerateContentConfig) -> any:
+        max_attempts = 2
+        for attempt in range(max_attempts):
+            try:
+                client = self._get_client()
+                resp = client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config
+                )
+                return resp.parsed
+                
+            except Exception as e:
+                error_str = str(e)
+                if attempt < max_attempts - 1 and any(code in error_str for code in ["503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "Internal Server Error"]):
+                    wait_time = 2 ** attempt
+                    logger.warning(f"Transient LLM Error ({error_str}), retrying in {wait_time}s... (Attempt {attempt + 1}/{max_attempts})")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(f"LLM generation failed permanently after {attempt + 1} attempts: {e}")
+                    raise
+
     @observe(name="LLMService.generate_expression_card")
     async def generate_expression_card(
         self,
@@ -67,11 +90,8 @@ class LLMService:
             target_langs=target_langs_str,
             target_labels=target_labels_str,
         )
-        
-        # logger.info("LLM Prompt: %s", prompt)
 
-        client = self._get_client()
-        resp = client.models.generate_content(
+        output = await self._generate_with_retry(
             model="gemini-2.5-flash-lite",
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -79,10 +99,7 @@ class LLMService:
                 response_schema=ExpressionCard,
             )
         )
-
-        # parsed is and ExpressionCard instance (validated)
-        output = resp.parsed
-        logger.info("LLM output: %s", output)
+        logger.debug(f"LLM Expression Output: {output}")
         return output
 
     async def parse_import_list(self, raw_text: str) -> ImportResponse:
@@ -91,8 +108,7 @@ class LLMService:
         """
         prompt = IMPORT_PROMPT_TEMPLATE.format(raw_input=raw_text)
         
-        client = self._get_client()
-        resp = client.models.generate_content(
+        output = await self._generate_with_retry(
             model="gemini-2.5-flash-lite",
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -100,9 +116,7 @@ class LLMService:
                 response_schema=ImportResponse,
             )
         )
-        
-        output = resp.parsed
-        logger.info(f"LLM Import Output: {output}")
+        logger.debug(f"LLM Import Output: {output}")
         return output
 
     @observe(name="LLMService.generate_story")
@@ -123,8 +137,7 @@ class LLMService:
             target_lang=target_lang
         )
         
-        client = self._get_client()
-        resp = client.models.generate_content(
+        output = await self._generate_with_retry(
             model="gemini-2.5-flash-lite",
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -132,7 +145,5 @@ class LLMService:
                 response_schema=StoryResponse,
             )
         )
-        
-        output = resp.parsed
-        logger.info("LLM Story Output generated")
+        logger.debug(f"LLM Story Output: {output}")
         return output

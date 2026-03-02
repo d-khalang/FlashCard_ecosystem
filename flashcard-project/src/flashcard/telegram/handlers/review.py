@@ -25,7 +25,7 @@ router = Router()
 # about the the last interaction if it was reveresed. semantically wrong. last sent!!!
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService, logger_bot: Bot):
+async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
     """
     Handle /get command to review a flashcard.
     """
@@ -48,21 +48,15 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
     user = await user_service.get_user(user_id)
     
     # 3. Generate content (Definition, Translations, Example)
-    try:
-        # Using user preferences
-        card = await llm_service.generate_expression_card(
-            raw=candidate['value'],
-            level=user.target_level or DEFAULT_LANG_LEVEL,
-            lang1_code=user.primary_language or DEFAULT_LANG_1_CODE,
-            lang2_code=user.secondary_language,
-            lang1_label=get_language_flag(user.primary_language),  
-            lang2_label=get_language_flag(user.secondary_language)  
-        )
-    except Exception as e:
-        logger.error(f"Error generating card for {candidate['value']}: {e}")
-        await message.answer(i18n.get("commands.get.generation_error"))
-        await notify_admin_with_trace(logger_bot, f"LLM Generation Error for '{candidate['value']}': {e}")
-        return
+    # Using user preferences
+    card = await llm_service.generate_expression_card(
+        raw=candidate['value'],
+        level=user.target_level or DEFAULT_LANG_LEVEL,
+        lang1_code=user.primary_language or DEFAULT_LANG_1_CODE,
+        lang2_code=user.secondary_language,
+        lang1_label=get_language_flag(user.primary_language),  
+        lang2_label=get_language_flag(user.secondary_language)  
+    )
 
     # 4. Format Message
     # We pass direction to formatter to decide what to show/hide

@@ -1,4 +1,4 @@
-from aiogram import Router, F, flags, Bot
+from aiogram import Router, F, flags
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
 from aiogram.enums import ChatAction
 
@@ -18,10 +18,10 @@ router = Router()
 # TODO: block the suspicious messages or at least very long ones
 @router.message(F.text)
 @flags.chat_action(ChatAction.TYPING)
-async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService, logger_bot: Bot):
+async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
     status_msg = await message.answer(i18n.get("messages.working"))
 
-    text, success, card, user = await generate_and_render_card(llm_service, user_service, message.from_user.id, message.text, logger_bot=logger_bot)
+    text, success, card, user = await generate_and_render_card(llm_service, user_service, message.from_user.id, message.text)
     
     if success:
         await consumption_service.increment(message.from_user.id, "cards_generated", uses_own_key=user.api_config is not None)
@@ -76,14 +76,14 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
 
 @router.callback_query(F.data.startswith("regen:"))
 @flags.chat_action(ChatAction.TYPING)
-async def handle_regen(callback: CallbackQuery, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService, logger_bot: Bot):
+async def handle_regen(callback: CallbackQuery, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
     callback_markup = callback.message.reply_markup
     await callback.message.edit_text(i18n.get("callbacks.regen.working"))
 
     expression = callback.data.split(":", 1)[1]
     user_id = callback.from_user.id
 
-    text, success, card, user = await generate_and_render_card(llm_service, user_service, user_id, expression, logger_bot=logger_bot)
+    text, success, card, user = await generate_and_render_card(llm_service, user_service, user_id, expression)
 
     if success:
         await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)
