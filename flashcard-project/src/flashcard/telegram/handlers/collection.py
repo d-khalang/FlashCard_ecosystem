@@ -84,3 +84,7 @@ async def cmd_list_my_flashcards(message: Message, expression_service: Expressio
     
     for msg in messages:
         await message.answer(msg)
+
+
+#TODO: Add a command to delete a flashcard
+# Delete based on the norm of the flashcard or recommend similar ones if not found
