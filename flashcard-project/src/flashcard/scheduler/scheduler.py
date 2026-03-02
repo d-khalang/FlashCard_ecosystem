@@ -44,7 +44,6 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
     # Use minimum possible interval (e.g., 30 minutes) as a conservative cutoff for MongoDB query
     # This filters out definitely-not-due users at database level for performance
     # We still check exact intervals per-user in Python since intervals vary by user
-    # TODO: must be dynamic based on user's review_interval_minutes
     min_interval_minutes = DEFAULT_SCHEDULER_INTERVAL_MINUTES
     cutoff_time = iso_z(now - timedelta(minutes=min_interval_minutes))
     
