@@ -1,4 +1,5 @@
 from typing import Union
+from aiogram import Bot
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.schemas.languages import get_language_flag
@@ -11,6 +12,7 @@ async def generate_and_render_card(
     user_service: UserService,
     user_id: Union[str, int],
     text: str,
+    logger_bot: Bot = None,
 ) -> tuple[str, bool, ExpressionCard, UserDB]:
     """
     Generates an expression card using LLMService and returns the rendered text, success status, the card object, and user.
@@ -32,18 +34,26 @@ async def generate_and_render_card(
     lang1_label = get_language_flag(lang1_code)
     lang2_label = get_language_flag(lang2_code) if lang2_code else None
 
-    card = await llm_service.generate_expression_card(
-        raw=text,
-        level=user.target_level,
-        lang1_code=lang1_code,
-        lang2_code=lang2_code,
-        lang1_label=lang1_label,
-        lang2_label=lang2_label,
-    )
+    try:
+        card = await llm_service.generate_expression_card(
+            raw=text,
+            level=user.target_level,
+            lang1_code=lang1_code,
+            lang2_code=lang2_code,
+            lang1_label=lang1_label,
+            lang2_label=lang2_label,
+        )
 
-    rendered = render_expression_card(card)
-    success = rendered.get("success", False)
-    content = rendered.get("content", "")
+        rendered = render_expression_card(card)
+        success = rendered.get("success", False)
+        content = rendered.get("content", "")
+        
+        return content, success, card, user
     
-    return content, success, card, user
+    except Exception as e:
+        from flashcard.utils.logger import get_logger, notify_admin_with_trace
+        get_logger(__name__).error(f"Error generating card for '{text}': {e}", exc_info=True)
+        if logger_bot:
+            await notify_admin_with_trace(logger_bot, f"LLM Generation Error for '{text}': {e}")
+        return "", False, None, user
 

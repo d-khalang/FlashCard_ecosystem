@@ -25,7 +25,7 @@ router = Router()
 # about the the last interaction if it was reveresed. semantically wrong. last sent!!!
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
+async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService, logger_bot: Bot):
     """
     Handle /get command to review a flashcard.
     """
@@ -61,6 +61,7 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
     except Exception as e:
         logger.error(f"Error generating card for {candidate['value']}: {e}")
         await message.answer(i18n.get("commands.get.generation_error"))
+        await notify_admin_with_trace(logger_bot, f"LLM Generation Error for '{candidate['value']}': {e}")
         return
 
     # 4. Format Message
