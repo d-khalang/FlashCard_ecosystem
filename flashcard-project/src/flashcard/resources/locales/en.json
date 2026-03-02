@@ -3,7 +3,7 @@
         "save": {
             "success_alert": "Saved to collection received!",
             "success_message": "Saved to collection!",
-            "success_tag": "\n\n🔒 <b>{norm} saved</b>",
+            "success_tag": "\n\n🔒 <b>{norm}</b> saved",
             "already_exists": "Already exists among your FlashCards 🧐"
         },
         "regen": {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flashcard.schemas.expression import ExpressionCard
 
+LINE_SEP = "\u2508"*12
 
 def render_expression_card(card: ExpressionCard) -> Dict[str, str]:
     # Always 4 lines (for UX consistency)
@@ -58,7 +59,7 @@ def format_review_message(card: ExpressionCard, value: str, direction: str = "fo
 🧩 Esempio: "{card.example_it or ''}"
 """.strip()
 
-        text = f"🔄 Reverse Review 🔄\n-----------\n{question_part}\n-----------\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
+        text = f"🔄 Reverse Review 🔄\n{LINE_SEP}\n{question_part}\n{LINE_SEP}\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
 
     else:
         # Forward Mode (Standard): Show Word -> Hide Meaning
@@ -68,6 +69,6 @@ def format_review_message(card: ExpressionCard, value: str, direction: str = "fo
 🧩 Esempio: "{card.example_it or ''}"
 """.strip()
 
-        text = f"Your picked expression: <b>{value}</b>\n-----------\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
+        text = f"Your picked expression: <b>{value}</b>\n{LINE_SEP}\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
         
     return text
