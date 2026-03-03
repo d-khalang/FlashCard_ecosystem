@@ -30,8 +30,8 @@
             "welcome": "Ciao! 👋 I'm <b>Kartino</b> — your Italian flashcard buddy.\nI help the words you learn <i>stay with you</i>, effortlessly. 🌱\n\n✏️ Send me any Italian word or phrase\n🤖 I'll craft a fresh explanation every time — no two cards are the same! ✨\n💾 Save the ones you like — I'll bring them back for review using spaced repetition, right when you need a refresh.\n\n🔔 <i>Small heads-up: review your cards when they arrive — new ones won't come until you do!</i>\n\n💡 Type /help to discover everything I can do.\n\nReady? Drop me your first word!"
         },
         "help": {
-            "message": "help message",
-            "reply": "help reply"
+            "message": "<b>📖 What can I do?</b>\n\n✏️ <b>Learn a word</b> — Just send me any Italian word or phrase and I'll explain it with a fresh, AI-crafted card.\n\n📅 /get — <b>Review</b> a saved card (or wait — I'll send them automatically!)\n\n📦 /import — <b>Bulk add</b> a list of words at once.\n\n🔄 /verb <i>andare</i> — Look up <b>verb conjugations</b> instantly.\n\n📖 /story — I'll write a short <b>story</b> using your saved words.\n\n📇 /list_my_flashcards — Browse your <b>full deck</b>.\n\n⚙️ /settings — <b>Make Kartino yours!</b> Set your language, level, review pace & more.\n\n💬 /feedback — Tell me what you think!",
+            "reply": "💡 <b>Quick start:</b> just type an Italian word right here and let's go!"
         },
         "get": {
             "no_memory": "Nothing to review right now! You're all caught up. 🎉",
@@ -64,7 +64,7 @@
             "mode_dual": "Dual 🔄",
             "mode_standard": "Standard ➡️",
             "menu": {
-                "heading": "⚙️ <b>Settings</b>",
+                "heading": "⚙️ <b>Make Kartino yours</b>",
                 "status": "Current Status: <b>{status}</b>",
                 "primary_lang": "Primary Language: <b>{primary_lang}</b>",
                 "secondary_lang": "Secondary Language: <b>{secondary_lang}</b>",
@@ -126,8 +126,8 @@
             "grade_5": "5 - Easy peasy! 💪"
         },
         "notifications": {
-             "resumed": "Scheduler Resumed",
-             "paused": "Scheduler Paused"
+             "resumed": "Welcome back! 🌱 I'll start sending you review cards again.",
+             "paused": "Taking a break — no worries! 😴 I won't send any reviews until you're ready."
         }
     }
 }
