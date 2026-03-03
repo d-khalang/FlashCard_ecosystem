@@ -37,11 +37,11 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot):
     if isinstance(event.exception, TelegramForbiddenError):
         # User blocked bot
         if event.update.message:
-            logger.info(f"User blocked the bot: {event.update.message.from_user.id}")
+            logger.warning(f"User blocked the bot: {event.update.message.from_user.id}")
         
     elif isinstance(event.exception, TelegramBadRequest):
         # User sent a message that the bot can't handle or invalid HTML?
-        logger.info(f"Bad Request: {event.exception}")
+        logger.warning(f"Bad Request: {event.exception}")
     
     # Notify user about the error
     try:
