@@ -28,6 +28,12 @@ OUTPUT RULES:
        - text: 1–2 common translations in the target language.
    - example_it: an everyday Italian sentence using the word/expression (Italian only; no translation).
 
+3) If the input is NOT an Italian word or expression (e.g., English, Spanish, random text):
+   - success=false
+   - norm: normalize the input as-is.
+   - note_it: "Questo non sembra essere italiano. Forse intendevi: X" (suggest the Italian equivalent).
+   - suggestions: list up to 3 Italian translations/equivalents.
+
 3) Unknown/unclear/ambiguous input:
    - success=false
    - note_it: "Parola non chiara" OR "Parola non chiara; forse intendevi: X, Y, Z."

@@ -113,7 +113,8 @@
         },
         "errors": {
             "service_unavailable": "Uh oh, my circuits are a bit tangled right now! 🤖 Please try again later.",
-            "feedback_failed": "Couldn't send that feedback just now 😅: {error}"
+            "feedback_failed": "Couldn't send that feedback just now 😅: {error}",
+            "input_too_long": "Whoa, that's a bit too long! 😅 Let's keep it to short words or expressions (max 150 characters)."
         },
         "buttons": {
             "save": "💾 Save",

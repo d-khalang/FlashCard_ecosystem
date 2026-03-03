@@ -71,7 +71,8 @@
         },
         "errors": {
             "service_unavailable": "😔 Oops! Al momento stiamo riscontrando dei problemi tecnici.\nRiprova più tardi.",
-            "feedback_failed": "Errore nell'invio del feedback: {error}"
+            "feedback_failed": "Errore nell'invio del feedback: {error}",
+            "input_too_long": "Ehi, è un po' troppo lungo! 😅 Manteniamolo a parole o brevi espressioni (massimo 150 caratteri)."
         },
         "buttons": {
             "save": "Salva",

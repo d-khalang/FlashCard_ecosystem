@@ -19,6 +19,10 @@ router = Router()
 @router.message(F.text)
 @flags.chat_action(ChatAction.TYPING)
 async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
+    if len(message.text) > 150:
+        await message.answer(i18n.get("messages.errors.input_too_long"))
+        return
+
     status_msg = await message.answer(i18n.get("messages.working"))
 
     text, success, card, user = await generate_and_render_card(llm_service, user_service, message.from_user.id, message.text)
