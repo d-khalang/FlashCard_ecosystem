@@ -65,6 +65,7 @@ class TraceMiddleware(BaseMiddleware):
 
         # Set it in the contextvar so child functions can access it
         token = set_current_trace(trace)
+        data["trace_id"] = trace_id
 
         has_error = False
         error_msg = None
@@ -76,6 +77,11 @@ class TraceMiddleware(BaseMiddleware):
         except Exception as e:
             has_error = True
             error_msg = str(e)
+            # Preserve trace id for aiogram error handlers even if context/data propagation changes
+            try:
+                setattr(e, "trace_id", trace_id)
+            except Exception:
+                pass
             raise e
         finally:
             end_dt = now_utc()

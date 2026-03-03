@@ -79,7 +79,7 @@ def get_logger(name: str) -> logging.Logger:
     return FlashCardLogger.get_logger(name)
 
 
-async def notify_admin_with_trace(bot, text: str):
+async def notify_admin_with_trace(bot, text: str, trace_id: str | None = None):
     """
     Sends a message to the bot Admin, safely checking if there is an active Trace ID.
     If yes, injects it at the bottom to allow easy crossing-referencing with JSON lines logs.
@@ -89,9 +89,13 @@ async def notify_admin_with_trace(bot, text: str):
     
     trace_id_str = ""
     try:
-        trace = get_current_trace()
-        if trace and hasattr(trace, 'trace_id'):
-            trace_id_str = f"\n\n[Trace ID: {trace.trace_id}]"
+        resolved_trace_id = trace_id
+        if not resolved_trace_id:
+            trace = get_current_trace()
+            if trace and hasattr(trace, 'trace_id'):
+                resolved_trace_id = trace.trace_id
+        if resolved_trace_id:
+            trace_id_str = f"\n\n[Trace ID: {resolved_trace_id}]"
     except Exception as e:
         pass # Failsafe so the alert itself never crashes
         

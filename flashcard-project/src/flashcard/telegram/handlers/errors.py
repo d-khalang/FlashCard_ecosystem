@@ -10,7 +10,7 @@ router = Router()
 logger = get_logger(__name__)
 
 @router.error()
-async def error_handler(event: ErrorEvent, logger_bot: Bot):
+async def error_handler(event: ErrorEvent, logger_bot: Bot, trace_id: str | None = None):
     """
     Global error handler.
     """
@@ -20,6 +20,7 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot):
     # Send error notification to logger bot
     try:
         from flashcard.utils.logger import notify_admin_with_trace
+        resolved_trace_id = trace_id or getattr(event.exception, "trace_id", None)
         exception_text = html.escape(str(event.exception)[:1000])
         await notify_admin_with_trace(
             logger_bot,
@@ -28,7 +29,8 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot):
                 f"User ID: {event.update.message.from_user.id if event.update.message else (event.update.callback_query.from_user.id if event.update.callback_query else 'Unknown')}\n"
                 f"Update Type: {event.update.event_type}\n"
                 f"Exception: {exception_text}"
-            )
+            ),
+            trace_id=resolved_trace_id
         )
     except Exception as e:
         logger.error(f"Failed to send error notification to logger bot: {e}")
@@ -58,3 +60,4 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot):
     except Exception as e:
         # If we can't notify the user (e.g. blocked bot), just log it
         logger.warning(f"Failed to notify user {user_id} about error: {e}")
+
