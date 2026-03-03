@@ -7,19 +7,19 @@
             "already_exists": "Already exists among your FlashCards 🧐"
         },
         "regen": {
-            "working": "Working on it...",
-            "failed": "Sorry I failed to regenerate 😞"
+            "working": "Let me think... 🤔",
+            "failed": "Oops, I couldn't rethink that one. 😞"
         },
         "verb": {
             "not_found": "Verb data not found.",
             "updated": "👇🏻 Conjugation updated"
         },
         "grade": {
-            "rated": "\n\n✅ You rated it <b>{grade}</b>",
-            "success": "Graded successfully!",
-            "error_missing": "Error updating grade. Card might be missing.",
-            "invalid_data": "Invalid callback data.",
-            "error_generic": "An error occurred."
+            "rated": "\n\n✅ <b>{grade}</b> recorded!",
+            "success": "Got it! 🎓",
+            "error_missing": "Oops, I couldn't find that card. 😅",
+            "invalid_data": "Hmm, something went wrong there. 🤔",
+            "error_generic": "Uh oh, a little hiccup on my end. 😅"
         }
     },
     "commands": {
@@ -34,13 +34,13 @@
             "reply": "help reply"
         },
         "get": {
-            "no_memory": "Sorry but you don't have any memory (◡︵◡)\n(Or all cards reviewed recently!)",
-            "generation_error": "Error preparing card."
+            "no_memory": "Nothing to review right now! You're all caught up. 🎉",
+            "generation_error": "Oops, couldn't get that card ready. 😅"
         },
         "story": {
-            "writing": "Writing a story with {count} words... ✍️",
-            "generation_error": "Sorry, I couldn't write the story right now. Please try again later.",
-            "no_expressions": "No expressions found. Add some first!"
+            "writing": "Cooking up a story with {count} of your words... ✍️✨",
+            "generation_error": "My imagination is taking a break right now. 😅 Try again later!",
+            "no_expressions": "You need some flashcards first before we can tell a story! 📖"
         },
         "verb": {
             "instruction": "✋ Small tip!\n\nTo get the conjugation of a verb, type:\n/verb &lt;the verb you want&gt;\n\nFor example:\n/verb andare\n\n💡 In the command menu, if you press and hold the /verb command, it will be added to your message box — then you can simply type the verb after it.",
@@ -49,12 +49,12 @@
             "searching": "Searching for verb: {verb}..."
         },
         "import": {
-            "usage_guide": "Hey there! 👋 I can help you add multiple words or expressions at once!\n\nHere is how to do it:\n1️⃣ Start your message with /import\n2️⃣ Write the list of words or expressions you want me to save.\n<i>You can separate them by new lines, commas, bullets, or numbers.</i>\n\n✅ Example:\n/import\ndare una festa\nspesa\nprendere il treno",
-            "processing_error": "Oops! 🙈 I ran into a little trouble processing that request. Please try again later!",
-            "import_failed": "I couldn't quite catch that. 😕 Here is what went wrong:\n{log_msg}",
-            "no_items_found": "I couldn't find any Italian words or expressions in there to save. 🕵️‍♀️ Could you please double-check your spelling?",
-            "success": "Great news! 🎉 I have successfully saved {count} new flashcards for you:\n{items_str}",
-            "all_duplicates": "It looks like I already have all those flashcards saved! ✅ No new items were added."
+            "usage_guide": "Got a list? Let's add them all! 📦\n\nJust type `/import` followed by your words (on new lines or separated by commas):\n\nExample:\n/import\nandare a casa\nfare colazione",
+            "processing_error": "Yikes, getting dizzy! 💫 Couldn't process that list right now.",
+            "import_failed": "Hmm, I got a bit confused: {log_msg} 🤔",
+            "no_items_found": "I couldn't spot any Italian there! 🕵️‍♂️ Check your spelling?",
+            "success": "Woohoo! 🎉 Saved {count} new cards:\n{items_str}",
+            "all_duplicates": "Looks like you already know these! 😉 No new cards added."
         },
         "settings": {
             "closed": "Settings closed.",
@@ -85,11 +85,11 @@
                 "api": "To configure your own API Key, please reach out to admin (Feature pending)."
             },
             "prompts": {
-                "primary_lang": "What language do you want to receive translation to? Default -> english.",
-                "secondary_lang": "Recommended to select your mother tongue, this would be the second language you receive the translation too. (Write 'none' if you don't need a secondary language)",
-                "invalid_lang": "🚫 I couldn't recognize that language. Please try typing it again (e.g. 'English', 'DE', 'Farsi').",
-                "success_lang": "✅ {type} language set to <b>{lang}</b> {flag}.",
-                "level_select": "Please select your target proficiency level:"
+                "primary_lang": "What language should I translate to? (e.g. English) 🌍",
+                "secondary_lang": "Any secondary language? (e.g. your mother tongue, or 'none') 🗣️",
+                "invalid_lang": "Hmm, I didn't recognize that one. 🤔 Try language name or code. e.g. English, DE, Farsi.",
+                "success_lang": "Got it! {type} language is now <b>{lang}</b> {flag}.",
+                "level_select": "What's your current Italian level? 📈"
             },
             "buttons": {
                 "set_primary": "Primary Language",
@@ -106,24 +106,24 @@
         }
     },
     "messages": {
-        "working": "Working on it...",
+        "working": "Let me think... 🤔",
         "collection": {
-            "empty": "<b>📚 Flashcard Collection</b>\n\nIt seems you don't have any flashcards yet! 😅\nWrite a word or an expression to add it.",
-            "header": "<b>📚 Your Flashcard Collection</b>\n<i>{count} items stored</i>\n"
+            "empty": "<b>📇 Your Deck</b>\n\nIt's quiet in here... Send me a word to get started! ✨",
+            "header": "<b>📇 Your Deck</b>\n<i>{count} words growing strong 🌱</i>\n"
         },
         "errors": {
-            "service_unavailable": "😔 Oops! I am currently experiencing some technical difficulties.\nPlease try again later.",
-            "feedback_failed": "Error sending feedback: {error}"
+            "service_unavailable": "Uh oh, my circuits are a bit tangled right now! 🤖 Please try again later.",
+            "feedback_failed": "Couldn't send that feedback just now 😅: {error}"
         },
         "buttons": {
-            "save": "Save",
-            "regenerate": "Regenerate",
-            "pause_learning": "⏸ Pause Learning",
-            "resume_learning": "▶ Resume Learning",
+            "save": "💾 Save",
+            "regenerate": "🔄 Another version",
+            "pause_learning": "⏸ Pause",
+            "resume_learning": "▶️ Resume",
             "close_settings": "❌ Close Settings",
-            "verb_web_table": "📖 Tabella completa sul web",
-            "grade_0": "0 - I had no idea",
-            "grade_5": "5 - Known like family"
+            "verb_web_table": "📖 Full table online",
+            "grade_0": "0 - Completely forgot 😅",
+            "grade_5": "5 - Easy peasy! 💪"
         },
         "notifications": {
              "resumed": "Scheduler Resumed",

@@ -15,8 +15,8 @@ class TestExpressionListFormatting:
     def test_empty_list_shows_onboarding_message(self):
         result = format_expression_list([])
         assert len(result) == 1
-        assert "📚 Flashcard Collection" in result[0]
-        assert "don't have any flashcards yet" in result[0]
+        assert "📇 Your Deck" in result[0]
+        assert "quiet in here" in result[0]
 
     def test_default_mode_sorts_alphabetically(self):
         result = format_expression_list(["banana", "apple"])
@@ -70,4 +70,4 @@ class TestExpressionListFormatting:
 
     def test_item_count_in_header(self):
         result = format_expression_list(["a", "b", "c"])
-        assert "3 items stored" in result[0]
+        assert "3 words growing strong" in result[0]
