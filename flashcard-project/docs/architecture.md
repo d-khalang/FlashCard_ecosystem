@@ -79,7 +79,7 @@ flashcard-project/src/flashcard/
 ├── telegram/                # Telegram bot layer
 │   ├── bot.py               # Bot & dispatcher setup, service wiring
 │   ├── middlewares/         # aiogram middlewares
-│   │   └── trace_middleware.py # Injects trace context per update
+│   │   └── trace_middleware.py # Injects trace context per update and propagates trace_id
 │   ├── keyboards.py         # Reply keyboard builder
 │   ├── handlers/            # Command, callback & message handlers
 │   ├── helpers/             # Telegram-specific utilities
@@ -94,14 +94,14 @@ flashcard-project/src/flashcard/
 │
 ├── utils/                   # General utilities
 │   ├── logger.py            # Logging setup
-│   ├── tracing.py           # Trace/span models & @observe decorator
+│   ├── tracing.py           # Trace/span helpers, @observe, and finalize_trace lifecycle helper
 │   └── time.py              # UTC time helpers
 │
 └── resources/               # Static resources
     └── locales/
         └── en.json          # English UI strings
 
-tests/                           # Test suite (234 unit tests)
+tests/                           # Test suite (243 unit tests)
 ├── conftest.py                  # Env var setup for test isolation
 ├── helpers.py                   # Shared test utilities (AsyncCursorMock)
 └── unit/
@@ -222,6 +222,12 @@ dp.start_polling(bot, expression_service=expression_service, user_service=user_s
 async def cmd_get(message: Message, expression_service: ExpressionService, user_service: UserService, consumption_service: ConsumptionService):
     ...
 ```
+
+## Tracing Flow
+
+- Telegram updates are traced by [`trace_middleware.py`](../src/flashcard/telegram/middlewares/trace_middleware.py), which injects `trace_id` into handler context and attaches it to raised exceptions for global error handlers.
+- Scheduler cycles create their own trace context in [`scheduler.py`](../src/flashcard/scheduler/scheduler.py), so scheduler admin alerts also include trace IDs.
+- Both paths finalize traces through `finalize_trace(...)` in [`utils/tracing.py`](../src/flashcard/utils/tracing.py).
 
 ## Database Collections
 

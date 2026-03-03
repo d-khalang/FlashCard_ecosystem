@@ -48,19 +48,20 @@ tests/
 │   │   ├── test_expression_card_ui.py  # Card rendering + review modes (12 tests)
 │   │   ├── test_expression_ui.py       # Expression list formatting (8 tests)
 │   │   ├── test_verb_ui.py             # Conjugation formatting (16 tests)
-│   │   └── test_story_and_callbacks.py # Story UI + callback factories (14 tests)
+│   │   ├── test_story_and_callbacks.py # Story UI + callback factories (14 tests)
+│   │   └── test_review_handler.py      # Callback timeout helper behavior (2 tests)
 │   │
 │   ├── scheduler/                  # Background job logic (mocked)
-│   │   └── test_scheduler.py       # User filtering + admin metrics (7 tests)
+│   │   └── test_scheduler.py       # User filtering, metrics, scheduler tracing (9 tests)
 │   │
 │   └── utils/                      # Utilities
-│       ├── test_tracing.py         # @observe decorator + TraceLogger (7 tests)
+│       ├── test_tracing.py         # @observe + finalize_trace + TraceLogger (8 tests)
 │       └── test_time_and_settings.py   # now_utc, iso_z, webhook_url (8 tests)
 │
 └── manual/                         # Debug scripts (not in pytest)
 ```
 
-**Total: 238 tests** — all unit tests with mocked dependencies.
+**Total: 243 tests** - all unit tests with mocked dependencies.
 
 ## Configuration
 

@@ -114,6 +114,12 @@ Finite State Machine states for multi-step conversations:
 - **Settings FSM** — Language selection, level selection, interval configuration
 - **Feedback FSM** — Feedback message collection
 
+## Error Handling Notes
+
+- [`errors.py`](../src/flashcard/telegram/handlers/errors.py) appends trace IDs to admin alerts when available.
+- Global error alerts resolve trace ID from handler DI (`trace_id`) or from exception metadata set in middleware (`event.exception.trace_id`).
+- [`review.py`](../src/flashcard/telegram/handlers/review.py) uses `safe_answer_callback(...)` to suppress expected Telegram callback-expiry errors (`query is too old` / invalid query id) while re-raising other `TelegramBadRequest` errors.
+
 ## Helpers (`telegram/helpers/`)
 
 | File | Purpose |

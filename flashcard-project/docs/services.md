@@ -152,10 +152,12 @@ Writes execution traces to flat files in JSON Lines format for performance monit
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `log_trace` | `(trace_data: TraceData)` | Writes a completed trace to the active log file asynchronously on a background thread. |
+| `log_trace_json` | `(trace_json: str)` | Writes a completed trace JSON line to the active log file asynchronously on a background thread. |
 | `shutdown` | `()` | Ensures all pending logs are flushed to disk before application exit. |
 
-Traces are automatically rotated and keep track of latencies, token usage, errors, and nested `@observe` spans.
+Traces are automatically rotated and keep track of latencies, errors, and nested `@observe` spans.
+
+Trace lifecycle finalization is centralized in [`utils/tracing.py`](../src/flashcard/utils/tracing.py) via `finalize_trace(...)`, used by both Telegram update middleware and the scheduler loop.
 
 ---
 
