@@ -5,8 +5,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Message, CallbackQuery, Update
 
 from flashcard.schemas.trace import TraceData
-from flashcard.utils.tracing import set_current_trace, clear_current_trace
-from flashcard.services.trace_logger import get_trace_logger
+from flashcard.utils.tracing import set_current_trace, finalize_trace
 from flashcard.utils.time import now_utc, iso_z
 
 class TraceMiddleware(BaseMiddleware):
@@ -84,15 +83,4 @@ class TraceMiddleware(BaseMiddleware):
                 pass
             raise e
         finally:
-            end_dt = now_utc()
-            # Finalize metrics
-            trace.end(start_dt, end_dt, has_error, error_msg)
-
-            # Serialize down to JSON automatically via pydantic
-            trace_json = trace.model_dump_json()
-
-            # Pass string directly to the queue logger
-            get_trace_logger().log_trace_json(trace_json)
-
-            # Clean up context
-            clear_current_trace(token)
+            finalize_trace(trace, token, start_dt, has_error, error_msg)

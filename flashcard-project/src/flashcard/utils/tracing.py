@@ -25,6 +25,21 @@ def clear_current_trace(token: contextvars.Token) -> None:
     """Clears the trace back to its previous state."""
     current_trace_var.reset(token)
 
+def finalize_trace(
+    trace: TraceData,
+    token: contextvars.Token,
+    start_dt: datetime,
+    has_error: bool = False,
+    error_msg: Optional[str] = None,
+) -> None:
+    """Finalize, persist, and clear trace context."""
+    from flashcard.services.trace_logger import get_trace_logger
+
+    end_dt = now_utc()
+    trace.end(start_dt, end_dt, has_error, error_msg)
+    get_trace_logger().log_trace_json(trace.model_dump_json())
+    clear_current_trace(token)
+
 def observe(name: Optional[str] = None, include_output: bool = True) -> Callable:
     """
     Decorator to wrap a function to automatically record a Span in the current TraceData.
