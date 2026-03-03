@@ -2,6 +2,8 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message, ForceReply
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
+from contextlib import suppress
 
 from flashcard.services.user import UserService
 from flashcard.services.i18n import i18n
@@ -47,16 +49,18 @@ async def handle_settings_nav(callback: CallbackQuery, callback_data: SettingsCa
         user_data = await user_service.get_user(user_id)
         text = _get_settings_menu_text(user_data)
         
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=get_main_settings_keyboard(user_data)
-        )
+        with suppress(TelegramBadRequest):
+            await callback.message.edit_text(
+                text=text,
+                reply_markup=get_main_settings_keyboard(user_data)
+            )
     
     elif section == "lang_menu":
         user_data = await user_service.get_user(user_id)
         text = i18n.get("commands.settings.sections.language")
         kb = get_language_settings_keyboard(user_data)
-        await callback.message.edit_text(text=text, reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await callback.message.edit_text(text=text, reply_markup=kb)
         
     elif section == "set_lang_p":
         await state.set_state(SettingsPrompts.waiting_primary_lang)
@@ -79,14 +83,16 @@ async def handle_settings_nav(callback: CallbackQuery, callback_data: SettingsCa
         current = user_data.target_level
         text = i18n.get("commands.settings.prompts.level_select")
         kb = get_level_selection_keyboard(current)
-        await callback.message.edit_text(text=text, reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await callback.message.edit_text(text=text, reply_markup=kb)
         
     elif section == "interval":
         user_data = await user_service.get_user(user_id)
         current = user_data.review_interval_minutes
         text = i18n.get("commands.settings.sections.interval")
         kb = get_interval_settings_keyboard(current)
-        await callback.message.edit_text(text=text, reply_markup=kb, parse_mode="Markdown")
+        with suppress(TelegramBadRequest):
+            await callback.message.edit_text(text=text, reply_markup=kb, parse_mode="Markdown")
         
     elif section == "api":
         text = i18n.get("commands.settings.sections.api")
@@ -104,14 +110,16 @@ async def handle_settings_select(callback: CallbackQuery, callback_data: Setting
     if section == "target_level":
         await user_service.update_setting(user_id, "target_level", value)
         kb = get_level_selection_keyboard(value)
-        await callback.message.edit_reply_markup(reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await callback.message.edit_reply_markup(reply_markup=kb)
         
     elif section == "interval":
         try:
             val_int = int(value)
             await user_service.update_setting(user_id, "review_interval_minutes", val_int)
             kb = get_interval_settings_keyboard(val_int)
-            await callback.message.edit_reply_markup(reply_markup=kb)
+            with suppress(TelegramBadRequest):
+                await callback.message.edit_reply_markup(reply_markup=kb)
         except ValueError:
             pass
             
@@ -129,7 +137,8 @@ async def handle_settings_select(callback: CallbackQuery, callback_data: Setting
         text = _get_settings_menu_text(user_data)
         kb = get_main_settings_keyboard(user_data)
         
-        await callback.message.edit_text(text=text, reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await callback.message.edit_text(text=text, reply_markup=kb)
         await callback.answer(i18n.get("commands.settings.switched_mode", mode=new_mode.capitalize()))
         return # return early as we edited text
             
