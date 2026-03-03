@@ -71,6 +71,7 @@ Manages user profiles and settings.
 | `toggle_active_status` | `(user_id) → bool` | Toggles active/inactive. Returns new status. |
 | `update_user_last_push` | `(user_id)` | Updates `last_push_at` timestamp and sets `has_pending=True`. |
 | `update_setting` | `(user_id, field, value)` | Updates any single field in the user document (used by settings FSM). |
+| `advance_onboarding` | `(user_id, current_step) → bool` | Atomically advances user's onboarding step if it matches `current_step`. |
 
 ### UserDB Schema
 
@@ -86,6 +87,7 @@ Defined in [`schemas/user.py`](../src/flashcard/schemas/user.py):
 | `review_interval_minutes` | `int` | `30` | Minutes between review batches |
 | `is_active` | `bool` | `True` | Whether scheduler sends reviews |
 | `has_pending` | `bool` | `False` | Whether user has pending reviews |
+| `onboarding_step` | `int` | `0` | Tracks user's progress through contextual onboarding tips |
 | `last_push_at` | `str?` | `None` | ISO timestamp of last push |
 | `last_reviewed_at` | `str?` | `None` | ISO timestamp of last review |
 | `api_config` | `UserAPIConfig?` | `None` | Custom LLM provider/model/key config |

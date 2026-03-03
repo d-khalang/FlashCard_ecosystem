@@ -34,15 +34,16 @@ tests/
 │   ├── services/                   # Business logic (mocked MongoDB)
 │   │   ├── test_expression_service.py  # CRUD + review candidate (22 tests)
 │   │   ├── test_verb_service.py        # Verb lookup + scraper (24 tests)
-│   │   ├── test_user_service.py        # User CRUD + settings (16 tests)
+│   │   ├── test_user_service.py        # User CRUD + settings (18 tests)
 │   │   ├── test_i18n_service.py        # Locale loading (13 tests)
 │   │   ├── test_consumption_service.py # Daily quota tracking (10 tests)
 │   │   └── test_llm_service.py         # Mocked genai (10 tests)
 │   │
 │   ├── schemas/                    # Pydantic models + language utils
-│   │   └── test_schemas.py         # ExpressionDB, UserDB, language normalization (23 tests)
+│   │   └── test_schemas.py         # ExpressionDB, UserDB, language normalization (24 tests)
 │   │
 │   ├── telegram/                   # UI + keyboards (no real Telegram)
+│   │   ├── test_creation_handler.py    # Creation input guards (1 test)
 │   │   ├── test_keyboards.py           # Button counts, layouts, callbacks (14 tests)
 │   │   ├── test_expression_card_ui.py  # Card rendering + review modes (12 tests)
 │   │   ├── test_expression_ui.py       # Expression list formatting (8 tests)
@@ -59,7 +60,7 @@ tests/
 └── manual/                         # Debug scripts (not in pytest)
 ```
 
-**Total: 234 tests** — all unit tests with mocked dependencies.
+**Total: 238 tests** — all unit tests with mocked dependencies.
 
 ## Configuration
 
