@@ -203,7 +203,7 @@ class TestAdvanceOnboarding:
 
         assert result is True
         call_args = cols["users"].update_one.call_args[0]
-        assert call_args[0] == {"user_id": "123", "onboarding_step": 0}
+        assert call_args[0] == {"user_id": "123", "$or": [{"onboarding_step": 0}, {"onboarding_step": {"$exists": False}}]}
         assert call_args[1] == {"$set": {"onboarding_step": 1}}
 
     async def test_skips_if_already_advanced(self):

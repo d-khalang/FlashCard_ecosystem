@@ -83,8 +83,14 @@ class UserService:
         Advances the onboarding step if the user is at the expected step.
         Returns True if advanced, False if already past this step.
         """
+        query = {"user_id": str(user_id)}
+        if current_step == 0:
+            query["$or"] = [{"onboarding_step": 0}, {"onboarding_step": {"$exists": False}}]
+        else:
+            query["onboarding_step"] = current_step
+
         result = await self.cols['users'].update_one(
-            {"user_id": str(user_id), "onboarding_step": current_step},
+            query,
             {"$set": {"onboarding_step": current_step + 1}}
         )
         return result.modified_count > 0
