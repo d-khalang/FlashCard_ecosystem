@@ -125,6 +125,10 @@
             "grade_0": "0 - Completely forgot 😅",
             "grade_5": "5 - Easy peasy! 💪"
         },
+        "tips": {
+            "first_save": "💡 <b>Tip:</b> Head to /settings to customize your translation language, Italian level and review pace!",
+            "first_review": "💡 <b>Did you know?</b> Try <b>Dual Mode</b> in /settings — it quizzes you in both directions for deeper retention! 🔄"
+        },
         "notifications": {
              "resumed": "Welcome back! 🌱 I'll start sending you review cards again.",
              "paused": "Taking a break — no worries! 😴 I won't send any reviews until you're ready."

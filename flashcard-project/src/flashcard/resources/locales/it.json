@@ -83,6 +83,10 @@
             "verb_web_table": "📖 Tabella completa sul web",
             "grade_0": "0 - Non ne avevo idea",
             "grade_5": "5 - Conosciuto come la famiglia"
+        },
+        "tips": {
+            "first_save": "💡 <b>Consiglio:</b> Vai su /settings per impostare la lingua di traduzione e il ritmo delle revisioni — rendi Kartino davvero tuo!",
+            "first_review": "💡 <b>Lo sapevi?</b> Prova la <b>Modalità Doppia</b> in /settings — ti interroga in entrambe le direzioni per un apprendimento più profondo! 🔄"
         }
     }
 }
