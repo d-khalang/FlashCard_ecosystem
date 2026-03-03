@@ -7,9 +7,16 @@ and TraceLogger serialization.
 import asyncio
 import os
 import pytest
+from unittest.mock import MagicMock, patch
 
 from flashcard.schemas.trace import TraceData
-from flashcard.utils.tracing import set_current_trace, observe, get_current_trace, clear_current_trace
+from flashcard.utils.tracing import (
+    set_current_trace,
+    observe,
+    get_current_trace,
+    clear_current_trace,
+    finalize_trace,
+)
 from flashcard.utils.time import now_utc, iso_z
 from flashcard.services.trace_logger import get_trace_logger
 
@@ -158,3 +165,25 @@ class TestTraceLogger:
 
         assert trace_file.exists()
         assert "file-test" in trace_file.read_text(encoding="utf-8")
+
+
+class TestFinalizeTrace:
+
+    def test_finalize_trace_sets_error_and_clears_context(self):
+        trace = TraceData(
+            trace_id="finalize-test",
+            timestamp=iso_z(now_utc()),
+            update_type="test",
+        )
+        token = set_current_trace(trace)
+        mock_logger = MagicMock()
+        start = now_utc()
+
+        with patch("flashcard.services.trace_logger.get_trace_logger", return_value=mock_logger):
+            finalize_trace(trace, token, start, has_error=True, error_msg="boom")
+
+        assert trace.status == "error"
+        assert trace.error == "boom"
+        assert trace.total_latency_ms is not None
+        assert get_current_trace() is None
+        mock_logger.log_trace_json.assert_called_once()

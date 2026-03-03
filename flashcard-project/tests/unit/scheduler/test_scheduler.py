@@ -5,6 +5,8 @@ Tests:
   - find_users_due_for_review: filtering logic (active, pending, interval)
   - send_admin_metrics: report formatting, message splitting
 """
+import asyncio
+import json
 from datetime import timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -186,3 +188,95 @@ class TestSendAdminMetrics:
 
             # Should have been called multiple times (split messages)
             assert mock_notify.call_count >= 2
+
+
+class _BreakLoop(Exception):
+    """Raised by patched sleep to stop the infinite scheduler loop in tests."""
+
+
+class TestSchedulerLoopTracing:
+
+    async def test_scheduler_loop_notifies_with_trace_on_loop_error(self):
+        from flashcard.scheduler.scheduler import scheduler_loop
+
+        mock_bot = MagicMock()
+        mock_logger_bot = MagicMock()
+        mock_expression_service = MagicMock()
+        mock_user_service = MagicMock()
+        mock_consumption_service = MagicMock()
+        mock_llm_service = MagicMock()
+        mock_trace_logger = MagicMock()
+
+        async def _break_sleep(_seconds):
+            raise _BreakLoop()
+
+        with (
+            patch("flashcard.scheduler.scheduler._observed_find_users_due_for_review", new_callable=AsyncMock, side_effect=RuntimeError("db down")),
+            patch("flashcard.scheduler.scheduler.notify_admin_with_trace", new_callable=AsyncMock) as mock_notify,
+            patch("flashcard.services.trace_logger.get_trace_logger", return_value=mock_trace_logger),
+            patch("flashcard.scheduler.scheduler.asyncio.sleep", side_effect=_break_sleep),
+        ):
+            try:
+                await scheduler_loop(
+                    bot=mock_bot,
+                    logger_bot=mock_logger_bot,
+                    expression_service=mock_expression_service,
+                    user_service=mock_user_service,
+                    consumption_service=mock_consumption_service,
+                    llm_service=mock_llm_service,
+                    admin_id=12345,
+                )
+            except _BreakLoop:
+                pass
+
+        mock_notify.assert_called_once()
+        assert "Scheduler Loop Error" in mock_notify.call_args[0][1]
+        mock_trace_logger.log_trace_json.assert_called_once()
+
+    async def test_scheduler_loop_records_observed_spans(self):
+        from flashcard.scheduler.scheduler import scheduler_loop
+
+        mock_bot = MagicMock()
+        mock_logger_bot = MagicMock()
+        mock_expression_service = MagicMock()
+        mock_user_service = MagicMock()
+        mock_consumption_service = MagicMock()
+        mock_llm_service = MagicMock()
+        mock_trace_logger = MagicMock()
+
+        # One due user to trigger metrics path and observed wrappers.
+        old = iso_z(now_utc() - timedelta(minutes=60))
+        mock_user_service.cols = {"users": MagicMock()}
+        mock_user_service.cols["users"].find = MagicMock(
+            return_value=_AsyncCursor([
+                _make_user_doc(user_id="u1", last_reviewed_at=old, review_interval_minutes=30)
+            ])
+        )
+
+        async def _break_sleep(_seconds):
+            raise _BreakLoop()
+
+        with (
+            patch("flashcard.scheduler.scheduler.send_scheduled_review", new_callable=AsyncMock, return_value=None),
+            patch("flashcard.scheduler.scheduler.notify_admin_with_trace", new_callable=AsyncMock),
+            patch("flashcard.services.trace_logger.get_trace_logger", return_value=mock_trace_logger),
+            patch("flashcard.scheduler.scheduler.asyncio.sleep", side_effect=_break_sleep),
+        ):
+            try:
+                await scheduler_loop(
+                    bot=mock_bot,
+                    logger_bot=mock_logger_bot,
+                    expression_service=mock_expression_service,
+                    user_service=mock_user_service,
+                    consumption_service=mock_consumption_service,
+                    llm_service=mock_llm_service,
+                    admin_id=12345,
+                )
+            except _BreakLoop:
+                pass
+
+        trace_json = mock_trace_logger.log_trace_json.call_args[0][0]
+        payload = json.loads(trace_json)
+        span_names = {s["name"] for s in payload["spans"]}
+        assert "scheduler.find_users_due_for_review" in span_names
+        assert "scheduler.send_admin_metrics" in span_names
