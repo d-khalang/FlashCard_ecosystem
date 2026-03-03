@@ -185,3 +185,48 @@ class TestUpdateSetting:
 
         call_args = cols["users"].update_one.call_args[0]
         assert call_args[0]["user_id"] == "42"  # string, not int
+
+
+# ===================================================================
+# advance_onboarding
+# ===================================================================
+class TestAdvanceOnboarding:
+
+    async def test_advances_from_current_step(self):
+        """Step 0 → 1 when user is at step 0."""
+        service, cols = _make_service()
+        cols["users"].update_one = AsyncMock(
+            return_value=MagicMock(modified_count=1)
+        )
+
+        result = await service.advance_onboarding(123, 0)
+
+        assert result is True
+        call_args = cols["users"].update_one.call_args[0]
+        assert call_args[0] == {"user_id": "123", "onboarding_step": 0}
+        assert call_args[1] == {"$set": {"onboarding_step": 1}}
+
+    async def test_skips_if_already_advanced(self):
+        """Returns False if user already past this step."""
+        service, cols = _make_service()
+        cols["users"].update_one = AsyncMock(
+            return_value=MagicMock(modified_count=0)
+        )
+
+        result = await service.advance_onboarding(123, 0)
+
+        assert result is False
+
+    async def test_step_1_to_2(self):
+        """Step 1 → 2 after first review."""
+        service, cols = _make_service()
+        cols["users"].update_one = AsyncMock(
+            return_value=MagicMock(modified_count=1)
+        )
+
+        result = await service.advance_onboarding(123, 1)
+
+        assert result is True
+        call_args = cols["users"].update_one.call_args[0]
+        assert call_args[0] == {"user_id": "123", "onboarding_step": 1}
+        assert call_args[1] == {"$set": {"onboarding_step": 2}}

@@ -77,7 +77,7 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
 
 
 @router.callback_query(GradeCallback.filter())
-async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, expression_service: ExpressionService, logger_bot: Bot):
+async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, expression_service: ExpressionService, user_service: UserService, logger_bot: Bot):
     """
     Handle grading callbacks: grade:{expression_id}:{grade}:{direction_code}
     direction_code: 'fwd' | 'rev' (optional, defaults to 'fwd' for backward compat)
@@ -97,6 +97,12 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, ex
             value = updated_doc.get("value", "Unknown")
             await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
             await callback.answer(i18n.get("callbacks.grade.success"))
+            
+            # Onboarding tip: after first review, nudge about Dual Mode
+            user = await user_service.get_user(user_id)
+            if user.onboarding_step == 1:
+                await callback.message.answer(i18n.get("messages.tips.first_review"))
+                await user_service.advance_onboarding(user_id, 1)
         else:
             await callback.answer(i18n.get("callbacks.grade.error_missing"), show_alert=True)
             

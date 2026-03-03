@@ -36,5 +36,8 @@ class UserDB(BaseModel):
     review_interval_minutes: int = Field(30, description="Minutes between review batches")
     api_config: Optional[UserAPIConfig] = Field(None, description="Custom User API Config")
     
+    # Onboarding
+    onboarding_step: int = Field(0, description="Onboarding progress: 0=new, 1=first save seen, 2=first review seen")
+    
     # Consumption Tracking
     consumption: UserConsumption = Field(UserConsumption(), description="User Consumption per day")

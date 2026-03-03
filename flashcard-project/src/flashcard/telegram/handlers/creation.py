@@ -35,7 +35,7 @@ async def handle_text_message(message: Message, llm_service: LLMService, user_se
 
 
 @router.callback_query(F.data.startswith("save:"))
-async def handle_save(callback: CallbackQuery, expression_service: ExpressionService):
+async def handle_save(callback: CallbackQuery, expression_service: ExpressionService, user_service: UserService):
     # Format: save:{norm}
     norm = callback.data.split(":", 1)[1]
     user_id = callback.from_user.id
@@ -50,6 +50,12 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
         # Just extra check, could be omitted
         original_text = callback.message.text or callback.message.caption or ""
         await callback.message.edit_text(f"{original_text}{i18n.get('callbacks.save.success_tag', norm=norm)}")
+        
+        # Onboarding tip: after first save, nudge about /settings
+        user = await user_service.get_user(user_id)
+        if user.onboarding_step == 0:
+            await callback.message.answer(i18n.get("messages.tips.first_save"))
+            await user_service.advance_onboarding(user_id, 0)
     else:
         # Duplicate case
         await callback.answer(i18n.get("callbacks.save.already_exists"), show_alert=True)

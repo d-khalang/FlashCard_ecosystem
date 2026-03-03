@@ -114,6 +114,7 @@ class TestUserDB:
         assert user.review_mode == "standard"
         assert user.review_interval_minutes == 30
         assert user.api_config is None
+        assert user.onboarding_step == 0
 
     def test_consumption_defaults(self):
         user = UserDB(user_id="123")

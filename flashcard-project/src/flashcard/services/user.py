@@ -77,3 +77,14 @@ class UserService:
             {"$set": {field: value}},
             upsert=True
         )
+
+    async def advance_onboarding(self, user_id: Union[str, int], current_step: int) -> bool:
+        """
+        Advances the onboarding step if the user is at the expected step.
+        Returns True if advanced, False if already past this step.
+        """
+        result = await self.cols['users'].update_one(
+            {"user_id": str(user_id), "onboarding_step": current_step},
+            {"$set": {"onboarding_step": current_step + 1}}
+        )
+        return result.modified_count > 0
