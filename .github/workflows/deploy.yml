@@ -1,0 +1,34 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy on production VM
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - flashcard-prod
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate production env file
+        run: |
+          test -f .env.prod
+          grep -q "^TELEGRAM_DELIVERY_MODE=" .env.prod
+          grep -q "^WEBHOOK_BASE=" .env.prod
+
+      - name: Deploy compose stack
+        run: |
+          docker compose --env-file .env.prod pull || true
+          docker compose --env-file .env.prod up -d --build
+          docker compose --env-file .env.prod ps
