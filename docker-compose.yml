@@ -11,7 +11,7 @@ services:
       - TELEGRAM_DELIVERY_MODE=${TELEGRAM_DELIVERY_MODE:-polling}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
+      interval: 120s
       timeout: 5s
       retries: 5
     networks:
@@ -28,7 +28,7 @@ services:
       - TZ=Europe/Rome
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
-      interval: 30s
+      interval: 120s
       timeout: 5s
       retries: 3
     networks:
