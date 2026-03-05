@@ -29,5 +29,3 @@ def load_api_keys() -> APIKeyConfig:
         ) from exc
         
     return APIKeyConfig(**data)
-
-apikeys = load_api_keys()
