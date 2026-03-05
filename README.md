@@ -23,7 +23,7 @@ Send any Italian word or expression → get an AI-generated explanation card →
 | AI/LLM | [Google Gemini](https://ai.google.dev/) (structured JSON output) |
 | Database | [MongoDB](https://www.mongodb.com/) (async via pymongo) |
 | Verb Data | Custom WordReference scraper |
-| Deployment | Docker Compose + Caddy (auto-HTTPS) |
+| Deployment | Docker Compose + Caddy (auto-HTTPS, custom domain) |
 
 ## Repository Structure
 

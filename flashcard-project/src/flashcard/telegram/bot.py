@@ -63,6 +63,30 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     dp.include_router(errors.router)
 
     return bot, dp
+
+
+def build_dispatcher_data(
+    cols,
+    http_client,
+    logger_bot,
+    verb_service,
+    expression_service,
+    user_service,
+    consumption_service,
+    llm_service
+) -> dict:
+    return {
+        "cols": cols,
+        "http_client": http_client,
+        "logger_bot": logger_bot,
+        "verb_service": verb_service,
+        "expression_service": expression_service,
+        "user_service": user_service,
+        "consumption_service": consumption_service,
+        "llm_service": llm_service,
+    }
+
+
 async def init_telegram_bot(app: FastAPI, settings):
     bot, dp = build_bot_dispatcher()
     app.state.bot = bot
@@ -91,30 +115,30 @@ async def init_telegram_bot(app: FastAPI, settings):
     app.state.consumption_service = consumption_service
     app.state.llm_service = llm_service
 
-    # Webhook vs Polling
-    # Use polling by default unless WEBHOOK_URL is set/configured
-    # For now, we keep the existing logic: polling in background task
-    
-    # If we wanted to enable webhook:
-    # webhook_url = settings.WEBHOOK_URL
-    # if webhook_url:
-    #     await bot.set_webhook(...)
-    # else:
-    
-    # Run polling in background
-    app.state.polling_task = asyncio.create_task(
-        dp.start_polling(
-            bot, 
-            cols=cols, 
-            http_client=http_client,
-            logger_bot=logger_bot,
-            verb_service=verb_service,
-            expression_service=expression_service,
-            user_service=user_service,
-            consumption_service=consumption_service,
-            llm_service=llm_service
-        )
+    dispatcher_data = build_dispatcher_data(
+        cols=cols,
+        http_client=http_client,
+        logger_bot=logger_bot,
+        verb_service=verb_service,
+        expression_service=expression_service,
+        user_service=user_service,
+        consumption_service=consumption_service,
+        llm_service=llm_service,
     )
+    app.state.dispatcher_data = dispatcher_data
+
+    # Run either webhook or polling, based on explicit mode.
+    if settings.TELEGRAM_DELIVERY_MODE == "webhook":
+        await bot.set_webhook(
+            url=settings.webhook_url,
+            secret_token=settings.WEBHOOK_SECRET,
+        )
+    else:
+        # Polling cannot run while a webhook is active.
+        await bot.delete_webhook(drop_pending_updates=False)
+        app.state.polling_task = asyncio.create_task(
+            dp.start_polling(bot, **dispatcher_data)
+        )
     
     # Start scheduler in background
     from flashcard.scheduler.scheduler import scheduler_loop
@@ -132,8 +156,6 @@ async def init_telegram_bot(app: FastAPI, settings):
 
 
 async def close_telegram_bot(app: FastAPI):
-    await close_mongo_on_client(app.state.mongo_client)
-    
     # Stop scheduler task
     scheduler_task = getattr(app.state, "scheduler_task", None)
     if scheduler_task:
@@ -149,10 +171,16 @@ async def close_telegram_bot(app: FastAPI):
             await task
         
     bot: Bot = app.state.bot
+    if settings.TELEGRAM_DELIVERY_MODE == "webhook":
+        with contextlib.suppress(Exception):
+            await bot.delete_webhook(drop_pending_updates=False)
     await bot.session.close()
 
     logger_bot: Bot = app.state.logger_bot
     await logger_bot.session.close()
+
+    await close_mongo_on_client(app.state.mongo_client)
+    await close_http_client_on_client(app.state.http_client)
 
     get_trace_logger().shutdown()
 
@@ -173,6 +201,9 @@ async def init_telegram_without_fastapi(settings):
     user_service = UserService(cols=cols)
     consumption_service = ConsumptionService(cols=cols)
     llm_service = LLMService()
+
+    # Polling cannot run while a webhook is active.
+    await bot.delete_webhook(drop_pending_updates=False)
 
     # Run polling in background
     polling_task = asyncio.create_task(

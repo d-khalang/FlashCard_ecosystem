@@ -21,12 +21,12 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
-| `WEBHOOK_BASE` | ✅ | Public HTTPS URL for webhook mode | `https://flashcard.duckdns.org` |
-| `WEBHOOK_PATH` | ✅ | Path for webhook endpoint | `/webhook/telegram` |
-| `WEBHOOK_SECRET` | ✅ | Secret token for webhook verification | `your_secret_here` |
+| `WEBHOOK_BASE` | Webhook mode | Public HTTPS URL for webhook mode | `https://bot.kartino.it` |
+| `WEBHOOK_PATH` | Webhook mode | Path for webhook endpoint | `/webhook/telegram/your-random-token` |
+| `WEBHOOK_SECRET` | Webhook mode | Secret token for webhook verification | `your_secret_here` |
 
 > [!TIP]
-> Webhook variables are always required by Pydantic validation, but are only _used_ when running in webhook mode. For local development with polling, set them to placeholder values.
+> Webhook variables are required only when `TELEGRAM_DELIVERY_MODE=webhook`.
 
 ### MongoDB
 
@@ -50,17 +50,17 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+| `TELEGRAM_DELIVERY_MODE` | ❌ | `polling` | Telegram update mode (`polling` or `webhook`) |
 | `PORT` | ❌ | `8000` | HTTP server port |
 | `IN_DOCKER` | ❌ | `0` | Set to `1` when running in Docker |
 | `LOG_LEVEL` | ❌ | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `SCHEDULER_CHECK_INTERVAL_SECONDS` | ❌ | `600` | Scheduler loop interval (seconds) |
 
-### DuckDNS (Docker only)
+### Caddy / TLS
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DUCKDNS_SUBDOMAINS` | Docker only | DuckDNS subdomain(s) |
-| `DUCKDNS_TOKEN` | Docker only | DuckDNS authentication token |
+| `ACME_EMAIL` | Recommended | Email used by Caddy/Let's Encrypt for certificate notices |
 
 ---
 
@@ -102,14 +102,12 @@ Defined in [`docker-compose.yml`](../../docker-compose.yml):
 | `flashcard-bot` | Main bot (FastAPI + aiogram) | 8000 (internal) |
 | `wr-scraper` | WordReference conjugation scraper API | 8000 (internal) |
 | `caddy` | Reverse proxy with automatic HTTPS | 80, 443 |
-| `duckdns` | Dynamic DNS updater | — |
 
 ```mermaid
 graph LR
     INET[Internet] -->|HTTPS| CADDY[Caddy :443]
     CADDY -->|HTTP| BOT[flashcard-bot :8000]
     BOT -->|HTTP| SCRAPER[wr-scraper :8000]
-    DUCK[duckdns] -.->|DNS update| INET
 ```
 
 All services communicate on an internal `bridge` network. Only Caddy exposes ports externally.

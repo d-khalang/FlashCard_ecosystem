@@ -1,0 +1,26 @@
+{
+    # Set ACME_EMAIL in your server env for certificate notices.
+    email {$ACME_EMAIL}
+}
+
+kartino.it, www.kartino.it {
+    encode zstd gzip
+    respond "Kartino website is not deployed yet." 200
+}
+
+app.kartino.it {
+    encode zstd gzip
+    respond "Kartino mini app is not deployed yet." 200
+}
+
+bot.kartino.it {
+    encode zstd gzip
+
+    @bot_health path /health
+    reverse_proxy @bot_health flashcard-bot:8000
+
+    @bot_webhook path /webhook/*
+    reverse_proxy @bot_webhook flashcard-bot:8000
+
+    respond 404
+}

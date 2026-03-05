@@ -5,9 +5,15 @@ services:
     restart: unless-stopped
     expose:
       - "8000"
-    # might need to mention seperately, eliminating correct root execution need 
     env_file:
       - .env 
+    environment:
+      - TELEGRAM_DELIVERY_MODE=${TELEGRAM_DELIVERY_MODE:-polling}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     networks:
       - internal
 
@@ -20,12 +26,19 @@ services:
     environment:
       - SCRAPER_API_KEY=${SCRAPER_API_KEY}
       - TZ=Europe/Rome
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     networks:
       - internal
 
   caddy:
     image: caddy:2
     restart: unless-stopped
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL}
     ports:
       - "80:80"
       - "443:443"
@@ -37,14 +50,6 @@ services:
       - internal
     depends_on:
       - flashcard-bot
-
-  duckdns:
-    image: linuxserver/duckdns
-    restart: unless-stopped
-    environment:
-      - SUBDOMAINS=${DUCKDNS_SUBDOMAINS}
-      - TOKEN=${DUCKDNS_TOKEN} 
-      - TZ=Europe/Rome
 
 volumes:
   caddy_data:

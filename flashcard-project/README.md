@@ -66,7 +66,7 @@ From the repository root:
 docker compose up --build flashcard-bot
 ```
 
-The root [`docker-compose.yml`](../docker-compose.yml) builds and runs all services (bot, scraper, Caddy, DuckDNS).
+The root [`docker-compose.yml`](../docker-compose.yml) builds and runs all services (bot, scraper, Caddy).
 
 ## Documentation
 

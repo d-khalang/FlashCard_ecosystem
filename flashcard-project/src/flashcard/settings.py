@@ -1,14 +1,17 @@
-import os
 from functools import lru_cache
+from typing import Literal
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     BOT_TOKEN: str
     LOGGER_BOT_TOKEN: str
     ADMIN_ID: int
-    WEBHOOK_BASE: str
-    WEBHOOK_PATH: str
-    WEBHOOK_SECRET: str
+    TELEGRAM_DELIVERY_MODE: Literal["polling", "webhook"] = "polling"
+    WEBHOOK_BASE: str = ""
+    WEBHOOK_PATH: str = "/webhook/telegram"
+    WEBHOOK_SECRET: str = ""
     MONGO_URI: str
     MONGO_DB: str
     COLLECTION_USERS: str
@@ -34,10 +37,25 @@ class Settings(BaseSettings):
         path = self.WEBHOOK_PATH.lstrip("/")
         return f"{base}/{path}"
 
+    @model_validator(mode="after")
+    def validate_webhook_settings(self):
+        if self.TELEGRAM_DELIVERY_MODE == "webhook":
+            missing = []
+            if not self.WEBHOOK_BASE.strip():
+                missing.append("WEBHOOK_BASE")
+            if not self.WEBHOOK_PATH.strip():
+                missing.append("WEBHOOK_PATH")
+            if not self.WEBHOOK_SECRET.strip():
+                missing.append("WEBHOOK_SECRET")
+            if missing:
+                raise ValueError(
+                    "Webhook mode requires these variables: " + ", ".join(missing)
+                )
+        return self
+
 @lru_cache
 def get_setting() -> Settings:
     return Settings()
 
 
 settings = get_setting()
-print("admin id: ", settings.ADMIN_ID)
