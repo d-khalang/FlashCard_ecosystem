@@ -1,5 +1,5 @@
 import json
-from pathlib import Path
+from importlib.resources import files
 from typing import Dict, List
 from functools import lru_cache
 
@@ -17,18 +17,16 @@ class APIKeyConfig(BaseModel):
 @lru_cache()
 def load_api_keys() -> APIKeyConfig:
     """
-    Loads the API keys from the configuration file.
-    The file is expected to be at src/flashcard/resources/llm_key.json.
+    Load API keys from packaged resource data.
     """
-    # Resolve path relative to this file: schemas/api_key.py -> ../resources/llm_key.json
-    base_path = Path(__file__).parent.parent
-    key_file = base_path / "resources" / "llm_key.json"
-    
-    if not key_file.exists():
-        raise FileNotFoundError(f"API key file not found at {key_file}")
-        
-    with open(key_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    resource_path = files("flashcard").joinpath("resources/llm_key.json")
+
+    try:
+        data = json.loads(resource_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"API key file not found in package resources at {resource_path}"
+        ) from exc
         
     return APIKeyConfig(**data)
 

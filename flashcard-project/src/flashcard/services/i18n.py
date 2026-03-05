@@ -1,29 +1,43 @@
 import json
 import os
+from importlib.resources import files
 from typing import Dict, Any
 
 class I18nService:
     def __init__(self, locales_dir: str = None):
-        if locales_dir is None:
-            # Default to src/flashcard/resources/locales
-            # Assumes this file is in src/flashcard/services/
-            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            locales_dir = os.path.join(base_path, "resources", "locales")
-        
         self.locales_dir = locales_dir
         self.translations: Dict[str, Dict[str, Any]] = {}
         self.default_lang = "en"
         self._load_locales()
 
     def _load_locales(self):
-        """Loads all JSON files from the locales directory."""
-        if not os.path.exists(self.locales_dir):
+        """Load locale JSON either from a custom directory or package resources."""
+        if self.locales_dir:
+            self._load_locales_from_dir(self.locales_dir)
             return
 
-        for filename in os.listdir(self.locales_dir):
+        try:
+            locales_root = files("flashcard").joinpath("resources/locales")
+            for resource in locales_root.iterdir():
+                if resource.name.endswith(".json"):
+                    lang_code = resource.name[:-5]
+                    try:
+                        self.translations[lang_code] = json.loads(
+                            resource.read_text(encoding="utf-8")
+                        )
+                    except Exception as e:
+                        print(f"Error loading locale {lang_code}: {e}")
+        except Exception:
+            return
+
+    def _load_locales_from_dir(self, locales_dir: str):
+        if not os.path.exists(locales_dir):
+            return
+
+        for filename in os.listdir(locales_dir):
             if filename.endswith(".json"):
-                lang_code = filename[:-5]  # remove .json
-                file_path = os.path.join(self.locales_dir, filename)
+                lang_code = filename[:-5]
+                file_path = os.path.join(locales_dir, filename)
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
                         self.translations[lang_code] = json.load(f)
