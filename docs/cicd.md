@@ -34,7 +34,7 @@ CI injects test-safe environment variables directly in the workflow so no produc
 Deployment command:
 
 ```bash
-docker compose --env-file .env.prod up -d --build
+APP_ENV_FILE=.env.prod docker compose --env-file .env.prod up -d --build
 ```
 
 `pull` is attempted first to support future image-based deployment.

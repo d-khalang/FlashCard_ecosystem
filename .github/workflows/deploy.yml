@@ -29,6 +29,6 @@ jobs:
 
       - name: Deploy compose stack
         run: |
-          docker compose --env-file .env.prod pull || true
-          docker compose --env-file .env.prod up -d --build
-          docker compose --env-file .env.prod ps
+          APP_ENV_FILE=.env.prod docker compose --env-file .env.prod pull || true
+          APP_ENV_FILE=.env.prod docker compose --env-file .env.prod up -d --build
+          APP_ENV_FILE=.env.prod docker compose --env-file .env.prod ps
