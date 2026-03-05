@@ -19,7 +19,7 @@ bot.kartino.it {
     @bot_health path /health
     reverse_proxy @bot_health flashcard-bot:8000
 
-    @bot_webhook path /webhook/*
+    @bot_webhook path /webhook*
     reverse_proxy @bot_webhook flashcard-bot:8000
 
     respond 404
