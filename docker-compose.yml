@@ -39,6 +39,7 @@ services:
     restart: unless-stopped
     environment:
       - ACME_EMAIL=${ACME_EMAIL}
+      - DOMAIN=${DOMAIN}
     ports:
       - "80:80"
       - "443:443"
@@ -46,6 +47,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web:/srv/web:ro
     networks:
       - internal
     depends_on:

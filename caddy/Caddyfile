@@ -3,17 +3,18 @@
     email {$ACME_EMAIL}
 }
 
-kartino.it, www.kartino.it {
+{$DOMAIN}, www.{$DOMAIN} {
     encode zstd gzip
-    respond "Kartino website is not deployed yet." 200
+    root * /srv/web
+    file_server
 }
 
-app.kartino.it {
+app.{$DOMAIN} {
     encode zstd gzip
-    respond "Kartino mini app is not deployed yet." 200
+    respond "Mini app is not deployed yet." 200
 }
 
-bot.kartino.it {
+bot.{$DOMAIN} {
     encode zstd gzip
     reverse_proxy flashcard-bot:8000
 }
