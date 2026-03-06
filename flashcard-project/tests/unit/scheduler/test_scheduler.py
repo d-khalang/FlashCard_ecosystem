@@ -257,7 +257,7 @@ class TestSchedulerLoopTracing:
             raise _BreakLoop()
 
         with (
-            patch("flashcard.scheduler.scheduler.send_scheduled_review", new_callable=AsyncMock, return_value=None),
+            patch("flashcard.scheduler.scheduler.send_scheduled_review", new_callable=AsyncMock, return_value=True),
             patch("flashcard.scheduler.scheduler.notify_admin_with_trace", new_callable=AsyncMock),
             patch("flashcard.services.trace_logger.get_trace_logger", return_value=mock_trace_logger),
             patch("flashcard.scheduler.scheduler.asyncio.sleep", side_effect=_break_sleep),
