@@ -2,7 +2,7 @@
 
 An AI-powered Telegram bot for learning Italian through spaced repetition flashcards.
 
-Send any Italian word or expression → get an AI-generated explanation card → save it → receive scheduled reviews with spaced repetition.
+Send any Italian word or expression → get an AI-generated explanation card → save it → receive scheduled reviews with spaced repetition. See it live at [kartino.it](https://kartino.it).
 
 ## Features
 
@@ -33,6 +33,7 @@ FlashCard-ecosystem/
 │   ├── src/flashcard/       # Python package
 │   ├── docs/                # Documentation
 │   └── Dockerfile
+├── web/                     # [Private Submodule] Landing page & brand assets
 ├── WR_scraper/              # WordReference conjugation scraper
 ├── docker-compose.yml       # Multi-service orchestration
 └── .env.example             # Environment variable template

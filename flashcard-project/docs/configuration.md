@@ -56,11 +56,15 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 | `LOG_LEVEL` | ❌ | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `SCHEDULER_CHECK_INTERVAL_SECONDS` | ❌ | `600` | Scheduler loop interval (seconds) |
 
-### Caddy / TLS
+### Caddy / TLS / Domain
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ACME_EMAIL` | Recommended | Email used by Caddy/Let's Encrypt for certificate notices |
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `DOMAIN` | ✅ | Base domain for the ecosystem | `kartino.it` |
+| `ACME_EMAIL` | Recommended | Email for certificate notices | `admin@example.com` |
+
+> [!NOTE]
+> The `DOMAIN` variable is used to configure Caddy routes and generate certificates for `kartino.it`, `www.kartino.it`, `bot.kartino.it`, and `app.kartino.it`.
 
 ---
 
@@ -110,4 +114,29 @@ graph LR
     BOT -->|HTTP| SCRAPER[wr-scraper :8000]
 ```
 
-All services communicate on an internal `bridge` network. Only Caddy exposes ports externally.
+---
+
+## Static Web Assets (Submodule)
+
+The landing page and brand assets are managed as a private Git submodule in the [`web/`](../../web/) directory.
+
+| Component | Description |
+|-----------|-------------|
+| **Repository** | `https://github.com/d-khalang/kartino-web.git` |
+| **Path** | Root `web/` directory |
+| **Volume** | Mounted to Caddy as `/srv/web:ro` |
+
+### Working with Submodules
+
+To pull the project with all assets:
+```bash
+git clone --recurse-submodules <repo-url>
+```
+
+To update existing submodules:
+```bash
+git submodule update --init --recursive
+```
+
+> [!TIP]
+> Changes made inside the `web/` folder must be committed and pushed within the submodule first, then the submodule pointer must be updated in the main repository.
