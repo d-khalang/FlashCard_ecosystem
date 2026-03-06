@@ -93,11 +93,14 @@ async def send_scheduled_review(
     llm_service: LLMService,
     user_service: UserService,
     consumption_service: ConsumptionService,
-) -> None:
+) -> bool:
     """
     Sends a scheduled review to a user.
     Replicates the /get command logic but uses bot.send_message instead of message.answer.
     Uses user preferences for language and level.
+
+    Returns:
+        True if a flashcard was actually sent, False if no candidate was available.
 
     Raises exceptions on failure (caught by per-user error handler in scheduler loop).
     """
@@ -108,7 +111,7 @@ async def send_scheduled_review(
     if not result:
         # No cards to review, skip silently
         logger.debug(f"No review candidate for user {user_id}")
-        return
+        return False
 
     candidate = result["doc"]
     direction = result.get("direction", "forward")
@@ -144,6 +147,7 @@ async def send_scheduled_review(
     await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)
 
     logger.info(f"Scheduled review sent to user {user_id}: {candidate['value']}")
+    return True
 
 
 async def send_admin_metrics(
@@ -278,7 +282,7 @@ async def scheduler_loop(
             # Process each user with isolated error handling
             for user in users_to_push:
                 try:
-                    await send_scheduled_review(
+                    sent = await send_scheduled_review(
                         bot=bot,
                         user=user,
                         expression_service=expression_service,
@@ -286,7 +290,8 @@ async def scheduler_loop(
                         user_service=user_service,
                         consumption_service=consumption_service,
                     )
-                    successful_ids.append(user.user_id)
+                    if sent:
+                        successful_ids.append(user.user_id)
 
                 except Exception as e:
                     # Log error but continue to next user
