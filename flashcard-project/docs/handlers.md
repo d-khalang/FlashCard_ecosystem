@@ -118,6 +118,8 @@ Finite State Machine states for multi-step conversations:
 
 - [`errors.py`](../src/flashcard/telegram/handlers/errors.py) appends trace IDs to admin alerts when available.
 - Global error alerts resolve trace ID from handler DI (`trace_id`) or from exception metadata set in middleware (`event.exception.trace_id`).
+- The global error handler returns `True` after processing, so aiogram treats the exception as handled and does not re-propagate it.
+- Callback-query error replies are guarded for missing `callback_query.message` (inline/no-message updates), while still answering the callback query to stop Telegram client spinners.
 - [`review.py`](../src/flashcard/telegram/handlers/review.py) uses `safe_answer_callback(...)` to suppress expected Telegram callback-expiry errors (`query is too old` / invalid query id) while re-raising other `TelegramBadRequest` errors.
 
 ## Helpers (`telegram/helpers/`)

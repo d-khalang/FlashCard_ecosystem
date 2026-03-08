@@ -101,7 +101,7 @@ flashcard-project/src/flashcard/
     └── locales/
         └── en.json          # English UI strings
 
-tests/                           # Test suite (243 unit tests)
+tests/                           # Test suite (254 unit tests)
 ├── conftest.py                  # Env var setup for test isolation
 ├── helpers.py                   # Shared test utilities (AsyncCursorMock)
 └── unit/
@@ -210,6 +210,13 @@ The bot supports two modes:
 
 Both modes initialize the same services and scheduler. The difference is how Telegram updates arrive (webhook POST vs long polling).
 
+### Webhook Failure Semantics
+
+- Invalid webhook JSON payloads return `400 Bad Request`.
+- Invalid Telegram update payloads return `400 Bad Request`.
+- Dispatcher processing failures return `500 Internal Server Error` so Telegram can retry update delivery.
+- Webhook processing failures are logged and trigger best-effort admin notification through logger bot.
+
 ## Dependency Injection
 
 Services are injected into handlers via aiogram's middleware system. In `bot.py`, services are passed as keyword arguments to `dp.start_polling()` (or set on the dispatcher for webhook mode). aiogram automatically provides these to handler functions that declare matching parameter names:
@@ -228,6 +235,7 @@ async def cmd_get(message: Message, expression_service: ExpressionService, user_
 - Telegram updates are traced by [`trace_middleware.py`](../src/flashcard/telegram/middlewares/trace_middleware.py), which injects `trace_id` into handler context and attaches it to raised exceptions for global error handlers.
 - Scheduler cycles create their own trace context in [`scheduler.py`](../src/flashcard/scheduler/scheduler.py), so scheduler admin alerts also include trace IDs.
 - Both paths finalize traces through `finalize_trace(...)` in [`utils/tracing.py`](../src/flashcard/utils/tracing.py).
+- Background asyncio task failures (for example, chat-action worker tasks) are captured by [`utils/asyncio_errors.py`](../src/flashcard/utils/asyncio_errors.py), logged via the `flashcard.*` logger, and handled with shutdown-safe admin notification scheduling.
 
 ## Database Collections
 

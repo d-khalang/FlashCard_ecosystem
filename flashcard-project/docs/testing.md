@@ -1,6 +1,6 @@
 # Testing
 
-The FlashCard project uses **pytest** with **pytest-asyncio** for testing. The suite covers all major components: algorithms, services, schemas, Telegram UI, and infrastructure.
+The FlashCard project uses **pytest** with **pytest-asyncio** for testing. The suite covers all major components: algorithms, services, schemas, Telegram UI, FastAPI routes, and infrastructure.
 
 ## Quick Start
 
@@ -61,7 +61,22 @@ tests/
 └── manual/                         # Debug scripts (not in pytest)
 ```
 
-**Total: 243 tests** - all unit tests with mocked dependencies.
+**Total: 254 tests** - all unit tests with mocked dependencies.
+
+## Resilience-Focused Tests
+
+The following tests cover failure modes added for webhook and background-task robustness:
+
+- `tests/unit/api/test_webhook_route.py`
+  - Secret-token rejection (`403`)
+  - Invalid JSON / invalid update payload handling (`400`)
+  - Dispatcher failure behavior (`500`) with admin alert attempt
+- `tests/unit/telegram/test_error_handler.py`
+  - Global error handler completion contract (`return True`)
+  - Admin notification failure containment
+- `tests/unit/utils/test_asyncio_errors.py`
+  - Unhandled background task exception logging
+  - Shutdown-safe behavior when loop is closed or task scheduling fails
 
 ## Configuration
 
