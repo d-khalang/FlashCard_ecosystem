@@ -29,6 +29,7 @@ from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.trace_logger import get_trace_logger
+from flashcard.utils.asyncio_errors import install_asyncio_exception_handler
 
 def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -94,6 +95,7 @@ async def init_telegram_bot(app: FastAPI, settings):
 
     logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     app.state.logger_bot = logger_bot
+    install_asyncio_exception_handler(logger_bot=logger_bot)
 
     # Initialize Services
     # May later be removed from app.state if not needed globally as they are passed to handlers
@@ -189,6 +191,7 @@ async def init_telegram_without_fastapi(settings):
     bot, dp = build_bot_dispatcher()
 
     logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    install_asyncio_exception_handler(logger_bot=logger_bot)
 
     # Initialize Services
     # May later be removed from app.state if not needed globally as they are passed to handlers
