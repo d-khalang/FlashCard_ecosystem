@@ -37,6 +37,7 @@ flashcard-bot-dev-poll = "flashcard.__main__:dev_poll"
 dev = [
     "pytest>=9.0.0",
     "pytest-asyncio>=1.0.0",
+    "commitizen>=3.12.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -49,4 +50,15 @@ flashcard = ["resources/*.json", "resources/locales/*.json"]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 asyncio_mode = "auto"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version"
+]
+changelog_file = "CHANGELOG.md"
+update_changelog_on_bump = true
+major_version_zero = true
 

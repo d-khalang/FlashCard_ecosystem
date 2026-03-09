@@ -217,6 +217,49 @@ commands.quiz.startMessage    ❌ Bad (camelCase)
 
 ---
 
+## Release Versioning (Commitizen)
+
+The project uses Commitizen with Conventional Commits to automate version bumps, tags, and changelog updates.
+
+### One-time setup
+
+```bash
+# From flashcard-project/
+pip install -e ".[dev]"
+python -m commitizen --version
+```
+
+### Commit format
+
+Use Conventional Commit messages:
+
+```text
+feat: add spaced review stats endpoint
+fix: handle empty conjugation response
+refactor: split scheduler startup wiring
+```
+
+### Bump workflow
+
+```bash
+# Ensure local tags/history are up to date
+git fetch --tags --prune
+
+# Preview next version
+cz bump --dry-run
+
+# Apply bump: updates pyproject version, CHANGELOG.md, and creates git tag
+cz bump
+```
+
+### Notes
+
+- Version source is `[project].version` in `pyproject.toml` (PEP 621).
+- Tag format is `v<version>` (example: `v0.1.2`).
+- Before first automated bump in a new clone, confirm tags are available locally (`git tag --list`).
+
+---
+
 ## Project Documentation
 
 | Document | Purpose |

@@ -91,6 +91,26 @@ pytest tests/ -v --tb=short
 
 See [docs/testing.md](docs/testing.md) for full details on test structure, mocking patterns, and conventions.
 
+## Release Versioning
+
+Versioning is automated with Commitizen.
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Make sure tags are available locally
+git fetch --tags --prune
+
+# Preview next version
+cz bump --dry-run
+
+# Create release bump + changelog + tag (v<version>)
+cz bump
+```
+
+Detailed conventions are documented in [docs/contributing.md](docs/contributing.md).
+
 ## Dependencies
 
 Core dependencies (see [`pyproject.toml`](pyproject.toml) for versions):
