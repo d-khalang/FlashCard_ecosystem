@@ -54,9 +54,9 @@ class TestReviewKeyboard:
         kb = get_review_keyboard("abc123")
 
         assert len(kb.inline_keyboard) == 3
-        assert len(kb.inline_keyboard[0]) == 1  # "0 - I had no idea"
+        assert len(kb.inline_keyboard[0]) == 1  # "0"
         assert len(kb.inline_keyboard[1]) == 4  # 1, 2, 3, 4
-        assert len(kb.inline_keyboard[2]) == 1  # "5 - Known like family"
+        assert len(kb.inline_keyboard[2]) == 1  # "5"
 
     def test_forward_direction_encoded(self):
         kb = get_review_keyboard("abc123", direction="forward")
