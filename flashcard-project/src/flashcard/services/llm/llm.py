@@ -35,6 +35,7 @@ class LLMService:
         model_dict = {
             "mey": genai.Client(api_key=key_provider.get_core_key('mey')),
             "ako": genai.Client(api_key=key_provider.get_core_key('ako')),
+            "kam": genai.Client(api_key=key_provider.get_core_key('kam')),
         }
         logger.info("LLM clients created: %s", model_dict)
         return model_dict
