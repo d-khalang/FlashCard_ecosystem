@@ -17,11 +17,20 @@ app.{$DOMAIN} {
 bot.{$DOMAIN} {
     encode zstd gzip
 
-    @webhook path /webhook/*
-    reverse_proxy @webhook flashcard-bot:8000
+    @telegram_webhook {
+        method POST
+        path {$WEBHOOK_PATH}
+    }
+    handle @telegram_webhook {
+        reverse_proxy flashcard-bot:8000
+    }
 
-    @health path /health
-    reverse_proxy @health flashcard-bot:8000
+    handle /health {
+        reverse_proxy flashcard-bot:8000
+    }
 
-    respond 404
+    handle {
+        respond 404
+    }
 }
+
