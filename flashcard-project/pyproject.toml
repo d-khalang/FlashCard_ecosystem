@@ -3,12 +3,12 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "flashcard"
+name = "kartino"
 version = "0.2.0"
 authors = [
-  { name="FlashCard Team" },
+  { name="Kartino Team" },
 ]
-description = "Flashcard core services"
+description = "Kartino core services"
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [
