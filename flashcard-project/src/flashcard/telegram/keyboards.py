@@ -90,14 +90,14 @@ def get_review_keyboard(expression_id: str, direction: str = "forward") -> Inlin
     builder = InlineKeyboardBuilder()
     
     # Row 1: 0 - I had no idea
-    builder.button(text="0 - I had no idea", callback_data=GradeCallback(expression_id=expression_id, grade=0, direction=dir_code).pack())
+    builder.button(text=i18n.get("messages.buttons.grade_0"), callback_data=GradeCallback(expression_id=expression_id, grade=0, direction=dir_code).pack())
     
     # Row 2: 1, 2, 3, 4
     for i in range(1, 5):
         builder.button(text=str(i), callback_data=GradeCallback(expression_id=expression_id, grade=i, direction=dir_code).pack())
         
     # Row 3: 5 - Known like family
-    builder.button(text="5 - Known like family", callback_data=GradeCallback(expression_id=expression_id, grade=5, direction=dir_code).pack())
+    builder.button(text=i18n.get("messages.buttons.grade_5"), callback_data=GradeCallback(expression_id=expression_id, grade=5, direction=dir_code).pack())
     
     builder.adjust(1, 4, 1)
     return builder.as_markup()
