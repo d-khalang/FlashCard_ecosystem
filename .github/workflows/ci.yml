@@ -16,7 +16,7 @@ jobs:
       BOT_TOKEN: test-bot-token
       LOGGER_BOT_TOKEN: test-logger-bot-token
       ADMIN_ID: "1"
-      TELEGRAM_DELIVERY_MODE: polling
+      TELEGRAM_DELIVERY_MODE: webhook
       WEBHOOK_BASE: https://bot.example.com
       WEBHOOK_PATH: /webhook/telegram/test
       WEBHOOK_SECRET: test-secret
