@@ -8,6 +8,16 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.2.1 (2026-03-10)
+
+### Fix
+
+- **db**: add CSOT timeout and deep health check to prevent silent outages MongoDB Atlas network blip caused 180s handler stalls while /health returned 200. Root fix: timeoutMS=10_000 caps any DB operation at 10s, health endpoint now pings MongoDB (returns 503 when unreachable), and handle_grade is wrapped in asyncio.timeout(15) to prevent cascading stalls in the error path.
+
+### Refactor
+
+- **handlers**: extract safe_answer_callback to shared helpers module Move safe_answer_callback from review.py into telegram/helpers/callback_utils.py and replace all bare callback.answer() calls across verb, creation, user_settings, and errors handlers. Add safe_call helper for timeout-guarded fire-and- forget coroutines.
+
 ## v0.2.0 (2026-03-09)
 
 ### Feat
