@@ -10,6 +10,7 @@ from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.telegram.keyboards import expression_action_kb
 from flashcard.telegram.helpers.card_generator import generate_and_render_card
+from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -49,7 +50,7 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
 
     if saved:
         logger.info(f"Saved to collection received for user {user_id}!")
-        await callback.answer(i18n.get("callbacks.save.success_message"), show_alert=True)
+        await safe_answer_callback(callback, i18n.get("callbacks.save.success_message"), show_alert=True)
         # Edit message to show saved status
         # Just extra check, could be omitted
         original_text = callback.message.text or callback.message.caption or ""
@@ -62,7 +63,7 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
             await user_service.advance_onboarding(user_id, 0)
     else:
         # Duplicate case
-        await callback.answer(i18n.get("callbacks.save.already_exists"), show_alert=True)
+        await safe_answer_callback(callback, i18n.get("callbacks.save.already_exists"), show_alert=True)
 
         # Get the current markup
         current_markup = callback.message.reply_markup

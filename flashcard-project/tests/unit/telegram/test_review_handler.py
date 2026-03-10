@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from aiogram.exceptions import TelegramBadRequest
 
-from flashcard.telegram.handlers.review import safe_answer_callback
+from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 
 
 class TestSafeAnswerCallback:

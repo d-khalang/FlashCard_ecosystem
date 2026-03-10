@@ -5,6 +5,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 from contextlib import suppress
 
+from flashcard.telegram.helpers.callback_utils import safe_answer_callback
+
 from flashcard.services.user import UserService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
@@ -68,7 +70,7 @@ async def handle_settings_nav(callback: CallbackQuery, callback_data: SettingsCa
         await callback.message.answer(text, reply_markup=ForceReply(
             input_field_placeholder="e.g. en, english, spanish, es, ...",
             selective=True))
-        await callback.answer()
+        await safe_answer_callback(callback)
         
     elif section == "set_lang_s":
         await state.set_state(SettingsPrompts.waiting_secondary_lang)
@@ -76,7 +78,7 @@ async def handle_settings_nav(callback: CallbackQuery, callback_data: SettingsCa
         await callback.message.answer(text, reply_markup=ForceReply(
             input_field_placeholder="e.g. en, english, es, none, ...",
             selective=True))
-        await callback.answer()
+        await safe_answer_callback(callback)
         
     elif section == "set_level":
         user_data = await user_service.get_user(user_id)
@@ -96,9 +98,9 @@ async def handle_settings_nav(callback: CallbackQuery, callback_data: SettingsCa
         
     elif section == "api":
         text = i18n.get("commands.settings.sections.api")
-        await callback.answer(text, show_alert=True)
+        await safe_answer_callback(callback, text, show_alert=True)
         
-    await callback.answer()
+    await safe_answer_callback(callback)
 
 
 @router.callback_query(SettingsCallback.filter(F.action == "select"))
@@ -139,10 +141,10 @@ async def handle_settings_select(callback: CallbackQuery, callback_data: Setting
         
         with suppress(TelegramBadRequest):
             await callback.message.edit_text(text=text, reply_markup=kb)
-        await callback.answer(i18n.get("commands.settings.switched_mode", mode=new_mode.capitalize()))
+        await safe_answer_callback(callback, i18n.get("commands.settings.switched_mode", mode=new_mode.capitalize()))
         return # return early as we edited text
             
-    await callback.answer(i18n.get("commands.settings.saved"))
+    await safe_answer_callback(callback, i18n.get("commands.settings.saved"))
 
 
 @router.message(SettingsPrompts.waiting_primary_lang)

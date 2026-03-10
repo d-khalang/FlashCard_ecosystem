@@ -14,6 +14,7 @@ from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.services.i18n import i18n
 from flashcard.services.consumption import ConsumptionService
 from flashcard.telegram.keyboards import get_verb_keyboard
+from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
 
 logger = get_logger(__name__)
@@ -83,7 +84,7 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
     
     if not verb_data:
         # Edge case: Verb somehow missing?
-        await callback.answer(i18n.get("callbacks.verb.not_found"), show_alert=True)
+        await safe_answer_callback(callback, i18n.get("callbacks.verb.not_found"), show_alert=True)
         return
 
     # 2. Format specific view
@@ -98,4 +99,4 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
             reply_markup=callback.message.reply_markup
         )
         
-        await callback.answer(i18n.get("callbacks.verb.updated"))
+        await safe_answer_callback(callback, i18n.get("callbacks.verb.updated"))

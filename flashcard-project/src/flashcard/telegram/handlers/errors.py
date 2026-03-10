@@ -3,6 +3,7 @@ from aiogram import Router, Bot
 from aiogram.types import ErrorEvent
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from flashcard.services.i18n import i18n
+from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger
 
 router = Router()
@@ -55,7 +56,7 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot, trace_id: str | None
             # Answer callback query to stop loading animation
             if event.update.callback_query.message:
                 await event.update.callback_query.message.answer(i18n.get("messages.errors.service_unavailable"))
-            await event.update.callback_query.answer()
+            await safe_answer_callback(event.update.callback_query)
             
     except Exception as e:
         # If we can't notify the user (e.g. blocked bot), just log it
