@@ -8,6 +8,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.3.0 (2026-03-10)
+
+### Feat
+
+- **handlers**: add centralized exception-to-user-message mapping Enhance errors.py with a mapping system that identifies Gemini and MongoDB failures to provide specific, friendly feedback (e.g., "AI overloaded"). This centralizes decision-making, removes redundant catch logic in story/collection handlers, and improves the overall UX when external services are degraded.
+
 ## v0.2.1 (2026-03-10)
 
 ### Fix
