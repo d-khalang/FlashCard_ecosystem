@@ -27,6 +27,10 @@ tests/
 ├── __init__.py                     # Makes tests/ importable
 │
 ├── unit/
+│   ├── api/                        # API layer tests
+│   │   ├── test_health.py          # Deep health check + MongoDB ping (3 tests)
+│   │   └── test_webhook_route.py   # Webhook security + failures (5 tests)
+│   │
 │   ├── algorithm/                  # Pure function tests (no mocking)
 │   │   ├── test_grading.py         # calculate_new_stats (17 tests)
 │   │   └── test_priority.py        # calculate_priority, parse_iso (17 tests)
@@ -44,6 +48,7 @@ tests/
 │   │
 │   ├── telegram/                   # UI + keyboards (no real Telegram)
 │   │   ├── test_creation_handler.py    # Creation input guards (1 test)
+│   │   ├── test_error_handler.py       # Global error handler + exception mapping (7 tests)
 │   │   ├── test_keyboards.py           # Button counts, layouts, callbacks (14 tests)
 │   │   ├── test_expression_card_ui.py  # Card rendering + review modes (12 tests)
 │   │   ├── test_expression_ui.py       # Expression list formatting (8 tests)
@@ -61,17 +66,21 @@ tests/
 └── manual/                         # Debug scripts (not in pytest)
 ```
 
-**Total: 254 tests** - all unit tests with mocked dependencies.
+**Total: 262 tests** - all unit tests with mocked dependencies.
 
 ## Resilience-Focused Tests
 
 The following tests cover failure modes added for webhook and background-task robustness:
 
+- `tests/unit/api/test_health.py`
+  - Deep health check with MongoDB ping
+  - Service unavailability detection (`503`)
 - `tests/unit/api/test_webhook_route.py`
   - Secret-token rejection (`403`)
   - Invalid JSON / invalid update payload handling (`400`)
   - Dispatcher failure behavior (`500`) with admin alert attempt
 - `tests/unit/telegram/test_error_handler.py`
+  - Centralized mapping of `GeminiAPIError` and `PyMongoError` to specific i18n keys
   - Global error handler completion contract (`return True`)
   - Admin notification failure containment
 - `tests/unit/utils/test_asyncio_errors.py`

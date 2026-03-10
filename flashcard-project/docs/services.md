@@ -123,7 +123,7 @@ Tracks resource usage (LLM tokens, API calls) with lazy daily resets.
 **File:** [`services/llm/llm.py`](../src/flashcard/services/llm/llm.py)  
 **Dependencies:** Google Gemini API keys (via `LLMKeyProvider`)
 
-Handles all LLM-powered features using Google Gemini with structured JSON output.
+Manages all LLM-powered features using Google Gemini with structured JSON output.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -133,13 +133,13 @@ Handles all LLM-powered features using Google Gemini with structured JSON output
 
 **Model:** `gemini-2.5-flash-lite`  
 **Output:** Structured JSON via `response_schema` parameter  
-**Key rotation:** Uses `itertools.cycle` to round-robin between multiple API keys
+**Key rotation:** Automatically instantiates separate `genai.Client` instances for every key defined in the `core` section of `llm_key.json`. It then uses `itertools.cycle` to round-robin requests between them for load balancing and quota management.
 
 ### Related Files
 
 | File | Purpose |
 |------|---------|
-| [`llm_key.py`](../src/flashcard/services/llm/llm_key.py) | API key resolution from env vars |
+| [`llm_key.py`](../src/flashcard/services/llm/llm_key.py) | API key resolution and core key management |
 | [`prompts.py`](../src/flashcard/services/llm/prompts.py) | System prompt templates for each LLM task |
 
 ---
