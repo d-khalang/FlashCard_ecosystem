@@ -14,6 +14,12 @@ class LLMKeyProvider:
                 return entry.api_key
         return None
 
+    def get_all_core_keys(self) -> dict[str, str]:
+        """
+        Retrieves all core API keys as a dictionary of name: api_key.
+        """
+        return {entry.name: entry.api_key for entry in self._config.core}
+
     def get_reminder_key(self, name: str) -> Optional[str]:
         """
         Retrieves a reminder API key by name.

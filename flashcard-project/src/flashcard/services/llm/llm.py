@@ -32,12 +32,12 @@ class LLMService:
 
     def _create_client(self) -> Dict[str, genai.Client]:
         key_provider = LLMKeyProvider()
+        core_keys = key_provider.get_all_core_keys()
         model_dict = {
-            "mey": genai.Client(api_key=key_provider.get_core_key('mey')),
-            "ako": genai.Client(api_key=key_provider.get_core_key('ako')),
-            "kam": genai.Client(api_key=key_provider.get_core_key('kam')),
+            name: genai.Client(api_key=key)
+            for name, key in core_keys.items()
         }
-        logger.info("LLM clients created: %s", model_dict)
+        logger.info("LLM clients created for: %s", list(model_dict.keys()))
         return model_dict
 
     async def _generate_with_retry(self, model: str, contents: str, config: types.GenerateContentConfig) -> any:
