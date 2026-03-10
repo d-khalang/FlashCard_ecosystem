@@ -25,12 +25,7 @@ async def cmd_import(message: Message, llm_service: LLMService, expression_servi
         return
 
     # Parse with LLM
-    try:
-        import_response = await llm_service.parse_import_list(command_args)
-    except Exception as e:
-        logger.error(f"LLM Import Error: {e}")
-        await message.answer(i18n.get("commands.import.processing_error"))
-        return
+    import_response = await llm_service.parse_import_list(command_args)
 
     if not import_response.success:
         log_msg = import_response.log or "Unknown error."

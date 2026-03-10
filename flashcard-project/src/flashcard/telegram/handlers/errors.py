@@ -2,12 +2,30 @@ import html
 from aiogram import Router, Bot
 from aiogram.types import ErrorEvent
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+
+from google.genai.errors import APIError as GeminiAPIError
+from pymongo.errors import PyMongoError
+
 from flashcard.services.i18n import i18n
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger
 
 router = Router()
 logger = get_logger(__name__)
+
+# Ordered mapping: first match wins.
+# Handlers that catch locally never reach here; only uncaught exceptions are mapped.
+_ERROR_MESSAGE_MAP: list[tuple[type, str]] = [
+    (GeminiAPIError, "messages.errors.llm_unavailable"),
+    (PyMongoError,   "messages.errors.db_unavailable"),
+]
+
+def _user_message_key(exception: BaseException) -> str:
+    """Return the i18n key for the most specific match, or the generic fallback."""
+    for exc_type, key in _ERROR_MESSAGE_MAP:
+        if isinstance(exception, exc_type):
+            return key
+    return "messages.errors.service_unavailable"
 
 @router.error()
 async def error_handler(event: ErrorEvent, logger_bot: Bot, trace_id: str | None = None):
@@ -45,17 +63,18 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot, trace_id: str | None
         # User sent a message that the bot can't handle or invalid HTML?
         logger.warning(f"Bad Request: {event.exception}")
     
-    # Notify user about the error
+    # Notify user with the most specific message available
+    user_message = i18n.get(_user_message_key(event.exception))
     try:
         user_id = None
         if event.update.message:
             user_id = event.update.message.from_user.id
-            await event.update.message.answer(i18n.get("messages.errors.service_unavailable"))
+            await event.update.message.answer(user_message)
         elif event.update.callback_query:
             user_id = event.update.callback_query.from_user.id
             # Answer callback query to stop loading animation
             if event.update.callback_query.message:
-                await event.update.callback_query.message.answer(i18n.get("messages.errors.service_unavailable"))
+                await event.update.callback_query.message.answer(user_message)
             await safe_answer_callback(event.update.callback_query)
             
     except Exception as e:

@@ -1,4 +1,4 @@
-from aiogram import Router, Bot, flags
+from aiogram import Router, flags
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.enums import ChatAction
@@ -10,7 +10,7 @@ from flashcard.services.user import UserService
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.story import format_story_messages
-from flashcard.utils.logger import get_logger, notify_admin_with_trace
+from flashcard.utils.logger import get_logger
 
 import random
 
@@ -20,7 +20,7 @@ router = Router()
 
 @router.message(Command("story"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_story(message: Message, llm_service: LLMService, expression_service: ExpressionService, user_service: UserService, consumption_service: ConsumptionService, logger_bot: Bot):
+async def cmd_story(message: Message, llm_service: LLMService, expression_service: ExpressionService, user_service: UserService, consumption_service: ConsumptionService):
     msg_text = message.text or ""
     args = msg_text.split()[1:] # Ignore command
     
@@ -50,18 +50,12 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
     user = await user_service.get_user(message.from_user.id)
     target_level = user.target_level
     
-    try:
-        story_response = await llm_service.generate_story(
-            words=selected_words, 
-            target_lang=user.primary_language,
-            target_level=target_level,
-            story_length=story_length
-        )
-    except Exception as e:
-        logger.error(f"Story generation error: {e}")
-        await notify_admin_with_trace(logger_bot, f"Story generation error for user {message.from_user.id}: {e}")
-        await message.answer(i18n.get("commands.story.generation_error"))
-        return
+    story_response = await llm_service.generate_story(
+        words=selected_words, 
+        target_lang=user.primary_language,
+        target_level=target_level,
+        story_length=story_length
+    )
 
     # Send paragraphs
     messages = format_story_messages(story_response, target_lang=user.primary_language)
