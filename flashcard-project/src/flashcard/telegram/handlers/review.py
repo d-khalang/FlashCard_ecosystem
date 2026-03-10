@@ -2,7 +2,8 @@ from aiogram import Router, Bot, flags
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.enums import ChatAction
-from aiogram.exceptions import TelegramBadRequest
+
+import asyncio
 
 from flashcard.settings import settings
 from flashcard.services.expression import ExpressionService
@@ -13,26 +14,13 @@ from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
+from flashcard.telegram.helpers.callback_utils import safe_answer_callback, safe_call
 from flashcard.schemas.languages import get_language_flag
 from flashcard.schemas.defaults import DEFAULT_LANG_LEVEL, DEFAULT_LANG_1_CODE
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
 
 logger = get_logger(__name__)
 router = Router()
-
-async def safe_answer_callback(callback: CallbackQuery, text: str, show_alert: bool = False) -> None:
-    """
-    Callback queries expire quickly on Telegram side.
-    If expired, answering raises TelegramBadRequest; swallow only that expected case.
-    """
-    try:
-        await callback.answer(text, show_alert=show_alert)
-    except TelegramBadRequest as e:
-        error_text = str(e).lower()
-        if "query is too old" in error_text or "query id is invalid" in error_text:
-            logger.warning("Skipped callback.answer because callback query expired.")
-            return
-        raise
 
 
 #TODO: Think about how to adapt last_sent and last_interacted when the last one was revereced
@@ -98,35 +86,36 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, ex
     direction_code: 'fwd' | 'rev' (optional, defaults to 'fwd' for backward compat)
     """
     try:    
-        expression_id = callback_data.expression_id
-        grade = callback_data.grade
-        direction_code = callback_data.direction
+        async with asyncio.timeout(15):
+            expression_id = callback_data.expression_id
+            grade = callback_data.grade
+            direction_code = callback_data.direction
 
-        direction = "reverse" if direction_code == "rev" else "forward"
-        
-        user_id = callback.from_user.id
-        
-        updated_doc = await expression_service.grade_expression(user_id, expression_id, grade, direction)
-        
-        if updated_doc:
-            value = updated_doc.get("value", "Unknown")
-            await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
-            await safe_answer_callback(callback, i18n.get("callbacks.grade.success"))
+            direction = "reverse" if direction_code == "rev" else "forward"
             
-            # Onboarding tip: after first review, nudge about Dual Mode
-            user = await user_service.get_user(user_id)
-            if user.onboarding_step == 1:
-                await callback.message.answer(i18n.get("messages.tips.first_review"))
-                await user_service.advance_onboarding(user_id, 1)
-        else:
-            await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
+            user_id = callback.from_user.id
+            
+            updated_doc = await expression_service.grade_expression(user_id, expression_id, grade, direction)
+            
+            if updated_doc:
+                value = updated_doc.get("value", "Unknown")
+                await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
+                await safe_answer_callback(callback, i18n.get("callbacks.grade.success"))
+                
+                # Onboarding tip: after first review, nudge about Dual Mode
+                user = await user_service.get_user(user_id)
+                if user.onboarding_step == 1:
+                    await callback.message.answer(i18n.get("messages.tips.first_review"))
+                    await user_service.advance_onboarding(user_id, 1)
+            else:
+                await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
             
     except ValueError:
         #TODO: Have a consistent schema for logging errors to logger bot
-        await safe_answer_callback(callback, i18n.get("callbacks.grade.invalid_data"), show_alert=True)
-        await notify_admin_with_trace(logger_bot, f"Invalid callback data: {callback.data}")
+        await safe_call(safe_answer_callback(callback, i18n.get("callbacks.grade.invalid_data"), show_alert=True))
+        await safe_call(notify_admin_with_trace(logger_bot, f"Invalid callback data: {callback.data}"))
 
     except Exception as e:
         logger.error(f"Error handling grade callback: {e}", exc_info=True)
-        await safe_answer_callback(callback, i18n.get("callbacks.grade.error_generic"), show_alert=True)
-        await notify_admin_with_trace(logger_bot, f"Error handling grade callback: {e}")
+        await safe_call(safe_answer_callback(callback, i18n.get("callbacks.grade.error_generic"), show_alert=True))
+        await safe_call(notify_admin_with_trace(logger_bot, f"Error handling grade callback: {e}"))

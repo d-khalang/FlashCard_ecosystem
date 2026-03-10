@@ -11,7 +11,7 @@ def _collection_name_map(settings):
 
 ### Having app as source of truth ###
 async def init_mongo(app: FastAPI, settings):
-    client = AsyncMongoClient(settings.MONGO_URI)
+    client = AsyncMongoClient(settings.MONGO_URI, timeoutMS=10_000)
     db = client[settings.MONGO_DB]
     
     # One dict with all collections instead of many attributes
@@ -29,7 +29,7 @@ async def close_mongo(app: FastAPI) -> None:
 
 ### Having output version to be called and stored on dp ###
 async def init_and_get_mongo(settings):
-    client = AsyncMongoClient(settings.MONGO_URI)
+    client = AsyncMongoClient(settings.MONGO_URI, timeoutMS=10_000)
     db = client[settings.MONGO_DB]
     
     # One dict with all collections instead of many attributes
