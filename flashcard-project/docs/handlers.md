@@ -116,17 +116,18 @@ Finite State Machine states for multi-step conversations:
 
 ## Error Handling Notes
 
-- [`errors.py`](../src/flashcard/telegram/handlers/errors.py) appends trace IDs to admin alerts when available.
 - Global error alerts resolve trace ID from handler DI (`trace_id`) or from exception metadata set in middleware (`event.exception.trace_id`).
+- The global error handler uses a **centralized exception mapping** in `errors.py` to provide specific feedback (e.g., LLM vs Database errors) to users before continuing.
 - The global error handler returns `True` after processing, so aiogram treats the exception as handled and does not re-propagate it.
 - Callback-query error replies are guarded for missing `callback_query.message` (inline/no-message updates), while still answering the callback query to stop Telegram client spinners.
-- [`review.py`](../src/flashcard/telegram/handlers/review.py) uses `safe_answer_callback(...)` to suppress expected Telegram callback-expiry errors (`query is too old` / invalid query id) while re-raising other `TelegramBadRequest` errors.
+- Many handlers use `safe_answer_callback(...)` and `safe_call(...)` from [`telegram/helpers/callback_utils.py`](../src/flashcard/telegram/helpers/callback_utils.py) to handle expired Telegram queries and fire-and-forget error path calls safely.
 
 ## Helpers (`telegram/helpers/`)
 
 | File | Purpose |
 |------|---------|
 | [`card_generator.py`](../src/flashcard/telegram/helpers/card_generator.py) | `generate_and_render_card()` — orchestrates LLM call + formatting. Returns `(content, success, card, user)`. |
+| [`callback_utils.py`](../src/flashcard/telegram/helpers/callback_utils.py) | `safe_answer_callback`, `safe_call` — helpers for robust Telegram interactions. |
 
 ## i18n Strings
 

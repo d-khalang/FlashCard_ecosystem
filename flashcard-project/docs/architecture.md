@@ -215,6 +215,7 @@ Both modes initialize the same services and scheduler. The difference is how Tel
 - Invalid webhook JSON payloads return `400 Bad Request`.
 - Invalid Telegram update payloads return `400 Bad Request`.
 - Dispatcher processing failures return `500 Internal Server Error` so Telegram can retry update delivery.
+- Health checks return `503 Service Unavailable` if the database is unreachable, enabling automated container recovery.
 - Webhook processing failures are logged and trigger best-effort admin notification through logger bot.
 
 ## Dependency Injection
@@ -236,6 +237,16 @@ async def cmd_get(message: Message, expression_service: ExpressionService, user_
 - Scheduler cycles create their own trace context in [`scheduler.py`](../src/flashcard/scheduler/scheduler.py), so scheduler admin alerts also include trace IDs.
 - Both paths finalize traces through `finalize_trace(...)` in [`utils/tracing.py`](../src/flashcard/utils/tracing.py).
 - Background asyncio task failures (for example, chat-action worker tasks) are captured by [`utils/asyncio_errors.py`](../src/flashcard/utils/asyncio_errors.py), logged via the `flashcard.*` logger, and handled with shutdown-safe admin notification scheduling.
+
+## Error Mapping Logic
+
+The global error handler in [`errors.py`](../src/flashcard/telegram/handlers/errors.py) uses a centralized exception-to-i18n-key mapping. This ensures consistent user feedback without scattering `try/except` blocks in every handler:
+
+1. Handlers perform domain-specific work (LLM calls, DB queries).
+2. If an exception bubbles up to the dispatcher, the global error handler catches it.
+3. It checks the exception type against `_ERROR_MESSAGE_MAP` (e.g., `GeminiAPIError`, `PyMongoError`).
+4. If a match is found, the user receives a specific friendly message (e.g., "AI overloaded").
+5. Otherwise, it falls back to the generic `service_unavailable` message.
 
 ## Database Collections
 
