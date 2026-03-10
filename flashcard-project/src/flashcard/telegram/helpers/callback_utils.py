@@ -4,6 +4,7 @@ Shared Telegram callback helpers.
 Utilities that any handler dealing with CallbackQuery can reuse.
 """
 import asyncio
+import contextlib
 from typing import Awaitable
 
 from aiogram.types import CallbackQuery
@@ -40,6 +41,6 @@ async def safe_call(coro: Awaitable, *, timeout: float = 5) -> None:
     Designed for fire-and-forget error-recovery calls (e.g. answering a
     callback or notifying the admin) where a stall must never cascade.
     """
-    with asyncio.suppress(asyncio.TimeoutError):
+    with contextlib.suppress(asyncio.TimeoutError):
         async with asyncio.timeout(timeout):
             await coro
