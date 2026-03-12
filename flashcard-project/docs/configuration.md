@@ -34,7 +34,7 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 | `MONGO_DB` | ✅ | Database name | `flashcard_db` |
 
 > [!TIP]
-> The project initializes the MongoDB client with `timeoutMS=10000` (10s) to prevent long stalls during replica set elections or network partitions.
+> The project uses granular MongoDB timeouts (server selection, connect, socket, TLS handshake, and wait queue) to prevent long stalls while still allowing retries during failovers.
 | `COLLECTION_USERS` | ✅ | Users collection name | `users` |
 | `COLLECTION_EXPRESSION` | ✅ | Expressions collection name | `expressions` |
 | `COLLECTION_CONJUGATION` | ✅ | Conjugations collection name | `conjugations` |
@@ -108,11 +108,12 @@ Defined in [`docker-compose.yml`](../../docker-compose.yml):
 
 ### Health Check
 
-The `/health` endpoint performs a **deep check** by pinging the MongoDB database. 
-- **Healthy**: Returns `200 OK`.
-- **Unhealthy**: Returns `503 Service Unavailable` if the database is unreachable.
+The `/health` endpoint is a **liveness** check and always returns `200 OK`.
+The `/health/ready` endpoint is a **readiness** check and pings MongoDB.
+- **Ready**: Returns `200 OK`.
+- **Not ready**: Returns `503 Service Unavailable` if the database is unreachable.
 
-Docker is configured with a 15s timeout for this check to accommodate the 10s MongoDB operation deadline.
+Docker is configured to use `/health` so transient database issues do not restart the container.
 
 ```mermaid
 graph LR
