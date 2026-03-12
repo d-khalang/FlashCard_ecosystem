@@ -24,6 +24,7 @@ from flashcard.telegram.handlers import (
     errors
 )
 from flashcard.telegram.middlewares.trace_middleware import TraceMiddleware
+from flashcard.telegram.middlewares.timeout_middleware import HandlerTimeoutMiddleware
 from flashcard.services.expression import ExpressionService
 from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
@@ -37,6 +38,11 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
 
     # Start tracing before anything else
     dp.update.middleware(TraceMiddleware())
+
+    # Global 10s timeout — users get instant error instead of 60s+ hang
+    dp.message.middleware(HandlerTimeoutMiddleware(timeout=10.0))
+    dp.callback_query.middleware(HandlerTimeoutMiddleware(timeout=10.0))
+
     dp.message.middleware(ChatActionMiddleware())
     
     # Include routers in strict order of priority

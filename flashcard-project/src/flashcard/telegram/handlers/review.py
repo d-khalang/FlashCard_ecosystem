@@ -86,30 +86,29 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, ex
     direction_code: 'fwd' | 'rev' (optional, defaults to 'fwd' for backward compat)
     """
     try:    
-        async with asyncio.timeout(15):
-            expression_id = callback_data.expression_id
-            grade = callback_data.grade
-            direction_code = callback_data.direction
+        expression_id = callback_data.expression_id
+        grade = callback_data.grade
+        direction_code = callback_data.direction
 
-            direction = "reverse" if direction_code == "rev" else "forward"
+        direction = "reverse" if direction_code == "rev" else "forward"
+        
+        user_id = callback.from_user.id
+        
+        updated_doc = await expression_service.grade_expression(user_id, expression_id, grade, direction)
+        
+        if updated_doc:
+            value = updated_doc.get("value", "Unknown")
+            await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
+            await safe_answer_callback(callback, i18n.get("callbacks.grade.success"))
             
-            user_id = callback.from_user.id
-            
-            updated_doc = await expression_service.grade_expression(user_id, expression_id, grade, direction)
-            
-            if updated_doc:
-                value = updated_doc.get("value", "Unknown")
-                await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
-                await safe_answer_callback(callback, i18n.get("callbacks.grade.success"))
-                
-                # Onboarding tip: after first review, nudge about Dual Mode
-                user = await user_service.get_user(user_id)
-                if user.onboarding_step == 1:
-                    await callback.message.answer(i18n.get("messages.tips.first_review"))
-                    await user_service.advance_onboarding(user_id, 1)
-            else:
-                await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
-            
+            # Onboarding tip: after first review, nudge about Dual Mode
+            user = await user_service.get_user(user_id)
+            if user.onboarding_step == 1:
+                await callback.message.answer(i18n.get("messages.tips.first_review"))
+                await user_service.advance_onboarding(user_id, 1)
+        else:
+            await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
+        
     except ValueError:
         #TODO: Have a consistent schema for logging errors to logger bot
         await safe_call(safe_answer_callback(callback, i18n.get("callbacks.grade.invalid_data"), show_alert=True))
