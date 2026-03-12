@@ -14,6 +14,10 @@ services:
       interval: 120s
       timeout: 15s
       retries: 5
+    sysctls:
+      - net.ipv4.tcp_keepalive_time=120
+      - net.ipv4.tcp_keepalive_intvl=30
+      - net.ipv4.tcp_keepalive_probes=3
     networks:
       - internal
     volumes:
