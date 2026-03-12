@@ -256,8 +256,14 @@ async def scheduler_loop(
     1. Finds users due for review
     2. Sends scheduled reviews with per-user error isolation
     3. Sends admin metrics report
+
+    On consecutive failures: backs off exponentially (30s → 60s → 120s → 5min cap).
+    On success: resets to normal interval.
     """
     logger.info(f"Scheduler started. Check interval: {SCHEDULER_CHECK_INTERVAL_SECONDS}s")
+
+    consecutive_failures = 0
+    PER_USER_TIMEOUT = 20  # seconds — don't let one user block the cycle
 
     while True:
         cycle_start = now_utc()
@@ -279,19 +285,30 @@ async def scheduler_loop(
             users_to_push = await _observed_find_users_due_for_review(user_service)
             logger.info(f"Found {len(users_to_push)} users due for review")
 
-            # Process each user with isolated error handling
+            # Process each user with isolated error handling + per-user timeout
             for user in users_to_push:
                 try:
-                    sent = await send_scheduled_review(
-                        bot=bot,
-                        user=user,
-                        expression_service=expression_service,
-                        llm_service=llm_service,
-                        user_service=user_service,
-                        consumption_service=consumption_service,
+                    sent = await asyncio.wait_for(
+                        send_scheduled_review(
+                            bot=bot,
+                            user=user,
+                            expression_service=expression_service,
+                            llm_service=llm_service,
+                            user_service=user_service,
+                            consumption_service=consumption_service,
+                        ),
+                        timeout=PER_USER_TIMEOUT,
                     )
                     if sent:
                         successful_ids.append(user.user_id)
+
+                except asyncio.TimeoutError:
+                    error_msg = f"Timed out after {PER_USER_TIMEOUT}s"
+                    logger.error(f"Timeout sending review to user {user.user_id}")
+                    failed_details.append({
+                        "user_id": user.user_id,
+                        "error": error_msg
+                    })
 
                 except Exception as e:
                     # Log error but continue to next user
@@ -319,9 +336,14 @@ async def scheduler_loop(
                 except Exception as e:
                     logger.error(f"Failed to send admin metrics: {e}")
 
+            # Success — reset backoff
+            consecutive_failures = 0
+
         except Exception as e:
             has_error = True
             trace_error_msg = f"{type(e).__name__}: {str(e)}"
+            consecutive_failures += 1
+
             # Catch loop-level errors (e.g., database connection issues)
             logger.error(f"Scheduler loop error: {e}", exc_info=True)
             try:
@@ -333,5 +355,10 @@ async def scheduler_loop(
         finally:
             finalize_trace(trace, token, cycle_start, has_error, trace_error_msg)
 
-        # Sleep until next cycle
-        await asyncio.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
+        # Sleep: normal interval on success, exponential backoff on failure
+        if consecutive_failures > 0:
+            backoff = min(30 * (2 ** (consecutive_failures - 1)), 300)
+            logger.warning(f"Scheduler backing off: {backoff}s (failure #{consecutive_failures})")
+            await asyncio.sleep(backoff)
+        else:
+            await asyncio.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
