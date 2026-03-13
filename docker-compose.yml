@@ -40,6 +40,33 @@ services:
     networks:
       - internal
 
+  mongo:
+    image: mongo:8.0
+    restart: unless-stopped
+    command: ["--auth", "--wiredTigerCacheSizeGB", "0.25"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    ports:
+      # Bind to localhost only so it's only accessible via SSH port forwarding
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo_flashcard_data:/data/db
+    networks:
+      - internal
+    
+    healthcheck:
+    test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+    interval: 60s
+    timeout: 10s
+    retries: 5
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "4"
+
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -63,6 +90,7 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  mongo_flashcard_data:
 
 networks:
   internal:
