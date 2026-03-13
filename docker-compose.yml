@@ -56,10 +56,10 @@ services:
       - internal
     
     healthcheck:
-    test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-    interval: 60s
-    timeout: 10s
-    retries: 5
+      test: ["CMD", "mongosh", "-u", "${MONGO_INITDB_ROOT_USERNAME}", "-p", "${MONGO_INITDB_ROOT_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
 
     logging:
       driver: "json-file"
