@@ -8,6 +8,21 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.4.0 (2026-03-14)
+
+### Feat
+
+- **docker**: migrate to secure local mongodb 8 instance
+- **middleware**: add global 10s timeout for Telegram handlers - Create HandlerTimeoutMiddleware to cap all bot interactions - Register middleware for messages and callback queries - Remove redundant local timeouts in review handlers
+- **api**: split health endpoint into liveness and readiness probes
+- **db**: enhance MongoDB resilience with granular timeouts and monitoring
+- **llm**: dynamically instantiate clients for all core API keys Refactor LLMKeyProvider to expose all keys in the 'core' configuration and update LLMService to iterate over these keys during initialization. This removes the need for hardcoded client names and enables automatic
+
+### Fix
+
+- **docker**: healthcheck command fixed to comply with auth
+- **handlers**: use contextlib.suppress in safe_call
+
 ## v0.3.0 (2026-03-10)
 
 ### Feat
