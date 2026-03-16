@@ -17,3 +17,11 @@ def iso_z(ts: datetime) -> str:
         ts = ts.replace(tzinfo=UTC)
         
     return ts.astimezone(UTC).replace(tzinfo=None).isoformat(timespec="seconds") + "Z"
+
+def parse_iso(iso_str: str) -> datetime:
+    """
+    Parses an ISO 8601 string with 'Z' suffix into a UTC-aware datetime object.
+    """
+    if iso_str.endswith('Z'):
+        iso_str = iso_str.replace('Z', '+00:00')
+    return datetime.fromisoformat(iso_str)
