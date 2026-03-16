@@ -11,7 +11,7 @@ venv/
 dist/
 build/
 .DS_Store
-*llm_key.json
+*llm_key*.json
 generate_tree.py
 
 .pytest_cache/
