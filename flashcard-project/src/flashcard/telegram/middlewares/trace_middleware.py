@@ -1,4 +1,5 @@
 import uuid
+import asyncio
 from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
@@ -47,6 +48,13 @@ class TraceMiddleware(BaseMiddleware):
                 user_id = actual_event.from_user.id
                 user_name = actual_event.from_user.username or actual_event.from_user.full_name
             text = actual_event.data
+
+        # Sync username if service is available
+        user_service = data.get("user_service")
+        if user_service and user_id and isinstance(actual_event, (Message, CallbackQuery)) and actual_event.from_user:
+            username = actual_event.from_user.username
+            # We fire and forget the update to not block the request
+            asyncio.create_task(user_service.update_username(user_id, username))
 
         start_dt = now_utc()
         trace_id = str(uuid.uuid4())
