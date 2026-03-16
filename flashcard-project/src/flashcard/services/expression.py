@@ -39,9 +39,8 @@ class ExpressionService:
         if existing:
             return False
 
-        # 2. Update User Data
+        # 2. Update User Data (do not touch created_at here; handled by user/consumption services)
         current_iso = iso_z(now_utc())
-        
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {
@@ -109,7 +108,7 @@ class ExpressionService:
         # 3. Bulk Insert
         await self.cols['expression'].insert_many(to_insert)
         
-        # 4. Update User Data (once)
+        # 4. Update User Data (once; created_at handled elsewhere)
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {
@@ -232,6 +231,7 @@ class ExpressionService:
     async def update_user_last_push(self, user_id: Union[str, int]):
         """
         Updates the user's last_push_at timestamp.
+        TODO: Remove — This is redundant and should only exist in UserService.
         """
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
@@ -293,6 +293,7 @@ class ExpressionService:
         
         # 4. Update User (has_pending = False, last_reviewed_at)
         # Track when user last interacted with a review for scheduler timing
+        # TODO: Refactor — Delegate this to UserService.update_user_last_review(user_id)
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {"$set": {
