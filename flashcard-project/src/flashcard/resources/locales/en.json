@@ -116,7 +116,8 @@
             "llm_unavailable": "The AI service is a bit overloaded right now 🧠💤 Please try again in a moment!",
             "db_unavailable": "Having trouble reaching the database 🗄️ Please try again shortly!",
             "feedback_failed": "Couldn't send that feedback just now 😅: {error}",
-            "input_too_long": "Whoa, that's a bit too long! 😅 Let's keep it to short words or expressions (max 150 characters)."
+            "input_too_long": "Whoa, that's a bit too long! 😅 Let's keep it to short words or expressions (max 150 characters).",
+            "quota_exceeded": "You've reached your daily limit for {type} generations today. 🛑\n\nOur resources are limited ☹️ and your limit is {limit} per day. If you need more, please contact admin with /feedback. You can also use your own API key in /settings to have unlimited access! 🚀"
         },
         "buttons": {
             "save": "💾 Save",

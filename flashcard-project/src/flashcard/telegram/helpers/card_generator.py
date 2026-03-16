@@ -1,17 +1,18 @@
-from typing import Union
+from typing import Union, Optional
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.schemas.languages import get_language_flag
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.user import UserDB
 from flashcard.services.user import UserService
+from flashcard.services.i18n import i18n
 
 async def generate_and_render_card(
     llm_service: LLMService,
     user_service: UserService,
     user_id: Union[str, int],
     text: str,
-) -> tuple[str, bool, ExpressionCard, UserDB]:
+) -> tuple[str, bool, Optional[ExpressionCard], UserDB]:
     """
     Generates an expression card using LLMService and returns the rendered text, success status, the card object, and user.
     
@@ -26,6 +27,18 @@ async def generate_and_render_card(
     """
 
     user = await user_service.get_user(user_id)
+
+    # Quota check
+    uses_own_key = user.api_config is not None
+    if not user_service.can_generate_card(user, uses_own_key=uses_own_key):
+        limits = user_service._get_effective_limits(user)
+        quota_msg = i18n.get(
+            "messages.errors.quota_exceeded",
+            type="card",
+            tier=user.tier.value,
+            limit=limits["cards"]
+        )
+        return quota_msg, False, None, user
     
     lang1_code = user.primary_language
     lang2_code = user.secondary_language

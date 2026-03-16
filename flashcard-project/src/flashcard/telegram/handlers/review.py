@@ -50,6 +50,19 @@ async def cmd_get(message: Message, expression_service: ExpressionService, llm_s
     # 2. Get user preferences
     user = await user_service.get_user(user_id)
     
+    # Quota check
+    uses_own_key = user.api_config is not None
+    if not user_service.can_generate_card(user, uses_own_key=uses_own_key):
+        limits = user_service._get_effective_limits(user)
+        quota_msg = i18n.get(
+            "messages.errors.quota_exceeded",
+            type="card",
+            tier=user.tier.value,
+            limit=limits["cards"]
+        )
+        await message.answer(quota_msg)
+        return
+
     # 3. Generate content (Definition, Translations, Example)
     # Using user preferences
     card = await llm_service.generate_expression_card(

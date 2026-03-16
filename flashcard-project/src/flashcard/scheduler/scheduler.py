@@ -116,6 +116,12 @@ async def send_scheduled_review(
     candidate = result["doc"]
     direction = result.get("direction", "forward")
 
+    # Quota check
+    uses_own_key = user.api_config is not None
+    if not user_service.can_generate_card(user, uses_own_key=uses_own_key):
+        logger.info(f"Skipping scheduled review for user {user_id} due to quota limits (tier={user.tier.value})")
+        return False
+
     # 2. Generate card content using user preferences
     card = await llm_service.generate_expression_card(
         raw=candidate['value'],

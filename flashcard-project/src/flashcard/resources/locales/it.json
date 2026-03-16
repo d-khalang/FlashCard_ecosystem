@@ -74,7 +74,8 @@
             "llm_unavailable": "Il servizio AI è un po' sovraccarico in questo momento 🧠💤 Riprova tra un momento!",
             "db_unavailable": "Problemi di connessione al database 🗄️ Riprova tra poco!",
             "feedback_failed": "Errore nell'invio del feedback: {error}",
-            "input_too_long": "Ehi, è un po' troppo lungo! 😅 Manteniamolo a parole o brevi espressioni (massimo 150 caratteri)."
+            "input_too_long": "Ehi, è un po' troppo lungo! 😅 Manteniamolo a parole o brevi espressioni (massimo 150 caratteri).",
+            "quota_exceeded": "Hai raggiunto il tuo limite giornaliero di generazioni {type}. 🛑\n\nLe nostre risorse sono limitate ☹️ e il tuo limite è di {limit} al giorno. Se ne hai bisogno di più, contatta l'amministratore con /feedback. Puoi anche usare la tua chiave API in /settings per avere accesso illimitato! 🚀"
         },
         "buttons": {
             "save": "Salva",

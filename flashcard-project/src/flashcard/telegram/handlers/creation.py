@@ -16,7 +16,6 @@ from flashcard.utils.logger import get_logger
 logger = get_logger(__name__)
 router = Router()
 
-# TODO: block the suspicious messages or at least very long ones
 @router.message(F.text)
 @flags.chat_action(ChatAction.TYPING)
 async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
@@ -31,7 +30,7 @@ async def handle_text_message(message: Message, llm_service: LLMService, user_se
     if success:
         await consumption_service.increment(message.from_user.id, "cards_generated", uses_own_key=user.api_config is not None)
     
-    kb = expression_action_kb(card.norm) if success else None
+    kb = expression_action_kb(card.norm) if success and card else None
     
     await status_msg.edit_text(
         text=text,
@@ -103,4 +102,5 @@ async def handle_regen(callback: CallbackQuery, llm_service: LLMService, user_se
             reply_markup=callback_markup
         )
     else:
-        await callback.message.edit_text(i18n.get("callbacks.regen.failed"))
+        # text will be the error message or quota message
+        await callback.message.edit_text(text)

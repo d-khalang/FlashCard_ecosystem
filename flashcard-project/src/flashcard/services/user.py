@@ -1,10 +1,17 @@
-from datetime import datetime
-from typing import Optional, Union
+from datetime import datetime, timezone
+from typing import Optional, Union, Dict
 from flashcard.utils.logger import get_logger
-from flashcard.schemas.user import UserDB
-from flashcard.utils.time import iso_z, now_utc
+from flashcard.schemas.user import UserDB, UserTier
+from flashcard.utils.time import iso_z, now_utc, parse_iso
 
 logger = get_logger(__name__)
+
+TIER_LIMITS: Dict[UserTier, Dict[str, int]] = {
+    UserTier.normal: {"cards": 10, "stories": 2},
+    UserTier.digi: {"cards": 40, "stories": 3},
+    UserTier.plus: {"cards": 50, "stories": 10},
+    UserTier.admin: {"cards": 999, "stories": 99},  # Effectively unlimited
+}
 
 class UserService:
     def __init__(self, cols: dict):
@@ -14,12 +21,16 @@ class UserService:
         """
         Updates the user's last_push_at timestamp.
         """
+        current_iso = iso_z(now_utc())
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {
                 "$set": {
-                    "last_push_at": iso_z(now_utc()),
+                    "last_push_at": current_iso,
                     "has_pending": True 
+                },
+                "$setOnInsert": {
+                    "created_at": current_iso
                 }
             },
             upsert=True
@@ -94,3 +105,60 @@ class UserService:
             {"$set": {"onboarding_step": current_step + 1}}
         )
         return result.modified_count > 0
+
+    async def update_username(self, user_id: Union[str, int], username: Optional[str]):
+        """
+        Updates the user's Telegram username.
+        """
+        await self.cols['users'].update_one(
+            {"user_id": str(user_id)},
+            {
+                "$set": {"username": username},
+                # Ensure created_at is initialized on first insert for this user.
+                "$setOnInsert": {"created_at": iso_z(now_utc())},
+            },
+            upsert=True
+        )
+
+    def _get_effective_limits(self, user: UserDB) -> Dict[str, int]:
+        """
+        Returns the tier-based limits, accounting for the 14-day trial for 'normal' users.
+        """
+        if user.tier == UserTier.admin:
+            return TIER_LIMITS[UserTier.admin]
+
+        # Check for trial period if normal
+        if user.tier == UserTier.normal:
+            if user.created_at is None:
+                # Haven't saved or been pushed a card yet -> Trial is effectively starting or hasn't started
+                return TIER_LIMITS[UserTier.plus]
+                
+            created_at = parse_iso(user.created_at)
+            # Ensure it's offset-aware if needed, but parse_iso usually handles it
+            trial_delta = now_utc() - created_at
+            if trial_delta.days < 14:
+                return TIER_LIMITS[UserTier.plus]
+        
+        return TIER_LIMITS.get(user.tier, TIER_LIMITS[UserTier.normal])
+
+    def can_generate_card(self, user: UserDB, uses_own_key: bool = False) -> bool:
+        """
+        Checks if the user can generate a card today.
+        """
+        if uses_own_key or user.tier == UserTier.admin:
+            return True
+        
+        limits = self._get_effective_limits(user)
+        current_usage = user.consumption.system_api.cards_generated
+        return current_usage < limits["cards"]
+
+    def can_generate_story(self, user: UserDB, uses_own_key: bool = False) -> bool:
+        """
+        Checks if the user can generate a story today.
+        """
+        if uses_own_key or user.tier == UserTier.admin:
+            return True
+            
+        limits = self._get_effective_limits(user)
+        current_usage = user.consumption.system_api.stories_generated
+        return current_usage < limits["stories"]

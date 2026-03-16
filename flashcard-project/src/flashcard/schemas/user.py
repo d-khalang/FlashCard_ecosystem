@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Optional
+from enum import Enum
 from pydantic import BaseModel, Field
 from flashcard.schemas.languages import LanguageCode, LanguageLevel
+from flashcard.utils.time import iso_z, now_utc
 
 class UserAPIConfig(BaseModel):
     provider: str = Field("gemini", description="LLM Provider e.g. openai, gemini")
@@ -21,8 +23,17 @@ class UserConsumption(BaseModel):
     user_api: LLMUsage = Field(LLMUsage(), description="Usage on user's own API keys")
     verb_lookups: int = Field(0, description="Third-party verb API lookups")
 
+class UserTier(str, Enum):
+    admin = "admin"
+    digi = "digi"
+    plus = "plus"
+    normal = "normal"
+
 class UserDB(BaseModel):
     user_id: str = Field(..., description="User ID as string")
+    username: Optional[str] = Field(None, description="Telegram username")
+    created_at: Optional[str] = Field(None, description="ISO timestamp of user creation (Trial start)")
+    tier: UserTier = Field(UserTier.normal, description="User subscription tier")
     last_push_at: Optional[str] = Field(None, description="ISO timestamp of last push")
     last_reviewed_at: Optional[str] = Field(None, description="ISO timestamp of last review interaction")
     has_pending: bool = Field(False, description="If user has pending reviews")
