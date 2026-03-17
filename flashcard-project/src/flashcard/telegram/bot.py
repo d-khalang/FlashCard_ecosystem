@@ -1,5 +1,7 @@
 import asyncio
 import contextlib
+import socket
+import aiohttp
 from aiogram import Bot, Dispatcher
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -32,8 +34,32 @@ from flashcard.services.consumption import ConsumptionService
 from flashcard.services.trace_logger import get_trace_logger
 from flashcard.utils.asyncio_errors import install_asyncio_exception_handler
 
+def _build_ipv4_session() -> "AiohttpSession":
+    """Build an aiogram session that forces IPv4.
+
+    Docker's default bridge network has no IPv6 routing, so aiohttp
+    may occasionally attempt an IPv6 connection to api.telegram.org
+    that silently hangs until the OS timeout (20-60 s).  Pinning to
+    AF_INET eliminates the issue entirely.
+    """
+    from aiogram.client.session.aiohttp import AiohttpSession
+
+    session = AiohttpSession()
+    # Inject IPv4 family into the lazy connector initialization
+    # Note: Modern aiogram (3.x) doesn't take 'connector' in __init__, so we touch internal state
+    session._connector_init["family"] = socket.AF_INET
+
+    from flashcard.utils.logger import get_logger
+    get_logger(__name__).info("Telegram session: forcing IPv4 (AF_INET)")
+    return session
+
+
 def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
-    bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(
+        token=settings.BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=_build_ipv4_session(),
+    )
     dp = Dispatcher()
 
     # Start tracing before anything else
@@ -99,7 +125,11 @@ async def init_telegram_bot(app: FastAPI, settings):
     app.state.bot = bot
     app.state.dispatcher = dp
 
-    logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    logger_bot = Bot(
+        token=settings.LOGGER_BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=_build_ipv4_session(),
+    )
     app.state.logger_bot = logger_bot
     install_asyncio_exception_handler(logger_bot=logger_bot)
 
@@ -196,7 +226,11 @@ async def close_telegram_bot(app: FastAPI):
 async def init_telegram_without_fastapi(settings):
     bot, dp = build_bot_dispatcher()
 
-    logger_bot = Bot(token=settings.LOGGER_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    logger_bot = Bot(
+        token=settings.LOGGER_BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=_build_ipv4_session(),
+    )
     install_asyncio_exception_handler(logger_bot=logger_bot)
 
     # Initialize Services
