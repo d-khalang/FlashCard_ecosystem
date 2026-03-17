@@ -8,6 +8,22 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.5.0 (2026-03-17)
+
+### Feat
+
+- **user**: sync telegram usernames in background via trace middleware
+- **quota**: implement user tiered limits and daily generation quotas.
+
+### Fix
+
+- **quota**: lazily initialize trial period on first active interaction
+
+### Refactor
+
+- **user**: User quota variables moved to .env file
+- **service**: add refactoring TODOs for centralized user document management
+
 ## v0.4.0 (2026-03-14)
 
 ### Feat
