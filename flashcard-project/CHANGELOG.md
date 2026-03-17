@@ -8,6 +8,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.5.1 (2026-03-17)
+
+### Fix
+
+- **telegram**: force IPv4 for bot sessions to prevent Docker bridge timeouts
+
 ## v0.5.0 (2026-03-17)
 
 ### Feat
