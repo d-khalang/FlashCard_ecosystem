@@ -2,15 +2,28 @@ from datetime import datetime, timezone
 from typing import Optional, Union, Dict
 from flashcard.utils.logger import get_logger
 from flashcard.schemas.user import UserDB, UserTier
+from flashcard.settings import settings
 from flashcard.utils.time import iso_z, now_utc, parse_iso
 
 logger = get_logger(__name__)
 
 TIER_LIMITS: Dict[UserTier, Dict[str, int]] = {
-    UserTier.normal: {"cards": 10, "stories": 2},
-    UserTier.digi: {"cards": 40, "stories": 3},
-    UserTier.plus: {"cards": 50, "stories": 10},
-    UserTier.admin: {"cards": 999, "stories": 99},  # Effectively unlimited
+    UserTier.normal: {
+        "cards": settings.TIER_LIMITS_NORMAL_CARDS,
+        "stories": settings.TIER_LIMITS_NORMAL_STORIES,
+    },
+    UserTier.digi: {
+        "cards": settings.TIER_LIMITS_DIGI_CARDS,
+        "stories": settings.TIER_LIMITS_DIGI_STORIES,
+    },
+    UserTier.plus: {
+        "cards": settings.TIER_LIMITS_PLUS_CARDS,
+        "stories": settings.TIER_LIMITS_PLUS_STORIES,
+    },
+    UserTier.admin: {
+        "cards": settings.TIER_LIMITS_ADMIN_CARDS,
+        "stories": settings.TIER_LIMITS_ADMIN_STORIES,
+    },  # Effectively unlimited
 }
 
 class UserService:

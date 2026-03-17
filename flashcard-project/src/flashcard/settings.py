@@ -25,6 +25,18 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     SCHEDULER_CHECK_INTERVAL_SECONDS: int = 600  # 10 minutes
 
+    # ──────────────────────────────────────────────
+    # Quota / Tier Limits
+    # ──────────────────────────────────────────────
+    TIER_LIMITS_NORMAL_CARDS: int = 10
+    TIER_LIMITS_NORMAL_STORIES: int = 2
+    TIER_LIMITS_DIGI_CARDS: int = 40
+    TIER_LIMITS_DIGI_STORIES: int = 3
+    TIER_LIMITS_PLUS_CARDS: int = 50
+    TIER_LIMITS_PLUS_STORIES: int = 10
+    TIER_LIMITS_ADMIN_CARDS: int = 999
+    TIER_LIMITS_ADMIN_STORIES: int = 99
+
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),
         env_file_encoding="utf-8",
