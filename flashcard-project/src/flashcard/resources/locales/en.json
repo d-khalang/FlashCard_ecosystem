@@ -20,6 +20,15 @@
             "error_missing": "Oops, I couldn't find that card. 😅",
             "invalid_data": "Hmm, something went wrong there. 🤔",
             "error_generic": "Uh oh, a little hiccup on my end. 😅"
+        },
+        "inline_remove": {
+            "result_description": "Pick this card to remove it.",
+            "prompt": "Change of mind check: tap Remove once more to confirm.",
+            "cancelled": "Keeping this one.",
+            "removed": "Poof, that flashcard is out of the deck.",
+            "missing": "I couldn't find that flashcard to remove it.",
+            "invalid": "That remove action has already gone stale.",
+            "error": "Something went wrong while trying to remove that flashcard."
         }
     },
     "commands": {
@@ -122,6 +131,9 @@
         "buttons": {
             "save": "💾 Save",
             "regenerate": "🔄 Another version",
+            "inline_remove": "🗑 Remove",
+            "inline_remove_cancel": "Keep It",
+            "inline_remove_confirm": "Remove",
             "pause_learning": "⏸ Pause",
             "resume_learning": "▶️ Resume",
             "close_settings": "❌ Close Settings",

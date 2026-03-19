@@ -3,44 +3,53 @@
         "save": {
             "success_alert": "Salvato nella collezione ricevuto!",
             "success_message": "Salvato nella collezione!",
-            "success_tag": "\n\n🔒 <b>{norm} salvato</b>",
-            "already_exists": "Esiste già tra le tue FlashCards 🧐"
+            "success_tag": "\n\nðŸ”’ <b>{norm} salvato</b>",
+            "already_exists": "Esiste giÃ  tra le tue FlashCards ðŸ§"
         },
         "regen": {
             "working": "Ci sto lavorando...",
-            "failed": "Scusa, non sono riuscito a rigenerare 😞"
+            "failed": "Scusa, non sono riuscito a rigenerare ðŸ˜ž"
         },
         "verb": {
             "not_found": "Dati del verbo non trovati.",
-            "updated": "👇🏻 Coniugazione aggiornata"
+            "updated": "ðŸ‘‡ðŸ» Coniugazione aggiornata"
         },
         "grade": {
-            "rated": "\n\n✅ Hai votato <b>{grade}</b>",
+            "rated": "\n\nâœ… Hai votato <b>{grade}</b>",
             "success": "Votato con successo!",
             "error_missing": "Errore nell'aggiornamento del voto. La carta potrebbe mancare.",
             "invalid_data": "Dati di callback non validi.",
-            "error_generic": "Si è verificato un errore."
+            "error_generic": "Si Ã¨ verificato un errore."
+        },
+        "inline_remove": {
+            "result_description": "Condividi questa carta inline, poi usa il pulsante sotto se vuoi che Kartino la metta via.",
+            "prompt": "Piccolo controllo: premi di nuovo Rimuovi per confermare.",
+            "cancelled": "Perfetto, questa resta con noi.",
+            "removed": "Flashcard rimossa dal mazzo.",
+            "missing": "Non riesco piu a trovare questa flashcard da rimuovere.",
+            "invalid": "Questa azione di rimozione non e piu valida.",
+            "error": "Ho incontrato un intoppo mentre provavo a rimuovere la flashcard."
         }
     },
     "commands": {
         "start": {
-            "welcome": "👋 Benvenuto! Sono il tuo bot per imparare l'italiano. Ecco come funziona:\n\n✏️ Inviami qualsiasi parola o espressione italiana che vuoi imparare.\n🤖 Risponderò con traduzione + spiegazione.\n💾 Vedrai due pulsanti:\nSalva → aggiungi la carta alla tua lista di studio.\nRigenera → rigenera la spiegazione se ne vuoi un'altra versione.\n📅 Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\n⚠️ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\n✨ È tutto — inizia a inviare parole!"
+            "welcome": "ðŸ‘‹ Benvenuto! Sono il tuo bot per imparare l'italiano. Ecco come funziona:\n\nâœï¸ Inviami qualsiasi parola o espressione italiana che vuoi imparare.\nðŸ¤– RisponderÃ² con traduzione + spiegazione.\nðŸ’¾ Vedrai due pulsanti:\nSalva â†’ aggiungi la carta alla tua lista di studio.\nRigenera â†’ rigenera la spiegazione se ne vuoi un'altra versione.\nðŸ“… Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\nâš ï¸ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\nâœ¨ Ãˆ tutto â€” inizia a inviare parole!"
         },
         "help": {
             "message": "messaggio di aiuto",
             "reply": "risposta di aiuto"
         },
         "get": {
-            "no_memory": "Scusa ma non hai nessuna memoria (◡︵◡)\n(O tutte le carte sono state riviste di recente!)",
+            "no_memory": "Scusa ma non hai nessuna memoria (â—¡ï¸µâ—¡)\n(O tutte le carte sono state riviste di recente!)",
             "generation_error": "Errore nella preparazione della carta."
         },
         "story": {
-            "writing": "Scrivendo una storia con {count} parole... ✍️",
-            "generation_error": "Scusa, non sono riuscito a scrivere la storia in questo momento. Per favore riprova più tardi.",
+            "writing": "Scrivendo una storia con {count} parole... âœï¸",
+            "generation_error": "Scusa, non sono riuscito a scrivere la storia in questo momento. Per favore riprova piÃ¹ tardi.",
             "no_expressions": "Nessuna espressione trovata. Aggiungine qualcuna prima!"
         },
         "verb": {
-            "instruction": "✋ Piccolo consiglio!\n\nPer ottenere la coniugazione di un verbo, scrivi:\n/verb &ltil verbo desiderato&gt;\n\nPer esempio:\n/verb andare",
+            "instruction": "âœ‹ Piccolo consiglio!\n\nPer ottenere la coniugazione di un verbo, scrivi:\n/verb &ltil verbo desiderato&gt;\n\nPer esempio:\n/verb andare",
             "invalid": "Formato verbo non valido. Sono ammessi solo verbi italiani validi.",
             "not_found": "Dati del verbo non trovati.",
             "searching": "Cercando il verbo: {verb}..."
@@ -57,40 +66,43 @@
         "settings": {
             "closed": "Impostazioni chiuse.",
             "controls": "Controlli:",
-            "switched_mode": "Passato in modalità {mode}",
+            "switched_mode": "Passato in modalitÃ  {mode}",
             "saved": "Salvato!",
-            "mode_dual": "Dual 🔄",
-            "mode_standard": "Standard ➡️"
+            "mode_dual": "Dual ðŸ”„",
+            "mode_standard": "Standard âž¡ï¸"
         }
     },
     "messages": {
         "working": "Ci sto lavorando...",
         "collection": {
-            "empty": "<b>📚 Collezione Flashcard</b>\n\nSembra che tu non abbia ancora nessuna flashcard! 😅\nScrivi una parola o espressione per aggiungerla.",
-            "header": "<b>📚 La Tua Collezione Flashcard</b>\n<i>{count} elementi salvati</i>\n"
+            "empty": "<b>ðŸ“š Collezione Flashcard</b>\n\nSembra che tu non abbia ancora nessuna flashcard! ðŸ˜…\nScrivi una parola o espressione per aggiungerla.",
+            "header": "<b>ðŸ“š La Tua Collezione Flashcard</b>\n<i>{count} elementi salvati</i>\n"
         },
         "errors": {
-            "service_unavailable": "😔 Oops! Al momento stiamo riscontrando dei problemi tecnici.\nRiprova più tardi.",
-            "llm_unavailable": "Il servizio AI è un po' sovraccarico in questo momento 🧠💤 Riprova tra un momento!",
-            "db_unavailable": "Problemi di connessione al database 🗄️ Riprova tra poco!",
+            "service_unavailable": "ðŸ˜” Oops! Al momento stiamo riscontrando dei problemi tecnici.\nRiprova piÃ¹ tardi.",
+            "llm_unavailable": "Il servizio AI Ã¨ un po' sovraccarico in questo momento ðŸ§ ðŸ’¤ Riprova tra un momento!",
+            "db_unavailable": "Problemi di connessione al database ðŸ—„ï¸ Riprova tra poco!",
             "feedback_failed": "Errore nell'invio del feedback: {error}",
-            "input_too_long": "Ehi, è un po' troppo lungo! 😅 Manteniamolo a parole o brevi espressioni (massimo 150 caratteri).",
-            "quota_exceeded": "Hai raggiunto il tuo limite giornaliero di generazioni {type}. 🛑\n\nLe nostre risorse sono limitate ☹️ e il tuo limite è di {limit} al giorno. Se ne hai bisogno di più, contatta l'amministratore con /feedback. Puoi anche usare la tua chiave API in /settings per avere accesso illimitato! 🚀"
+            "input_too_long": "Ehi, Ã¨ un po' troppo lungo! ðŸ˜… Manteniamolo a parole o brevi espressioni (massimo 150 caratteri).",
+            "quota_exceeded": "Hai raggiunto il tuo limite giornaliero di generazioni {type}. ðŸ›‘\n\nLe nostre risorse sono limitate â˜¹ï¸ e il tuo limite Ã¨ di {limit} al giorno. Se ne hai bisogno di piÃ¹, contatta l'amministratore con /feedback. Puoi anche usare la tua chiave API in /settings per avere accesso illimitato! ðŸš€"
         },
         "buttons": {
             "save": "Salva",
             "regenerate": "Rigenera",
+            "inline_remove": "Rimuovi",
+            "inline_remove_cancel": "Tieni con me",
+            "inline_remove_confirm": "Rimuovi",
             "help": "Aiuto",
-            "pause_learning": "⏸ Pausa Apprendimento",
-            "resume_learning": "▶ Riprendi Apprendimento",
-            "close_settings": "❌ Chiudi Impostazioni",
-            "verb_web_table": "📖 Tabella completa sul web",
+            "pause_learning": "â¸ Pausa Apprendimento",
+            "resume_learning": "â–¶ Riprendi Apprendimento",
+            "close_settings": "âŒ Chiudi Impostazioni",
+            "verb_web_table": "ðŸ“– Tabella completa sul web",
             "grade_0": "0 - Non ne avevo idea",
             "grade_5": "5 - Conosciuto come la famiglia"
         },
         "tips": {
-            "first_save": "💡 <b>Consiglio:</b> Vai su /settings per impostare la lingua di traduzione e il ritmo delle revisioni — rendi Kartino davvero tuo!",
-            "first_review": "💡 <b>Lo sapevi?</b> Prova la <b>Modalità Doppia</b> in /settings — ti interroga in entrambe le direzioni per un apprendimento più profondo! 🔄"
+            "first_save": "ðŸ’¡ <b>Consiglio:</b> Vai su /settings per impostare la lingua di traduzione e il ritmo delle revisioni â€” rendi Kartino davvero tuo!",
+            "first_review": "ðŸ’¡ <b>Lo sapevi?</b> Prova la <b>ModalitÃ  Doppia</b> in /settings â€” ti interroga in entrambe le direzioni per un apprendimento piÃ¹ profondo! ðŸ”„"
         }
     }
 }

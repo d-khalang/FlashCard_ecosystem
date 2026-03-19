@@ -21,6 +21,7 @@ from flashcard.telegram.handlers import (
     verb,
     story,
     collection,
+    inline_remove,
     unknown,
     creation,
     errors
@@ -68,6 +69,7 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     # Global 10s timeout — users get instant error instead of 60s+ hang
     dp.message.middleware(HandlerTimeoutMiddleware(timeout=10.0))
     dp.callback_query.middleware(HandlerTimeoutMiddleware(timeout=10.0))
+    dp.inline_query.middleware(HandlerTimeoutMiddleware(timeout=10.0))
 
     dp.message.middleware(ChatActionMiddleware())
     
@@ -85,6 +87,7 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     dp.include_router(verb.router)       # /verb + conjugation callback
     dp.include_router(story.router)      # /story
     dp.include_router(collection.router) # /import, /list_my_flashcards
+    dp.include_router(inline_remove.router) # inline query card removal
     
     # 4. Unknown Commands (catch-all for unrecognized /commands)
     dp.include_router(unknown.router)

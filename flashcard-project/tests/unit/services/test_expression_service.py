@@ -29,6 +29,7 @@ def _make_service(expressions=None, users=None):
     mock_cols["expression"].insert_one = AsyncMock()
     mock_cols["expression"].insert_many = AsyncMock()
     mock_cols["expression"].update_one = AsyncMock()
+    mock_cols["expression"].delete_one = AsyncMock()
     mock_cols["users"].find_one = AsyncMock(return_value=users)
     mock_cols["users"].update_one = AsyncMock()
     return ExpressionService(mock_cols), mock_cols
@@ -92,6 +93,29 @@ class TestGetAllExpressions:
         cols["expression"].distinct.assert_called_once_with(
             "value", {"user_id": "999"}
         )
+
+
+class TestSearchExpressions:
+    async def test_empty_query_returns_no_results(self):
+        service, cols = _make_service()
+
+        result = await service.search_expressions("123", "   ")
+
+        assert result == []
+        cols["expression"].find.assert_not_called()
+
+    async def test_returns_capped_active_matches(self):
+        service, cols = _make_service()
+        docs = [
+            {"_id": ObjectId(), "value": "casa"},
+            {"_id": ObjectId(), "value": "casa mia"},
+        ]
+        cols["expression"].find = MagicMock(return_value=_AsyncIterator(docs))
+
+        result = await service.search_expressions("123", "cas", limit=1)
+
+        assert result == [docs[0]]
+        cols["expression"].find.assert_called_once()
 
 
 
@@ -405,3 +429,35 @@ class TestUpdateExpressionSent:
         assert "last_sent_at" in set_dict
         assert "last_activity_at" in set_dict
         assert set_dict["pending_message_id"] == 42
+
+
+class TestRemoveExpression:
+    async def test_invalid_object_id_returns_false(self):
+        service, cols = _make_service()
+
+        result = await service.remove_expression("123", "not-an-object-id")
+
+        assert result is False
+        cols["expression"].delete_one.assert_not_called()
+
+    async def test_existing_expression_is_deleted(self):
+        service, cols = _make_service()
+        delete_result = MagicMock()
+        delete_result.deleted_count = 1
+        cols["expression"].delete_one = AsyncMock(return_value=delete_result)
+        expression_id = str(ObjectId())
+
+        result = await service.remove_expression("123", expression_id)
+
+        assert result is True
+        cols["expression"].delete_one.assert_called_once()
+
+    async def test_missing_expression_returns_false(self):
+        service, cols = _make_service()
+        delete_result = MagicMock()
+        delete_result.deleted_count = 0
+        cols["expression"].delete_one = AsyncMock(return_value=delete_result)
+
+        result = await service.remove_expression("123", str(ObjectId()))
+
+        assert result is False

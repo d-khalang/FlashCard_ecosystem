@@ -17,6 +17,37 @@ class ExpressionService:
     def __init__(self, cols: dict):
         self.cols = cols
 
+    async def search_expressions(
+        self,
+        user_id: Union[str, int],
+        query: str,
+        *,
+        limit: int = 50,
+    ) -> list[dict]:
+        """
+        Search a user's active expressions by value, case-insensitively.
+        """
+        normalized_query = query.strip()
+        if not normalized_query or limit <= 0:
+            return []
+
+        escaped_query = re.escape(normalized_query)
+        cursor = self.cols["expression"].find(
+            {
+                "user_id": str(user_id),
+                "status": "active",
+                "value": {"$regex": escaped_query, "$options": "i"},
+            }
+        )
+
+        results: list[dict] = []
+        async for doc in cursor:
+            results.append(doc)
+            if len(results) >= limit:
+                break
+
+        return results
+
     async def add_expression(self, user_id: Union[str, int], value: str) -> bool:
         """
         Adds a new expression if it doesn't already exist.
@@ -142,6 +173,30 @@ class ExpressionService:
             # though it doesn't guarantee specific order (UI handles alphabetical sort)
             expressions = await self.cols['expression'].distinct("value", {"user_id": str(user_id)})
             return expressions
+
+    async def remove_expression(self, user_id: Union[str, int], expression_id: str) -> bool:
+        """
+        Delete an active expression owned by the given user.
+        """
+        if not ObjectId.is_valid(expression_id):
+            logger.warning(f"Invalid expression id received for removal: {expression_id}")
+            return False
+
+        result = await self.cols["expression"].delete_one(
+            {
+                "_id": ObjectId(expression_id),
+                "user_id": str(user_id),
+                "status": "active",
+            }
+        )
+        deleted = bool(getattr(result, "deleted_count", 0))
+
+        if deleted:
+            logger.info(f"Removed expression {expression_id} for user {user_id}")
+        else:
+            logger.warning(f"Expression {expression_id} not removed for user {user_id}")
+
+        return deleted
 
     @observe(name="ExpressionService.get_review_candidate")
     async def get_review_candidate(self, user_id: Union[str, int]) -> Optional[dict]:
