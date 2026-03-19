@@ -16,7 +16,7 @@ from flashcard.utils.logger import get_logger
 logger = get_logger(__name__)
 router = Router()
 
-@router.message(F.text)
+@router.message(F.text & ~F.via_bot & ~F.from_user.is_bot)
 @flags.chat_action(ChatAction.TYPING)
 async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
     if len(message.text) > 150:

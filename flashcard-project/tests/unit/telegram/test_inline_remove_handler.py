@@ -47,6 +47,20 @@ class TestHandleInlineRemoveQuery:
         assert len(kwargs["results"]) == 1
         assert kwargs["results"][0].title == "casa"
 
+    async def test_overlong_query_returns_empty_results(self):
+        inline_query = MagicMock()
+        inline_query.query = "a" * 151
+        inline_query.from_user.id = 123
+        inline_query.answer = AsyncMock()
+
+        expression_service = MagicMock()
+        expression_service.search_expressions = AsyncMock()
+
+        await handle_inline_remove_query(inline_query, expression_service)
+
+        expression_service.search_expressions.assert_not_called()
+        inline_query.answer.assert_called_once_with(results=[], cache_time=2, is_personal=True)
+
 @pytest.mark.asyncio
 class TestHandleInlineRemoveCallback:
     async def test_prompt_action_shows_confirmation_keyboard(self):

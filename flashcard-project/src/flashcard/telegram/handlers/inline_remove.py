@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 router = Router()
 
 _MIN_INLINE_QUERY_LENGTH = 2
+_MAX_INLINE_QUERY_LENGTH = 150
 _INLINE_RESULT_LIMIT = 50
 
 
@@ -90,6 +91,14 @@ async def handle_inline_remove_query(
     query = (inline_query.query or "").strip()
     if len(query) < _MIN_INLINE_QUERY_LENGTH:
         await inline_query.answer(results=[], cache_time=1, is_personal=True)
+        return
+    if len(query) > _MAX_INLINE_QUERY_LENGTH:
+        logger.warning(
+            "Skipping inline remove query for user %s because it exceeds %s characters.",
+            inline_query.from_user.id,
+            _MAX_INLINE_QUERY_LENGTH,
+        )
+        await inline_query.answer(results=[], cache_time=2, is_personal=True)
         return
 
     expressions = await expression_service.search_expressions(
