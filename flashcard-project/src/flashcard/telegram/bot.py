@@ -101,6 +101,16 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     return bot, dp
 
 
+def get_allowed_updates(dp: Dispatcher) -> list[str]:
+    """
+    Resolve the concrete update types used by the registered routers.
+
+    Telegram keeps the previous webhook subscription if ``allowed_updates``
+    is omitted, so we must send the full current list on every webhook setup.
+    """
+    return dp.resolve_used_update_types()
+
+
 def build_dispatcher_data(
     cols,
     http_client,
@@ -173,12 +183,17 @@ async def init_telegram_bot(app: FastAPI, settings):
         await bot.set_webhook(
             url=settings.webhook_url,
             secret_token=settings.WEBHOOK_SECRET,
+            allowed_updates=get_allowed_updates(dp),
         )
     else:
         # Polling cannot run while a webhook is active.
         await bot.delete_webhook(drop_pending_updates=False)
         app.state.polling_task = asyncio.create_task(
-            dp.start_polling(bot, **dispatcher_data)
+            dp.start_polling(
+                bot,
+                allowed_updates=get_allowed_updates(dp),
+                **dispatcher_data,
+            )
         )
     
     # Start scheduler in background
@@ -255,6 +270,7 @@ async def init_telegram_without_fastapi(settings):
     polling_task = asyncio.create_task(
         dp.start_polling(
             bot, 
+            allowed_updates=get_allowed_updates(dp),
             cols=cols, 
             http_client=http_client,
             logger_bot=logger_bot,
