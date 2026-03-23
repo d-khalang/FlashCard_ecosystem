@@ -8,6 +8,16 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.7.0 (2026-03-23)
+
+### Feat
+
+- **telegram**: add /remove guide for inline flashcard deletion
+
+### Refactor
+
+- **runtime**: deprecate standalone production polling entrypoint
+
 ## v0.6.0 (2026-03-23)
 
 ### Feat
