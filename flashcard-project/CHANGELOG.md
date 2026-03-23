@@ -8,6 +8,17 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.6.0 (2026-03-23)
+
+### Feat
+
+- **telegram**: add inline flashcard removal with safe confirmation
+
+### Fix
+
+- **webhook**: include inline_query in Telegram allowed updates
+- **telegram**: ignore bot-originated messages and cap inline query length
+
 ## v0.5.1 (2026-03-17)
 
 ### Fix
