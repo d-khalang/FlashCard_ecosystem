@@ -13,6 +13,16 @@ logger = get_logger(__name__)
 router = Router()
 
 
+@router.message(Command("remove"))
+@flags.chat_action(ChatAction.TYPING)
+async def cmd_remove(message: Message):
+    bot_username = getattr(message.bot, "username", None)
+    inline_name = f"@{bot_username}" if bot_username else "@italian_assist_bot"
+    await message.answer(
+        i18n.get("commands.remove.guide", inline_name=inline_name)
+    )
+
+
 @router.message(Command("import"))
 @flags.chat_action(ChatAction.TYPING)
 async def cmd_import(message: Message, llm_service: LLMService, expression_service: ExpressionService):
@@ -80,6 +90,3 @@ async def cmd_list_my_flashcards(message: Message, expression_service: Expressio
     for msg in messages:
         await message.answer(msg)
 
-
-#TODO: Add a command to delete a flashcard
-# Delete based on the norm of the flashcard or recommend similar ones if not found
