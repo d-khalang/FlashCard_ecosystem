@@ -1,6 +1,7 @@
 import uvicorn
 import argparse
 import sys
+import warnings
 from flashcard.settings import settings
 
 import asyncio
@@ -35,11 +36,22 @@ async def _run_poll():
         await close_telegram_without_fastapi(resources)
 
 def main_poll():
-    """Entry point for polling run"""
-    asyncio.run(_run_poll())
+    """
+    Deprecated production polling alias.
+
+    Production should always run the FastAPI app so health endpoints remain
+    available to Docker and external monitors.
+    """
+    warnings.warn(
+        "flashcard-bot-poll is deprecated. Use flashcard-bot with "
+        "TELEGRAM_DELIVERY_MODE=polling instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    main()
 
 def dev_poll():
-    """Entry point for development polling run"""
+    """Entry point for lightweight local development polling run."""
     asyncio.run(_run_poll())
 
 if __name__ == "__main__":
