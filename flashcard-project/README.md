@@ -50,12 +50,15 @@ cp ../.env.example ../.env
 |---------|------|----------|
 | `flashcard-bot-dev-poll` | Polling + dev | **Recommended for local dev** |
 | `flashcard-bot-dev` | Webhook + reload | Development with webhook |
-| `flashcard-bot-poll` | Polling | Production polling |
-| `flashcard-bot` | Webhook | Production webhook |
+| `flashcard-bot-poll` | Deprecated alias | Runs FastAPI app; use `flashcard-bot` with `TELEGRAM_DELIVERY_MODE=polling` |
+| `flashcard-bot` | Production app | Runs FastAPI app for both webhook and polling |
 
 ```bash
 # Start in dev polling mode (no webhook needed)
 flashcard-bot-dev-poll
+
+# Start production-style polling with health endpoints enabled
+TELEGRAM_DELIVERY_MODE=polling flashcard-bot
 ```
 
 ## Running via Docker

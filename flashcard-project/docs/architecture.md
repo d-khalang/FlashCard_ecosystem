@@ -37,7 +37,7 @@ graph LR
 
 ```
 flashcard-project/src/flashcard/
-├── __main__.py              # Entry points (main, dev, poll modes)
+├── __main__.py              # Entry points (FastAPI app + local dev polling shortcut)
 ├── settings.py              # Pydantic settings (env vars)
 │
 ├── api/                     # FastAPI layer
@@ -205,10 +205,10 @@ The bot supports two modes:
 
 | Mode | Entry Point | How it works |
 |------|-------------|--------------|
-| **FastAPI + Webhook** | `flashcard-bot` / `flashcard-bot-dev` | FastAPI app with webhook endpoint, uvicorn server |
-| **Standalone Polling** | `flashcard-bot-poll` / `flashcard-bot-dev-poll` | Direct `dp.start_polling()`, no HTTP server |
+| **FastAPI App** | `flashcard-bot` / `flashcard-bot-dev` | FastAPI app with health + webhook endpoints; Telegram delivery chosen by config |
+| **Standalone Dev Polling** | `flashcard-bot-dev-poll` | Direct `dp.start_polling()`, no HTTP server, for local development only |
 
-Both modes initialize the same services and scheduler. The difference is how Telegram updates arrive (webhook POST vs long polling).
+The production app initializes the same services and scheduler in both polling and webhook mode. The difference is how Telegram updates arrive (`TELEGRAM_DELIVERY_MODE=webhook` vs `polling`). `flashcard-bot-dev-poll` remains as a lightweight local shortcut when no HTTP server is needed.
 
 ### Webhook Failure Semantics
 

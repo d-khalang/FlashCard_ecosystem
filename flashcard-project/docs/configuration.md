@@ -88,13 +88,16 @@ Defined in [`pyproject.toml`](../pyproject.toml):
 
 | Command | Function | Description |
 |---------|----------|-------------|
-| `flashcard-bot` | `__main__:main` | Production — FastAPI + uvicorn (webhook-ready) |
+| `flashcard-bot` | `__main__:main` | Production — FastAPI + uvicorn; delivery mode selected by `TELEGRAM_DELIVERY_MODE` |
 | `flashcard-bot-dev` | `__main__:dev` | Development — FastAPI + uvicorn with reload |
-| `flashcard-bot-poll` | `__main__:main_poll` | Production — standalone polling (no HTTP server) |
-| `flashcard-bot-dev-poll` | `__main__:dev_poll` | Development — standalone polling |
+| `flashcard-bot-poll` | `__main__:main_poll` | Deprecated alias for production polling; now delegates to `flashcard-bot` |
+| `flashcard-bot-dev-poll` | `__main__:dev_poll` | Development — standalone polling without HTTP server |
 
 > [!TIP]
 > For local development, use `flashcard-bot-dev-poll`. It runs polling mode without needing a webhook or public URL.
+
+> [!IMPORTANT]
+> In production, always use `flashcard-bot`. Set `TELEGRAM_DELIVERY_MODE=polling` or `webhook` as needed so `/health` and `/health/ready` remain available.
 
 ---
 
