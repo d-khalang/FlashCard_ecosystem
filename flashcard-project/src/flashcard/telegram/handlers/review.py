@@ -23,9 +23,6 @@ logger = get_logger(__name__)
 router = Router()
 
 
-#TODO: Think about how to adapt last_sent and last_interacted when the last one was revereced
-# as we use that for retreival (probably no problem) but first level doc does not give a clue
-# about the the last interaction if it was reveresed. semantically wrong. last sent!!!
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
 async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
