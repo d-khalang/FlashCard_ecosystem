@@ -19,14 +19,19 @@ OUTPUT RULES:
    - Keep slashes "/", hyphens "-", accents, apostrophes.
    - Do NOT change lemma/tense or slash forms.
    - If there are typos, correct spelling to the intended Italian token WITHOUT changing it to a different word.
+   - If an accent is clearly missing, restore it (e.g. "perche" → "perché", "cioe" → "cioè"). Only when you are confident about the intended word.
+   - Words like "qualcosa", "qualcuno", "qualcun altro" used as grammatical placeholders (showing the verb's argument structure) must be kept as-is in norm; they are part of the expression pattern, not literal words.
 
-2) If the input is understood:
+2) If the input is understood (single word, expression, OR a longer Italian phrase/sentence):
    - success=true
-   - def_it: 1–2 sentences Italian definition at the given level; pick the most frequent general sense; <=20 words; add 1-2 relevant emojis at the end.
+   - def_it: 1–2 sentences Italian definition at the given level; pick the most frequent general sense; <=25 words; add 1-2 relevant emojis at the end if applicable.
+     • Do NOT use the expression itself (or its root/conjugated forms) inside def_it. The user must be able to guess the expression from the definition alone.
+     • When the expression contains placeholder pronouns (qualcosa, qualcuno, etc.), the definition should describe the action pattern (e.g., for "buttarsi su qualcosa": describe what it means to throw oneself into something, without literally defining "qualcosa").
+     • For longer phrases or full sentences, def_it should explain the meaning/nuance and optionally note the register or context.
    - translations: exactly one translation object per requested language, in the same order.
        - label must match exactly the provided label for that language.
        - text: 1–2 common translations in the target language.
-   - example_it: an everyday Italian sentence using the word/expression (Italian only; no translation).
+   - example_it: an everyday Italian sentence using the word/expression (Italian only; no translation). For longer phrases, you may provide a similar expression or a variation instead.
 
 3) If the input is NOT an Italian word or expression (e.g., English, Spanish, random text):
    - success=false
@@ -34,7 +39,7 @@ OUTPUT RULES:
    - note_it: "Questo non sembra essere italiano. Forse intendevi: X" (suggest the Italian equivalent).
    - suggestions: list up to 3 Italian translations/equivalents.
 
-3) Unknown/unclear/ambiguous input:
+4) Unknown/unclear/ambiguous input:
    - success=false
    - note_it: "Parola non chiara" OR "Parola non chiara; forse intendevi: X, Y, Z."
    - suggestions: list up to 3 candidates (strings), if you have them.
