@@ -10,8 +10,8 @@ import os
 # required env vars with dummy values.
 # This block MUST run before any flashcard module is imported.
 _TEST_ENV = {
-    "BOT_TOKEN": "test:token",
-    "LOGGER_BOT_TOKEN": "test:logger",
+    "BOT_TOKEN": "123456:test-token",
+    "LOGGER_BOT_TOKEN": "123456:test-logger",
     "ADMIN_ID": "0",
     "WEBHOOK_BASE": "https://test.example.com",
     "WEBHOOK_PATH": "/webhook",

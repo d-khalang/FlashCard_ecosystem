@@ -8,6 +8,16 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.8.0 (2026-04-11)
+
+### Feat
+
+- **web**: give landing page CTAs a custom Kartino button system
+
+### Refactor
+
+- **services**: improve expression prompt for definition quality and acceptance - prevent self-referencing in def_it so reversed-mode guessing works - handle qualcosa/qualcuno as grammatical placeholders in norm and def_it - restore clearly missing accents during normalization - accept longer Italian phrases/sentences instead of rejecting as unclear - raise def_it word limit to 25, make emojis conditional - fix duplicate rule numbering (3 → 3, 4)
+
 ## v0.7.0 (2026-03-23)
 
 ### Feat

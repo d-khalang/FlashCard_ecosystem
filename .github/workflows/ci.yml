@@ -13,8 +13,8 @@ jobs:
       run:
         working-directory: flashcard-project
     env:
-      BOT_TOKEN: test-bot-token
-      LOGGER_BOT_TOKEN: test-logger-bot-token
+      BOT_TOKEN: 123456:test-bot-token
+      LOGGER_BOT_TOKEN: 123456:test-logger-bot-token
       ADMIN_ID: "1"
       TELEGRAM_DELIVERY_MODE: webhook
       WEBHOOK_BASE: https://bot.example.com
@@ -49,6 +49,9 @@ jobs:
 
       - name: Run unit tests
         run: pytest tests/unit -q --tb=short
+
+      - name: Run integration and smoke tests
+        run: pytest tests/integration tests/smoke -q --tb=short
 
   docker-build-check:
     runs-on: ubuntu-latest

@@ -18,6 +18,22 @@ pytest tests/unit/services/test_expression_service.py -v
 pytest tests/unit/algorithm/test_grading.py::TestEWMACalculation -v
 ```
 
+## Integration and Smoke Layers
+
+The automated suite now also includes:
+
+- `tests/integration/` - dispatcher, lifecycle, and runtime wiring tests using an in-memory DB plus fake Telegram and HTTP clients
+- `tests/smoke/` - ecosystem-level checks for Compose, Caddy, CI, docs, and the static web entrypoint
+
+Common commands:
+
+```bash
+# Bot integration + smoke
+pytest tests/integration tests/smoke -v --tb=short
+```
+
+When adding new runtime tests, prefer the shared harness in `tests/integration/helpers.py` so dispatcher flows use the same fake Telegram session and in-memory Mongo behavior.
+
 ## Test Structure
 
 ```
