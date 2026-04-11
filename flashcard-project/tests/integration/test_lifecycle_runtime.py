@@ -59,6 +59,7 @@ async def test_init_telegram_bot_webhook_mode_sets_webhook(monkeypatch):
         ),
     )
     monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", fake_scheduler_loop)
+    monkeypatch.setattr(bot_module, "LLMService", lambda: object())
 
     await bot_module.init_telegram_bot(app, bot_module.settings)
 
@@ -97,6 +98,7 @@ async def test_init_telegram_bot_polling_mode_deletes_webhook_and_starts_polling
         AsyncMock(return_value=FakeHTTPClient(FakeHTTPResponse(200, {}))),
     )
     monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", AsyncMock())
+    monkeypatch.setattr(bot_module, "LLMService", lambda: object())
     monkeypatch.setattr(bot_module, "get_trace_logger", lambda: DummyTraceLogger())
     monkeypatch.setattr(
         bot_module,
