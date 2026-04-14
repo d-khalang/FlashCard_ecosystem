@@ -20,6 +20,7 @@ _TEST_ENV = {
     "MONGO_DB": "test_db",
     "COLLECTION_USERS": "users",
     "COLLECTION_EXPRESSION": "expression",
+
     "COLLECTION_CONJUGATION": "conjugation",
     "SCRAPER_API_KEY": "test-key",
     "SCRAPER_URL": "http://localhost",
@@ -29,3 +30,38 @@ _TEST_ENV = {
 for key, value in _TEST_ENV.items():
     os.environ.setdefault(key, value)
 
+
+import pytest
+
+@pytest.fixture(autouse=True)
+def clear_aiogram_routers_state():
+    """
+    aiogram Routers strictly forbid being attached to more than one Dispatcher.
+    Since our routers are import-level singletons, tests that repeatedly call
+    build_bot_dispatcher() will crash. This cleans the internal _parent_router 
+    state before every test.
+    """
+    from flashcard.telegram.handlers import (
+        user_settings, 
+        feedback, 
+        reply_commands,
+        start,
+        review,
+        verb,
+        story,
+        collection,
+        inline_remove,
+        unknown,
+        creation,
+        errors
+    )
+    
+    routers = [
+        user_settings.router, feedback.router, reply_commands.router, 
+        start.router, review.router, verb.router, story.router, 
+        collection.router, inline_remove.router, unknown.router, 
+        creation.router, errors.router
+    ]
+    
+    for r in routers:
+        r._parent_router = None
