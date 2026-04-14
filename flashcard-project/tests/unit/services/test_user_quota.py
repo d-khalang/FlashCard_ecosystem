@@ -100,6 +100,27 @@ class TestUserServiceQuota:
         user.consumption.system_api.stories_generated = 3
         assert service.can_generate_story(user) is False
 
+    def test_can_generate_card_new_day_reset(self):
+        service, _ = _make_service()
+        user = UserDB(user_id="1", tier=UserTier.plus)
+        
+        # At limit (50) but from yesterday
+        user.consumption.system_api.cards_generated = 50
+        user.consumption.consumption_date = (now_utc() - timedelta(days=1)).date().isoformat()
+        
+        # Even though cards_generated is 50, since it's yesterday, it should act as 0
+        assert service.can_generate_card(user) is True
+
+    def test_can_generate_story_new_day_reset(self):
+        service, _ = _make_service()
+        user = UserDB(user_id="1", tier=UserTier.digi)
+        
+        # At limit (3) but from yesterday
+        user.consumption.system_api.stories_generated = 3
+        user.consumption.consumption_date = (now_utc() - timedelta(days=1)).date().isoformat()
+        
+        assert service.can_generate_story(user) is True
+
     @pytest.mark.asyncio
     async def test_update_username(self):
         service, cols = _make_service()

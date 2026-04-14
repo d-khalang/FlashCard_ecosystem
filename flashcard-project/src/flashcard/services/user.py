@@ -154,6 +154,14 @@ class UserService:
         
         return TIER_LIMITS.get(user.tier, TIER_LIMITS[UserTier.normal])
 
+    def _get_today_usage(self, user: UserDB, metric: str) -> int:
+        """
+        Returns the user's usage for a specific metric today.
+        Delegates daily-reset logic to ConsumptionService (single source of truth).
+        """
+        resolved = self.consumption_service.resolve_consumption(user.consumption)
+        return getattr(resolved.system_api, metric, 0)
+
     def can_generate_card(self, user: UserDB, uses_own_key: bool = False) -> bool:
         """
         Checks if the user can generate a card today.
@@ -162,7 +170,8 @@ class UserService:
             return True
         
         limits = self._get_effective_limits(user)
-        current_usage = user.consumption.system_api.cards_generated
+        current_usage = self._get_today_usage(user, "cards_generated")
+            
         return current_usage < limits["cards"]
 
     def can_generate_story(self, user: UserDB, uses_own_key: bool = False) -> bool:
