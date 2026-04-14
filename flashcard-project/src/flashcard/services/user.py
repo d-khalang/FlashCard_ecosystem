@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
-from typing import Optional, Union, Dict
+from typing import Optional, Union, Dict, TYPE_CHECKING
 from flashcard.utils.logger import get_logger
 from flashcard.schemas.user import UserDB, UserTier
 from flashcard.settings import settings
 from flashcard.utils.time import iso_z, now_utc, parse_iso
+
+if TYPE_CHECKING:
+    from flashcard.services.consumption import ConsumptionService
 
 logger = get_logger(__name__)
 
@@ -27,8 +32,9 @@ TIER_LIMITS: Dict[UserTier, Dict[str, int]] = {
 }
 
 class UserService:
-    def __init__(self, cols: dict):
+    def __init__(self, cols: dict, consumption_service: ConsumptionService | None = None):
         self.cols = cols
+        self.consumption_service = consumption_service
 
     async def update_user_last_push(self, user_id: Union[str, int]):
         """
@@ -182,5 +188,6 @@ class UserService:
             return True
             
         limits = self._get_effective_limits(user)
-        current_usage = user.consumption.system_api.stories_generated
+        current_usage = self._get_today_usage(user, "stories_generated")
+            
         return current_usage < limits["stories"]

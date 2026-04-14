@@ -93,6 +93,18 @@ class ConsumptionService:
 
         logger.debug(f"Consumption incremented: user={user_id_str} {inc_path}")
 
+    def resolve_consumption(self, consumption: UserConsumption) -> UserConsumption:
+        """
+        Returns the consumption as-is if the date matches today,
+        otherwise returns a fresh (zeroed) UserConsumption.
+
+        Pure, synchronous — no DB call. This is the single source
+        of truth for daily-reset semantics.
+        """
+        if consumption.consumption_date != self._today():
+            return UserConsumption(consumption_date=self._today())
+        return consumption
+
     async def get_consumption(self, user_id: Union[str, int]) -> UserConsumption:
         """
         Returns the current UserConsumption for a user.
@@ -108,9 +120,4 @@ class ConsumptionService:
             return UserConsumption()
 
         consumption = UserConsumption.model_validate(doc["consumption"])
-
-        # If date is stale, return fresh (don't bother writing back, next increment will reset)
-        if consumption.consumption_date != self._today():
-            return UserConsumption(consumption_date=self._today())
-
-        return consumption
+        return self.resolve_consumption(consumption)

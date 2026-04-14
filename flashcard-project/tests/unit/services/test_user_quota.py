@@ -2,14 +2,20 @@ import pytest
 from datetime import timedelta
 from unittest.mock import MagicMock, AsyncMock, ANY
 from flashcard.services.user import UserService
+from flashcard.services.consumption import ConsumptionService
 from flashcard.schemas.user import UserDB, UserTier
 from flashcard.utils.time import now_utc, iso_z
+
+
+def _today() -> str:
+    return now_utc().date().isoformat()
 
 def _make_service():
     mock_cols = {"users": MagicMock(), "consumption": MagicMock()}
     # update_one is often awaited
     mock_cols["users"].update_one = AsyncMock()
-    return UserService(mock_cols), mock_cols
+    consumption_service = ConsumptionService(cols=mock_cols)
+    return UserService(mock_cols, consumption_service=consumption_service), mock_cols
 
 class TestUserServiceQuota:
 
@@ -79,6 +85,7 @@ class TestUserServiceQuota:
     def test_can_generate_card_enforces_limit(self):
         service, _ = _make_service()
         user = UserDB(user_id="1", tier=UserTier.plus)
+        user.consumption.consumption_date = _today()
         
         # Below limit (49 < 50)
         user.consumption.system_api.cards_generated = 49
@@ -91,6 +98,7 @@ class TestUserServiceQuota:
     def test_can_generate_story_enforces_limit(self):
         service, _ = _make_service()
         user = UserDB(user_id="1", tier=UserTier.digi)
+        user.consumption.consumption_date = _today()
         
         # Below limit (2 < 3)
         user.consumption.system_api.stories_generated = 2

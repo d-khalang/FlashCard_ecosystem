@@ -158,8 +158,8 @@ async def init_telegram_bot(app: FastAPI, settings):
 
     verb_service = VerbService(cols=app.state.cols, http_client=app.state.http_client)
     expression_service = ExpressionService(cols=app.state.cols)
-    user_service = UserService(cols=app.state.cols)
     consumption_service = ConsumptionService(cols=app.state.cols)
+    user_service = UserService(cols=app.state.cols, consumption_service=consumption_service)
     llm_service = LLMService()
     app.state.expression_service = expression_service
     app.state.user_service = user_service
@@ -259,8 +259,8 @@ async def init_telegram_without_fastapi(settings):
 
     verb_service = VerbService(cols=cols, http_client=http_client)
     expression_service = ExpressionService(cols=cols)
-    user_service = UserService(cols=cols)
     consumption_service = ConsumptionService(cols=cols)
+    user_service = UserService(cols=cols, consumption_service=consumption_service)
     llm_service = LLMService()
 
     # Polling cannot run while a webhook is active.

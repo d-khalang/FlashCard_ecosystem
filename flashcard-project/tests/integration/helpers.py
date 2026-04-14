@@ -503,8 +503,8 @@ def make_cols(*, users: list[dict[str, Any]] | None = None, expressions: list[di
 
 def make_services(cols: dict[str, InMemoryCollection], http_client: FakeHTTPClient | None = None) -> dict[str, Any]:
     expression_service = ExpressionService(cols=cols)
-    user_service = UserService(cols=cols)
     consumption_service = ConsumptionService(cols=cols)
+    user_service = UserService(cols=cols, consumption_service=consumption_service)
     verb_service = VerbService(cols=cols, http_client=http_client)
     return {
         "expression_service": expression_service,
