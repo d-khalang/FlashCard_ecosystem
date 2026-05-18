@@ -20,6 +20,14 @@ class LLMKeyProvider:
         """
         return {entry.name: entry.api_key for entry in self._config.core}
 
+    def get_core_entries(self, provider: Optional[str] = None):
+        """
+        Retrieves configured core key entries, optionally filtered by provider.
+        """
+        if provider is None:
+            return list(self._config.core)
+        return [entry for entry in self._config.core if entry.provider == provider]
+
     def get_reminder_key(self, name: str) -> Optional[str]:
         """
         Retrieves a reminder API key by name.

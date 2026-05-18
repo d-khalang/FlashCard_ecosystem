@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class KeyEntry(BaseModel):
     name: str
     api_key: str
+    provider: str = "google"
 
 class APIKeyConfig(BaseModel):
     core: List[KeyEntry]
