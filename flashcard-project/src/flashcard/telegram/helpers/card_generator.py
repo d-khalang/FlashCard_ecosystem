@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Awaitable, Callable, Optional, Union
 from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.schemas.languages import get_language_flag
@@ -12,6 +12,7 @@ async def generate_and_render_card(
     user_service: UserService,
     user_id: Union[str, int],
     text: str,
+    on_llm_fallback: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> tuple[str, bool, Optional[ExpressionCard], UserDB]:
     """
     Generates an expression card using LLMService and returns the rendered text, success status, the card object, and user.
@@ -52,6 +53,7 @@ async def generate_and_render_card(
         lang2_code=lang2_code,
         lang1_label=lang1_label,
         lang2_label=lang2_label,
+        on_fallback=on_llm_fallback,
     )
 
     rendered = render_expression_card(card)

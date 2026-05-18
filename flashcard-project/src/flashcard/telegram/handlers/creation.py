@@ -25,7 +25,16 @@ async def handle_text_message(message: Message, llm_service: LLMService, user_se
 
     status_msg = await message.answer(i18n.get("messages.working"))
 
-    text, success, card, user = await generate_and_render_card(llm_service, user_service, message.from_user.id, message.text)
+    async def notify_fallback() -> None:
+        await status_msg.edit_text(i18n.get("messages.llm_fallback"))
+
+    text, success, card, user = await generate_and_render_card(
+        llm_service,
+        user_service,
+        message.from_user.id,
+        message.text,
+        on_llm_fallback=notify_fallback,
+    )
     
     if success:
         await consumption_service.increment(message.from_user.id, "cards_generated", uses_own_key=user.api_config is not None)
@@ -93,7 +102,16 @@ async def handle_regen(callback: CallbackQuery, llm_service: LLMService, user_se
     expression = callback.data.split(":", 1)[1]
     user_id = callback.from_user.id
 
-    text, success, card, user = await generate_and_render_card(llm_service, user_service, user_id, expression)
+    async def notify_fallback() -> None:
+        await callback.message.edit_text(i18n.get("messages.llm_fallback"))
+
+    text, success, card, user = await generate_and_render_card(
+        llm_service,
+        user_service,
+        user_id,
+        expression,
+        on_llm_fallback=notify_fallback,
+    )
 
     if success:
         await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)

@@ -74,6 +74,7 @@
     },
     "messages": {
         "working": "Ci sto lavorando...",
+        "llm_fallback": "Questo motore intelligente non e disponibile adesso, quindi ne provo un altro...",
         "collection": {
             "empty": "<b>ðŸ“š Collezione Flashcard</b>\n\nSembra che tu non abbia ancora nessuna flashcard! ðŸ˜…\nScrivi una parola o espressione per aggiungerla.",
             "header": "<b>ðŸ“š La Tua Collezione Flashcard</b>\n<i>{count} elementi salvati</i>\n"

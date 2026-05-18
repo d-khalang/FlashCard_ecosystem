@@ -119,6 +119,7 @@
     },
     "messages": {
         "working": "Let me think... 🤔",
+        "llm_fallback": "This intelligent engine is not available right now, so let me try another one...",
         "collection": {
             "empty": "<b>📇 Your Deck</b>\n\nIt's quiet in here... Send me a word to get started! ✨",
             "header": "<b>📇 Your Deck</b>\n<i>{count} words growing strong 🌱</i>\n"
