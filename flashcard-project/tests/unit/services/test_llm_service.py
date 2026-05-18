@@ -9,6 +9,8 @@ LLMKeyProvider is tested with a mock API key config.
 import asyncio
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.story import StoryResponse
 from flashcard.schemas.api_key import APIKeyConfig, KeyEntry
@@ -96,6 +98,10 @@ class TestLLMServiceMocked:
         service.google_providers = {"mock": provider}
         service.groq_providers = {}
         service.clients = {"mock": mock_client}
+        service.google_model = "gemini-test"
+        service.groq_model = "groq-test"
+        service.groq_fallback_delay_seconds = 3.0
+        service.max_attempts = 2
 
         import itertools
         service.google_cycle = itertools.cycle(service.google_providers.items())
@@ -197,7 +203,7 @@ class TestLLMServiceMocked:
         assert schema["additionalProperties"] is False
 
     async def test_groq_timeout_falls_back_to_google_and_notifies(self):
-        from flashcard.services.llm.llm import LLMService
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
 
         mock_card = ExpressionCard(
             success=True,
@@ -214,10 +220,22 @@ class TestLLMServiceMocked:
 
         async def slow_groq(**kwargs):
             await asyncio.sleep(0.02)
-            return mock_card
+            return LLMGenerationResult(
+                value=mock_card,
+                provider="groq",
+                provider_key="groq:test",
+                model="groq-test",
+                fallback_triggered=False,
+            )
 
         async def google(**kwargs):
-            return mock_card
+            return LLMGenerationResult(
+                value=mock_card,
+                provider="google",
+                provider_key="google:test",
+                model="google-test",
+                fallback_triggered=True,
+            )
 
         async def notify():
             nonlocal notified
@@ -238,3 +256,394 @@ class TestLLMServiceMocked:
 
         assert result == mock_card
         assert notified is True
+
+    async def test_delayed_fallback_returns_groq_if_it_wins_race(self):
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
+
+        groq_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Groq definition",
+            translations=[{"label": "EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+        google_card = groq_card.model_copy(update={"def_it": "Google definition"})
+
+        service = LLMService.__new__(LLMService)
+        notified = False
+
+        async def slow_groq(**kwargs):
+            await asyncio.sleep(0.02)
+            return LLMGenerationResult(
+                value=groq_card,
+                provider="groq",
+                provider_key="groq:test",
+                model="groq-test",
+                fallback_triggered=False,
+            )
+
+        async def google(**kwargs):
+            await asyncio.sleep(0.05)
+            return LLMGenerationResult(
+                value=google_card,
+                provider="google",
+                provider_key="google:test",
+                model="google-test",
+                fallback_triggered=True,
+            )
+
+        async def notify():
+            nonlocal notified
+            notified = True
+
+        service.groq_providers = {"groq": MagicMock()}
+        service.groq_fallback_delay_seconds = 0.001
+        service._generate_groq = slow_groq
+        service._generate_google = google
+
+        result = await service.generate_expression_card(
+            raw="parlare",
+            level="B1",
+            lang1_code="en",
+            lang1_label="EN",
+            on_fallback=notify,
+        )
+
+        assert result.def_it == "Groq definition"
+        assert notified is True
+
+    async def test_delayed_fallback_returns_google_if_google_wins_race(self):
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
+
+        groq_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Groq definition",
+            translations=[{"label": "EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+        google_card = groq_card.model_copy(update={"def_it": "Google definition"})
+
+        service = LLMService.__new__(LLMService)
+
+        async def slow_groq(**kwargs):
+            await asyncio.sleep(0.05)
+            return LLMGenerationResult(
+                value=groq_card,
+                provider="groq",
+                provider_key="groq:test",
+                model="groq-test",
+                fallback_triggered=False,
+            )
+
+        async def google(**kwargs):
+            await asyncio.sleep(0.01)
+            return LLMGenerationResult(
+                value=google_card,
+                provider="google",
+                provider_key="google:test",
+                model="google-test",
+                fallback_triggered=True,
+            )
+
+        service.groq_providers = {"groq": MagicMock()}
+        service.groq_fallback_delay_seconds = 0.001
+        service._generate_groq = slow_groq
+        service._generate_google = google
+
+        result = await service.generate_expression_card(
+            raw="parlare",
+            level="B1",
+            lang1_code="en",
+            lang1_label="EN",
+        )
+
+        assert result.def_it == "Google definition"
+
+    async def test_groq_failure_before_delay_falls_back_to_google(self):
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
+
+        google_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Google definition",
+            translations=[{"label": "EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+        service = LLMService.__new__(LLMService)
+        notified = False
+
+        async def groq(**kwargs):
+            raise RuntimeError("groq fail")
+
+        async def google(**kwargs):
+            return LLMGenerationResult(
+                value=google_card,
+                provider="google",
+                provider_key="google:test",
+                model="google-test",
+                fallback_triggered=True,
+            )
+
+        async def notify():
+            nonlocal notified
+            notified = True
+
+        service.groq_providers = {"groq": MagicMock()}
+        service.groq_fallback_delay_seconds = 1.0
+        service._generate_groq = groq
+        service._generate_google = google
+
+        result = await service._generate_with_fallback(
+            contents="prompt",
+            response_schema=ExpressionCard,
+            on_fallback=notify,
+        )
+
+        assert result.value == google_card
+        assert result.provider == "google"
+        assert result.fallback_triggered is True
+        assert notified is True
+
+    async def test_groq_failure_after_delay_waits_for_google_success(self):
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
+
+        google_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Google definition",
+            translations=[{"label": "EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+        service = LLMService.__new__(LLMService)
+
+        async def groq(**kwargs):
+            await asyncio.sleep(0.01)
+            raise RuntimeError("groq fail")
+
+        async def google(**kwargs):
+            await asyncio.sleep(0.02)
+            return LLMGenerationResult(
+                value=google_card,
+                provider="google",
+                provider_key="google:test",
+                model="google-test",
+                fallback_triggered=True,
+            )
+
+        service.groq_providers = {"groq": MagicMock()}
+        service.groq_fallback_delay_seconds = 0.001
+        service._generate_groq = groq
+        service._generate_google = google
+
+        result = await service._generate_with_fallback(
+            contents="prompt",
+            response_schema=ExpressionCard,
+        )
+
+        assert result.value == google_card
+        assert result.provider == "google"
+        assert result.fallback_triggered is True
+
+    async def test_google_failure_after_delay_waits_for_groq_success(self):
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
+
+        groq_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Groq definition",
+            translations=[{"label": "EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+        service = LLMService.__new__(LLMService)
+
+        async def groq(**kwargs):
+            await asyncio.sleep(0.03)
+            return LLMGenerationResult(
+                value=groq_card,
+                provider="groq",
+                provider_key="groq:test",
+                model="groq-test",
+                fallback_triggered=False,
+            )
+
+        async def google(**kwargs):
+            await asyncio.sleep(0.01)
+            raise RuntimeError("google fail")
+
+        service.groq_providers = {"groq": MagicMock()}
+        service.groq_fallback_delay_seconds = 0.001
+        service._generate_groq = groq
+        service._generate_google = google
+
+        result = await service._generate_with_fallback(
+            contents="prompt",
+            response_schema=ExpressionCard,
+        )
+
+        assert result.value == groq_card
+        assert result.provider == "groq"
+        assert result.fallback_triggered is True
+
+    async def test_both_racing_providers_fail_raises_last_error(self):
+        from flashcard.services.llm.llm import LLMService
+
+        service = LLMService.__new__(LLMService)
+
+        async def groq(**kwargs):
+            await asyncio.sleep(0.01)
+            raise ValueError("groq fail")
+
+        async def google(**kwargs):
+            await asyncio.sleep(0.02)
+            raise RuntimeError("google fail")
+
+        service.groq_providers = {"groq": MagicMock()}
+        service.groq_fallback_delay_seconds = 0.001
+        service._generate_groq = groq
+        service._generate_google = google
+
+        with pytest.raises(RuntimeError, match="google fail"):
+            await service._generate_with_fallback(
+                contents="prompt",
+                response_schema=ExpressionCard,
+            )
+
+    async def test_no_groq_provider_uses_google_without_fallback(self):
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
+
+        google_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Google definition",
+            translations=[{"label": "EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+        service = LLMService.__new__(LLMService)
+
+        async def google(**kwargs):
+            return LLMGenerationResult(
+                value=google_card,
+                provider="google",
+                provider_key="google:test",
+                model="google-test",
+                fallback_triggered=False,
+            )
+
+        service.groq_providers = {}
+        service._generate_google = google
+
+        result = await service._generate_with_fallback(
+            contents="prompt",
+            response_schema=ExpressionCard,
+        )
+
+        assert result.value == google_card
+        assert result.provider == "google"
+        assert result.fallback_triggered is False
+
+    async def test_trace_metadata_records_final_provider_model_and_fallback(self):
+        from flashcard.schemas.trace import TraceData
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
+        from flashcard.utils.time import iso_z, now_utc
+        from flashcard.utils.tracing import clear_current_trace, set_current_trace
+
+        groq_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Groq definition",
+            translations=[{"label": "EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+        service = LLMService.__new__(LLMService)
+
+        async def generate(**kwargs):
+            return LLMGenerationResult(
+                value=groq_card,
+                provider="groq",
+                provider_key="groq:test",
+                model="groq-test",
+                fallback_triggered=True,
+            )
+
+        service._generate_with_fallback = generate
+        trace = TraceData(trace_id="llm-meta", timestamp=iso_z(now_utc()), update_type="test")
+        token = set_current_trace(trace)
+
+        try:
+            result = await service.generate_expression_card(
+                raw="parlare",
+                level="B1",
+                lang1_code="en",
+                lang1_label="EN",
+            )
+        finally:
+            clear_current_trace(token)
+
+        assert result == groq_card
+        assert trace.spans[0].metadata == {
+            "llm_provider": "groq",
+            "llm_provider_key": "groq:test",
+            "llm_model": "groq-test",
+            "llm_fallback_triggered": True,
+        }
+
+    async def test_slow_losing_provider_task_is_cancelled_and_gathered(self):
+        from flashcard.services.llm.llm import LLMGenerationResult, LLMService
+
+        groq_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Groq definition",
+            translations=[{"label": "EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+        service = LLMService.__new__(LLMService)
+        google_cancelled = asyncio.Event()
+
+        async def groq(**kwargs):
+            await asyncio.sleep(0.01)
+            return LLMGenerationResult(
+                value=groq_card,
+                provider="groq",
+                provider_key="groq:test",
+                model="groq-test",
+                fallback_triggered=False,
+            )
+
+        async def google(**kwargs):
+            try:
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                google_cancelled.set()
+                raise
+
+        service.groq_providers = {"groq": MagicMock()}
+        service.groq_fallback_delay_seconds = 0.001
+        service._generate_groq = groq
+        service._generate_google = google
+
+        result = await service._generate_with_fallback(
+            contents="prompt",
+            response_schema=ExpressionCard,
+        )
+
+        assert result.value == groq_card
+        assert result.fallback_triggered is True
+        assert google_cancelled.is_set()

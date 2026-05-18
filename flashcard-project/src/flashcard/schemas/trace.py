@@ -11,6 +11,7 @@ class Span(BaseModel):
     latency_ms: Optional[float] = Field(None, description="Execution time in milliseconds")
     status: str = Field(default="ok", description="'ok' or 'error'")
     inputs: Dict[str, Any] = Field(default_factory=dict, description="Arguments passed to the function")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional structured span metadata")
     output: Any = Field(None, description="Return value or exception details")
     error: Optional[str] = Field(None, description="Error message if status is 'error'")
 

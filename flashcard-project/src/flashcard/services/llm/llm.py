@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.import_model import ImportResponse
 from flashcard.schemas.story import StoryResponse
+from flashcard.settings import settings
 from flashcard.services.llm.llm_key import LLMKeyProvider
 from flashcard.services.llm.prompts import (
     EXPRESSION_PROMPT_TEMPLATE,
@@ -20,17 +21,13 @@ from flashcard.services.llm.prompts import (
     STORY_PROMPT_TEMPLATE,
 )
 from flashcard.utils.logger import get_logger
-from flashcard.utils.tracing import observe
+from flashcard.utils.tracing import annotate_current_span, observe
 
 logger = get_logger(__name__)
 
 ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
 FallbackNotifier = Callable[[], Awaitable[None]]
 
-GOOGLE_MODEL = "gemini-2.5-flash-lite"
-GROQ_MODEL = "openai/gpt-oss-120b"
-GROQ_TIMEOUT_SECONDS = 3.0
-MAX_ATTEMPTS = 2
 TRANSIENT_ERROR_MARKERS = (
     "503",
     "429",
@@ -40,6 +37,7 @@ TRANSIENT_ERROR_MARKERS = (
     "rate_limit",
     "timeout",
 )
+GROQ_TIMEOUT_SECONDS = settings.LLM_GROQ_FALLBACK_DELAY_SECONDS
 
 
 @dataclass(frozen=True)
@@ -56,6 +54,15 @@ class LLMProviderStrategy(Generic[ResponseModel]):
         response_schema: type[ResponseModel],
     ) -> ResponseModel:
         raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class LLMGenerationResult(Generic[ResponseModel]):
+    value: ResponseModel
+    provider: str
+    provider_key: str
+    model: str
+    fallback_triggered: bool
 
 
 class GoogleGenAIProvider(LLMProviderStrategy[ResponseModel]):
@@ -138,6 +145,13 @@ def _require_all_properties(node: Any) -> None:
 
 class LLMService:
     def __init__(self) -> None:
+        self.google_model = settings.LLM_GOOGLE_MODEL
+        self.groq_model = settings.LLM_GROQ_MODEL
+        self.groq_fallback_delay_seconds = max(
+            0.0,
+            settings.LLM_GROQ_FALLBACK_DELAY_SECONDS,
+        )
+        self.max_attempts = max(1, settings.LLM_MAX_ATTEMPTS)
         self.providers = self._create_providers()
         self.google_providers = self._providers_by_name("google")
         self.groq_providers = self._providers_by_name("groq")
@@ -211,12 +225,15 @@ class LLMService:
         *,
         contents: str,
         response_schema: type[ResponseModel],
-    ) -> ResponseModel:
+        fallback_triggered: bool = False,
+    ) -> LLMGenerationResult[ResponseModel]:
+        model = getattr(self, "google_model", settings.LLM_GOOGLE_MODEL)
         return await self._generate_with_retry(
             provider_name="google",
-            model=GOOGLE_MODEL,
+            model=model,
             contents=contents,
             response_schema=response_schema,
+            fallback_triggered=fallback_triggered,
         )
 
     async def _generate_groq(
@@ -224,12 +241,14 @@ class LLMService:
         *,
         contents: str,
         response_schema: type[ResponseModel],
-    ) -> ResponseModel:
+    ) -> LLMGenerationResult[ResponseModel]:
+        model = getattr(self, "groq_model", settings.LLM_GROQ_MODEL)
         return await self._generate_with_retry(
             provider_name="groq",
-            model=GROQ_MODEL,
+            model=model,
             contents=contents,
             response_schema=response_schema,
+            fallback_triggered=False,
         )
 
     async def _generate_with_retry(
@@ -239,19 +258,30 @@ class LLMService:
         model: str,
         contents: str,
         response_schema: type[ResponseModel],
-    ) -> ResponseModel:
+        fallback_triggered: bool,
+    ) -> LLMGenerationResult[ResponseModel]:
         last_error: Exception | None = None
 
-        for attempt in range(MAX_ATTEMPTS):
+        max_attempts = getattr(self, "max_attempts", settings.LLM_MAX_ATTEMPTS)
+        max_attempts = max(1, max_attempts)
+
+        for attempt in range(max_attempts):
             provider = self._get_provider(provider_name)
             if provider is None:
                 raise RuntimeError(f"No {provider_name} LLM provider configured")
 
             try:
-                return await provider.generate(
+                value = await provider.generate(
                     model=model,
                     contents=contents,
                     response_schema=response_schema,
+                )
+                return LLMGenerationResult(
+                    value=value,
+                    provider=provider_name,
+                    provider_key=f"{provider.provider}:{provider.name}",
+                    model=model,
+                    fallback_triggered=fallback_triggered,
                 )
             except Exception as exc:
                 last_error = exc
@@ -259,7 +289,7 @@ class LLMService:
                 retryable = any(
                     marker in error_str for marker in TRANSIENT_ERROR_MARKERS
                 )
-                if attempt < MAX_ATTEMPTS - 1 and retryable:
+                if attempt < max_attempts - 1 and retryable:
                     wait_time = 2**attempt
                     logger.warning(
                         "Transient %s LLM error (%s), retrying in %ss... "
@@ -268,7 +298,7 @@ class LLMService:
                         error_str,
                         wait_time,
                         attempt + 1,
-                        MAX_ATTEMPTS,
+                        max_attempts,
                     )
                     await asyncio.sleep(wait_time)
                     continue
@@ -289,31 +319,104 @@ class LLMService:
         contents: str,
         response_schema: type[ResponseModel],
         on_fallback: FallbackNotifier | None = None,
-    ) -> ResponseModel:
+    ) -> LLMGenerationResult[ResponseModel]:
         if not self.groq_providers:
             return await self._generate_google(
                 contents=contents,
                 response_schema=response_schema,
             )
 
-        try:
-            return await asyncio.wait_for(
-                self._generate_groq(contents=contents, response_schema=response_schema),
-                timeout=GROQ_TIMEOUT_SECONDS,
-            )
-        except Exception as exc:
-            if isinstance(exc, asyncio.TimeoutError):
-                logger.warning("Groq LLM timed out after %ss", GROQ_TIMEOUT_SECONDS)
-            else:
-                logger.warning("Groq LLM failed; falling back to Google: %s", exc)
+        groq_task = asyncio.create_task(
+            self._generate_groq(contents=contents, response_schema=response_schema),
+            name="llm-groq",
+        )
+        done, _ = await asyncio.wait(
+            {groq_task},
+            timeout=getattr(
+                self,
+                "groq_fallback_delay_seconds",
+                GROQ_TIMEOUT_SECONDS,
+            ),
+            return_when=asyncio.FIRST_COMPLETED,
+        )
 
-            if on_fallback is not None:
-                await on_fallback()
+        if groq_task in done:
+            try:
+                return await groq_task
+            except Exception as exc:
+                logger.warning("Groq LLM failed before fallback delay: %s", exc)
+                if on_fallback is not None:
+                    await on_fallback()
+                return await self._generate_google(
+                    contents=contents,
+                    response_schema=response_schema,
+                    fallback_triggered=True,
+                )
 
-            return await self._generate_google(
+        logger.warning(
+            "Groq LLM did not finish within %ss; starting Google fallback",
+            getattr(self, "groq_fallback_delay_seconds", GROQ_TIMEOUT_SECONDS),
+        )
+        if on_fallback is not None:
+            await on_fallback()
+
+        google_task = asyncio.create_task(
+            self._generate_google(
                 contents=contents,
                 response_schema=response_schema,
+                fallback_triggered=True,
+            ),
+            name="llm-google",
+        )
+
+        return await self._first_successful([groq_task, google_task])
+
+    async def _first_successful(
+        self,
+        tasks: list[asyncio.Task[LLMGenerationResult[ResponseModel]]],
+    ) -> LLMGenerationResult[ResponseModel]:
+        errors: list[BaseException] = []
+        pending = set(tasks)
+
+        while pending:
+            done, pending = await asyncio.wait(
+                pending,
+                return_when=asyncio.FIRST_COMPLETED,
             )
+
+            for task in done:
+                try:
+                    result = task.result()
+                except Exception as exc:
+                    errors.append(exc)
+                    logger.warning("LLM provider task failed while racing: %s", exc)
+                    continue
+
+                await self._cancel_pending_tasks(list(pending), winner=task)
+                return LLMGenerationResult(
+                    value=result.value,
+                    provider=result.provider,
+                    provider_key=result.provider_key,
+                    model=result.model,
+                    fallback_triggered=True,
+                )
+
+        if errors:
+            raise errors[-1]
+        raise RuntimeError("All LLM provider tasks failed")
+
+    async def _cancel_pending_tasks(
+        self,
+        tasks: list[asyncio.Task[LLMGenerationResult[ResponseModel]]],
+        *,
+        winner: asyncio.Task[LLMGenerationResult[ResponseModel]],
+    ) -> None:
+        pending = [task for task in tasks if task is not winner and not task.done()]
+        for task in pending:
+            task.cancel()
+
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     @observe(name="LLMService.generate_expression_card")
     async def generate_expression_card(
@@ -347,8 +450,15 @@ class LLMService:
             response_schema=ExpressionCard,
             on_fallback=on_fallback,
         )
-        logger.debug("LLM Expression Output: %s", output)
-        return output
+        self._annotate_generation(output)
+        logger.info(
+            "LLM final response provider=%s model=%s fallback_triggered=%s",
+            output.provider_key,
+            output.model,
+            output.fallback_triggered,
+        )
+        logger.debug("LLM Expression Output: %s", output.value)
+        return output.value
 
     async def parse_import_list(self, raw_text: str) -> ImportResponse:
         """
@@ -360,8 +470,15 @@ class LLMService:
             contents=prompt,
             response_schema=ImportResponse,
         )
-        logger.debug("LLM Import Output: %s", output)
-        return output
+        self._annotate_generation(output)
+        logger.info(
+            "LLM final response provider=%s model=%s fallback_triggered=%s",
+            output.provider_key,
+            output.model,
+            output.fallback_triggered,
+        )
+        logger.debug("LLM Import Output: %s", output.value)
+        return output.value
 
     @observe(name="LLMService.generate_story")
     async def generate_story(
@@ -385,5 +502,22 @@ class LLMService:
             contents=prompt,
             response_schema=StoryResponse,
         )
-        logger.debug("LLM Story Output: %s", output)
-        return output
+        self._annotate_generation(output)
+        logger.info(
+            "LLM final response provider=%s model=%s fallback_triggered=%s",
+            output.provider_key,
+            output.model,
+            output.fallback_triggered,
+        )
+        logger.debug("LLM Story Output: %s", output.value)
+        return output.value
+
+    def _annotate_generation(self, output: LLMGenerationResult[ResponseModel]) -> None:
+        annotate_current_span(
+            {
+                "llm_provider": output.provider,
+                "llm_provider_key": output.provider_key,
+                "llm_model": output.model,
+                "llm_fallback_triggered": output.fallback_triggered,
+            }
+        )

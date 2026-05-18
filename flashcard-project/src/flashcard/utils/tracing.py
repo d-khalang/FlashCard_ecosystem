@@ -25,6 +25,12 @@ def clear_current_trace(token: contextvars.Token) -> None:
     """Clears the trace back to its previous state."""
     current_trace_var.reset(token)
 
+def annotate_current_span(metadata: Dict[str, Any]) -> None:
+    """Attach structured metadata to the innermost active span."""
+    trace = get_current_trace()
+    if trace and trace.spans:
+        trace.spans[-1].metadata.update(metadata)
+
 def finalize_trace(
     trace: TraceData,
     token: contextvars.Token,

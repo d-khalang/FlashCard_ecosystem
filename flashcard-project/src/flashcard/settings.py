@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     SCRAPER_PORT: int
     LOG_LEVEL: str = "INFO"
     SCHEDULER_CHECK_INTERVAL_SECONDS: int = 600  # 10 minutes
+    LLM_GOOGLE_MODEL: str = "gemini-2.5-flash-lite"
+    LLM_GROQ_MODEL: str = "openai/gpt-oss-120b"
+    LLM_GROQ_FALLBACK_DELAY_SECONDS: float = 4.0
+    LLM_MAX_ATTEMPTS: int = 2
 
     # ──────────────────────────────────────────────
     # Quota / Tier Limits
