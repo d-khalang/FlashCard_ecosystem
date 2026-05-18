@@ -6,6 +6,7 @@ and test prompt construction, client rotation, and response parsing.
 
 LLMKeyProvider is tested with a mock API key config.
 """
+import asyncio
 from unittest.mock import MagicMock, patch
 
 from flashcard.schemas.expression import ExpressionCard
@@ -74,7 +75,7 @@ class TestLLMServiceMocked:
 
     def _make_service(self, parsed_response=None):
         """Build an LLMService with mocked internals."""
-        from flashcard.services.llm.llm import LLMService
+        from flashcard.services.llm.llm import GoogleGenAIProvider, LLMService
 
         # Build mock response
         mock_resp = MagicMock()
@@ -86,9 +87,19 @@ class TestLLMServiceMocked:
 
         # Create service without calling __init__ (avoids real key loading)
         service = LLMService.__new__(LLMService)
+        provider = GoogleGenAIProvider(
+            name="mock",
+            provider="google",
+            client=mock_client,
+        )
+        service.providers = {"mock": provider}
+        service.google_providers = {"mock": provider}
+        service.groq_providers = {}
         service.clients = {"mock": mock_client}
 
         import itertools
+        service.google_cycle = itertools.cycle(service.google_providers.items())
+        service.groq_cycle = itertools.cycle(service.groq_providers.items())
         service.client_cycle = itertools.cycle(service.clients.items())
 
         return service, mock_client
@@ -176,3 +187,54 @@ class TestLLMServiceMocked:
         assert first == mock_a
         assert second == mock_b
         assert third == mock_a
+
+    def test_strict_json_schema_requires_nullable_fields(self):
+        from flashcard.services.llm.llm import strict_json_schema
+
+        schema = strict_json_schema(ExpressionCard)
+
+        assert set(schema["required"]) == set(schema["properties"].keys())
+        assert schema["additionalProperties"] is False
+
+    async def test_groq_timeout_falls_back_to_google_and_notifies(self):
+        from flashcard.services.llm.llm import LLMService
+
+        mock_card = ExpressionCard(
+            success=True,
+            norm="parlare",
+            def_it="Comunicare a voce",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            example_it="Io parlo italiano.",
+            note_it=None,
+            suggestions=[],
+        )
+
+        service = LLMService.__new__(LLMService)
+        notified = False
+
+        async def slow_groq(**kwargs):
+            await asyncio.sleep(0.02)
+            return mock_card
+
+        async def google(**kwargs):
+            return mock_card
+
+        async def notify():
+            nonlocal notified
+            notified = True
+
+        service.groq_providers = {"groq": MagicMock()}
+        service._generate_groq = slow_groq
+        service._generate_google = google
+
+        with patch("flashcard.services.llm.llm.GROQ_TIMEOUT_SECONDS", 0.001):
+            result = await service.generate_expression_card(
+                raw="parlare",
+                level="B1",
+                lang1_code="en",
+                lang1_label="🇬🇧 EN",
+                on_fallback=notify,
+            )
+
+        assert result == mock_card
+        assert notified is True
