@@ -57,6 +57,16 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 | `LOG_LEVEL` | ❌ | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `SCHEDULER_CHECK_INTERVAL_SECONDS` | ❌ | `600` | Scheduler loop interval (seconds) |
 
+### LLM (Google & Groq)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `LLM_GOOGLE_MODEL` | ❌ | `"gemini-2.5-flash-lite"` | Google Gemini model name |
+| `LLM_GROQ_MODEL` | ❌ | `"openai/gpt-oss-120b"` | Groq model name |
+| `LLM_GROQ_FALLBACK_DELAY_SECONDS` | ❌ | `4.0` | Timeout in seconds before falling back from Groq to Google Gemini |
+| `LLM_MAX_ATTEMPTS` | ❌ | `2` | Maximum retry attempts for transient LLM errors |
+
+
 ### Caddy / TLS / Domain
 
 | Variable | Required | Description | Example |

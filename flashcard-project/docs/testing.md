@@ -38,51 +38,64 @@ When adding new runtime tests, prefer the shared harness in `tests/integration/h
 
 ```
 tests/
-├── conftest.py                     # Env var setup (prevents settings.py crash)
-├── helpers.py                      # Shared utilities (AsyncCursorMock)
+├── conftest.py                     # Env var setup & autouse router state fixtures
+├── helpers.py                      # Shared unit test utilities (AsyncCursorMock)
 ├── __init__.py                     # Makes tests/ importable
 │
-├── unit/
+├── unit/                           # Mocked unit tests
 │   ├── api/                        # API layer tests
-│   │   ├── test_health.py          # Deep health check + MongoDB ping (3 tests)
-│   │   └── test_webhook_route.py   # Webhook security + failures (5 tests)
+│   │   ├── test_health.py          # Deep health check + MongoDB ping
+│   │   └── test_webhook_route.py   # Webhook security + failure paths
 │   │
 │   ├── algorithm/                  # Pure function tests (no mocking)
-│   │   ├── test_grading.py         # calculate_new_stats (17 tests)
-│   │   └── test_priority.py        # calculate_priority, parse_iso (17 tests)
+│   │   ├── test_grading.py         # calculate_new_stats
+│   │   └── test_priority.py        # calculate_priority, parse_iso
 │   │
 │   ├── services/                   # Business logic (mocked MongoDB)
-│   │   ├── test_expression_service.py  # CRUD + review candidate (22 tests)
-│   │   ├── test_verb_service.py        # Verb lookup + scraper (24 tests)
-│   │   ├── test_user_service.py        # User CRUD + settings (18 tests)
-│   │   ├── test_i18n_service.py        # Locale loading (13 tests)
-│   │   ├── test_consumption_service.py # Daily quota tracking (10 tests)
-│   │   └── test_llm_service.py         # Mocked genai (10 tests)
+│   │   ├── test_expression_service.py  # CRUD + review candidate
+│   │   ├── test_verb_service.py        # Verb lookup + scraper cache
+│   │   ├── test_user_service.py        # User CRUD + settings FSM
+│   │   ├── test_i18n_service.py        # Locale loading & dot-notation keys
+│   │   ├── test_consumption_service.py # Daily quota tracking & resolution
+│   │   ├── test_user_quota.py          # Daily resets in local generation checks
+│   │   └── test_llm_service.py         # Multi-provider + fallback + schemas
 │   │
-│   ├── schemas/                    # Pydantic models + language utils
-│   │   └── test_schemas.py         # ExpressionDB, UserDB, language normalization (24 tests)
+│   ├── schemas/                    # Pydantic models + language normalization
+│   │   └── test_schemas.py         # ExpressionDB, UserDB, language normalization
 │   │
 │   ├── telegram/                   # UI + keyboards (no real Telegram)
-│   │   ├── test_creation_handler.py    # Creation input guards (1 test)
-│   │   ├── test_error_handler.py       # Global error handler + exception mapping (7 tests)
-│   │   ├── test_keyboards.py           # Button counts, layouts, callbacks (14 tests)
-│   │   ├── test_expression_card_ui.py  # Card rendering + review modes (12 tests)
-│   │   ├── test_expression_ui.py       # Expression list formatting (8 tests)
-│   │   ├── test_verb_ui.py             # Conjugation formatting (16 tests)
-│   │   ├── test_story_and_callbacks.py # Story UI + callback factories (14 tests)
-│   │   └── test_review_handler.py      # Callback timeout helper behavior (2 tests)
+│   │   ├── test_bot_setup.py           # Dependency registration
+│   │   ├── test_collection_handler.py  # Collection CRUD handlers
+│   │   ├── test_creation_handler.py    # Creation input guards
+│   │   ├── test_error_handler.py       # Global error handler + exception mapping
+│   │   ├── test_keyboards.py           # Button counts, layouts, callback data
+│   │   ├── test_expression_card_ui.py  # Card rendering + standard/reverse modes
+│   │   ├── test_expression_ui.py       # Expression list formatting and chunking
+│   │   ├── test_inline_remove_handler.py # Inline card removal & callbacks
+│   │   ├── test_verb_ui.py             # Conjugation table formatting
+│   │   ├── test_story_and_callbacks.py # Story UI + callback factories
+│   │   └── test_review_handler.py      # Callback timeout helper behavior
 │   │
 │   ├── scheduler/                  # Background job logic (mocked)
-│   │   └── test_scheduler.py       # User filtering, metrics, scheduler tracing (9 tests)
+│   │   └── test_scheduler.py       # User filtering, metrics, scheduler tracing
 │   │
-│   └── utils/                      # Utilities
-│       ├── test_tracing.py         # @observe + finalize_trace + TraceLogger (8 tests)
-│       └── test_time_and_settings.py   # now_utc, iso_z, webhook_url (8 tests)
+│   └── utils/                      # General utilities
+│       ├── test_tracing.py         # @observe + finalize_trace + TraceLogger
+│       └── test_time_and_settings.py   # now_utc, iso_z, webhook_url
+│
+├── integration/                    # Dispatcher & runtime wiring integration tests
+│   ├── conftest.py                 # Integration environment setup
+│   ├── helpers.py                  # Integration test harness & fake Telegram session
+│   ├── test_dispatcher_runtime.py  # Telegram message routing integration
+│   └── test_lifecycle_runtime.py   # Full app lifespan & service wiring integration
+│
+├── smoke/                          # System-level ecosystem smoke checks
+│   └── test_ecosystem_wiring.py    # Compose, Caddy, static assets validation
 │
 └── manual/                         # Debug scripts (not in pytest)
 ```
 
-**Total: 262 tests** - all unit tests with mocked dependencies.
+**Total: 413 tests** - combining unit, integration, and smoke layers.
 
 ## Resilience-Focused Tests
 

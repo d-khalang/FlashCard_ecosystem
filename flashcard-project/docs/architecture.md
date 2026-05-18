@@ -59,7 +59,8 @@ flashcard-project/src/flashcard/
 │   ├── languages.py         # Language codes, levels, flags
 │   ├── conjugations.py      # Verb conjugation models
 │   ├── story.py             # Story response model
-│   └── import_model.py      # Import parsing model
+│   ├── import_model.py      # Import parsing model
+│   └── trace.py             # TraceData / Span schema models
 │
 ├── services/                # Business logic
 │   ├── trace_logger.py      # Flat-file async execution tracing
@@ -101,16 +102,18 @@ flashcard-project/src/flashcard/
     └── locales/
         └── en.json          # English UI strings
 
-tests/                           # Test suite (254 unit tests)
-├── conftest.py                  # Env var setup for test isolation
-├── helpers.py                   # Shared test utilities (AsyncCursorMock)
-└── unit/
-    ├── algorithm/               # Grading & priority tests
-    ├── services/                # Service layer tests (mocked DB)
-    ├── schemas/                 # Pydantic model tests
-    ├── telegram/                # UI, keyboards, callback tests
-    ├── scheduler/               # Scheduler logic tests
-    └── utils/                   # Tracing & time utility tests
+tests/                           # Test suite (413 tests - unit, integration, smoke)
+├── conftest.py                  # Env var setup & autouse router state isolation fixtures
+├── helpers.py                   # Shared unit test utilities (AsyncCursorMock)
+├── unit/                        # Mocked unit tests
+│   ├── algorithm/               # Grading & priority tests
+│   ├── services/                # Service layer tests
+│   ├── schemas/                 # Pydantic model tests
+│   ├── telegram/                # UI, keyboards, callback tests
+│   ├── scheduler/               # Scheduler logic tests
+│   └── utils/                   # Tracing & time utility tests
+├── integration/                 # Dispatcher and full lifecycle runtime integration tests
+└── smoke/                       # System-level ecosystem smoke checks
 ```
 
 ## Data Flow

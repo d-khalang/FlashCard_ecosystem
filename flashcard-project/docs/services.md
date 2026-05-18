@@ -15,9 +15,12 @@ graph TD
     
     ES --> DB[(MongoDB)]
     US --> DB
+    US --> CS[ConsumptionService]
     VS --> DB
     VS --> SCRAPER[WR Scraper API]
     LLM --> GEMINI[Google Gemini API]
+    LLM --> GROQ[Groq API]
+    CS --> DB
     
     ES --> ALG[Algorithm]
     ALG --> PRI[priority.py]
@@ -60,7 +63,7 @@ The `get_review_candidate` method implements the core spaced repetition logic:
 
 **File:** [`services/user.py`](../src/flashcard/services/user.py)  
 **Collection:** `users`  
-**Dependencies:** `cols`
+**Dependencies:** `cols`, `consumption_service` ([`ConsumptionService`](../src/flashcard/services/consumption.py))
 
 Manages user profiles and settings.
 
@@ -121,19 +124,29 @@ Tracks resource usage (LLM tokens, API calls) with lazy daily resets.
 ## LLMService
 
 **File:** [`services/llm/llm.py`](../src/flashcard/services/llm/llm.py)  
-**Dependencies:** Google Gemini API keys (via `LLMKeyProvider`)
+**Dependencies:** Google Gemini and Groq API keys (via `LLMKeyProvider`)
 
-Manages all LLM-powered features using Google Gemini with structured JSON output.
+Manages all LLM-powered features using a multi-provider strategy (Groq + Google Gemini) with structured JSON output.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `generate_expression_card` | `(raw, *, level, lang1_code, lang2_code?, lang1_label, lang2_label?) → ExpressionCard` | Generates a flashcard with definition, translations, and example. |
+| `generate_expression_card` | `(raw, *, level, lang1_code, lang2_code?, lang1_label, lang2_label?, on_fallback?) → ExpressionCard` | Generates a flashcard with definition, translations, and example. |
 | `parse_import_list` | `(raw_text) → ImportResponse` | Parses user's bulk import text into structured items. |
 | `generate_story` | `(words, target_lang, target_level, story_length) → StoryResponse` | Generates a story incorporating user's vocabulary. |
 
-**Model:** `gemini-2.5-flash-lite`  
-**Output:** Structured JSON via `response_schema` parameter  
-**Key rotation:** Automatically instantiates separate `genai.Client` instances for every key defined in the `core` section of `llm_key.json`. It then uses `itertools.cycle` to round-robin requests between them for load balancing and quota management.
+**Models:** 
+- **Primary:** Groq (`openai/gpt-oss-120b`)
+- **Fallback:** Google Gemini (`gemini-2.5-flash-lite`)
+
+**Resilient Fallback:** 
+Requests are initially sent to high-speed Groq with a configurable timeout (`LLM_GROQ_FALLBACK_DELAY_SECONDS`, default 4.0s). If the primary request fails or times out, the service triggers an optional `on_fallback` callback to notify the user, and seamlessly runs a fallback request against the Google Gemini API to fulfill the request.
+
+**Output Structure:**
+- **Google Gemini:** Leverages the native GenAI SDK `response_schema` parameter to return structured JSON.
+- **Groq:** Implements strict JSON schemas via `strict_json_schema()`, converting model constraints so that nullable and optional Python fields are correctly required in the JSON schema for schema enforcement.
+
+**Key Rotation & Management:**
+At startup, `LLMService` parses configured keys from `llm_key.json` and groups them by their `provider` field (`"google"` or `"groq"`). It dynamically instantiates the correct client strategy (`GoogleGenAIProvider` or `GroqProvider`) and sets up separate `itertools.cycle` iterators (`google_cycle` and `groq_cycle`) to load-balance and rotate api calls across available keys.
 
 ### Related Files
 
