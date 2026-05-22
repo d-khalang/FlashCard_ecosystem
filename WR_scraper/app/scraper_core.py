@@ -1,5 +1,5 @@
 from __future__ import annotations
-import sys, time, re
+import sys, time, re, random
 from urllib.parse import urlencode
 from collections import OrderedDict
 from typing import Dict, Any
@@ -8,7 +8,39 @@ from curl_cffi.requests.errors import RequestsError
 from bs4 import BeautifulSoup
 
 
-from .config import BASE, HEADERS, STRICT_CHECKS, EXPECTED, PERSON_ORDER_DEFAULT, PERSON_ORDER_IMPERATIVE
+from .config import BASE, HOMEPAGE_URL, HEADERS, STRICT_CHECKS, EXPECTED, PERSON_ORDER_DEFAULT, PERSON_ORDER_IMPERATIVE
+
+
+# ------------------------
+# Session management
+# ------------------------
+
+# Persistent session: impersonates Chrome TLS fingerprint and carries cookies
+_session: requests.Session | None = None
+_session_warmed: bool = False
+
+
+def _get_session() -> requests.Session:
+    """Return (and lazily create) a persistent Chrome-impersonating session."""
+    global _session
+    if _session is None:
+        _session = requests.Session(impersonate="chrome")
+    return _session
+
+
+def _warm_session(session: requests.Session, timeout: float = 15.0) -> None:
+    """Visit the WR homepage once to acquire session cookies."""
+    global _session_warmed
+    if _session_warmed:
+        return
+    try:
+        session.get(HOMEPAGE_URL, headers=HEADERS, timeout=timeout)
+        _session_warmed = True
+        # Small random delay to look like a human clicking through
+        time.sleep(0.5 + random.random())
+    except RequestsError:
+        # Non-fatal: proceed without warm-up cookies
+        pass
 
 
 # ------------------------
@@ -29,15 +61,17 @@ def build_url(verb: str) -> str:
 
 
 def fetch_html(url: str, timeout: float = 20.0, tries: int = 2) -> str:
+    session = _get_session()
+    _warm_session(session, timeout=timeout)
+
     last_err = None
     for attempt in range(1, tries + 1):
         try:
-            r = requests.get(
+            r = session.get(
                 url,
                 headers=HEADERS,
                 timeout=timeout,
                 allow_redirects=True,
-                impersonate="chrome"
             )
             r.raise_for_status()
             return r.text
