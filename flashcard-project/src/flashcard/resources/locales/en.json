@@ -36,7 +36,7 @@
             "message": "Sorry, I didn't understand that command. Try /help to see available commands."
         },
         "start": {
-            "welcome": "Ciao! 👋 I'm <b>Kartino</b> — your Italian flashcard buddy.\nI help the words you learn <i>stay with you</i>, effortlessly. 🌱\n\n✏️ Send me any Italian word or phrase\n🤖 I'll craft a fresh explanation every time — no two cards are the same! ✨\n💾 Save the ones you like — I'll bring them back for review using spaced repetition, right when you need a refresh.\n\n🔔 <i>Small heads-up: review your cards when they arrive — new ones won't come until you do!</i>\n\n💡 Type /help to discover everything I can do.\n\nReady? Drop me your first word!"
+            "welcome": "Ciao! 👋 I'm <b>Kartino</b> — your Italian flashcard buddy.\nI help the words you learn <i>stay with you</i>, effortlessly. 🌱\n\n✏️ Send me any Italian word or phrase\n🤖 I'll craft a fresh explanation every time — no two cards are the same! ✨\n💾 Save the ones you like — I'll bring them back for review using spaced repetition, right when you need a refresh.\n\n🔔 <i>Small heads-up: review your cards when they arrive — new ones won't come until you do!</i>\n\n💡 Type /help to discover everything I can do.\n\n🎥 Watch how it works: https://t.me/kartino_official/7\n\nReady? Drop me your first word!"
         },
         "help": {
             "message": "<b>📖 What can I do?</b>\n\n✏️ <b>Learn a word</b> — Just send me any Italian word or phrase and I'll explain it with a fresh, AI-crafted card.\n\n📅 /get — <b>Review</b> a saved card (or wait — I'll send them automatically!)\n\n📦 /import — <b>Bulk add</b> a list of words at once.\n\n🗑 /remove — <b>Remove</b> a saved card through inline search.\n\n🔄 /verb <i>andare</i> — Look up <b>verb conjugations</b> instantly.\n\n📖 /story — I'll write a short <b>story</b> using your saved words.\n\n📇 /list_my_flashcards — Browse your <b>full deck</b>.\n\n⚙️ /settings — <b>Make Kartino yours!</b> Set your language, level, review pace & more.\n\n💬 /feedback — Tell me what you think!",
@@ -52,7 +52,7 @@
             "no_expressions": "You need some flashcards first before we can tell a story! 📖"
         },
         "verb": {
-            "instruction": "✋ Small tip!\n\nTo get the conjugation of a verb, type:\n/verb &lt;the verb you want&gt;\n\nFor example:\n/verb andare\n\n💡 In the command menu, if you press and hold the /verb command, it will be added to your message box — then you can simply type the verb after it.",
+            "instruction": "✋ Small tip!\n\nTo get the conjugation of a verb, type:\n/verb &lt;the verb you want&gt;\n\nFor example:\n/verb andare\n\n💡 In the command menu, if you press and hold the /verb command, it will be added to your message box — then you can simply type the verb after it.\n\n🎥 Watch verb guide: https://t.me/kartino_official/9",
             "invalid": "Invalid verb format. Only valid Italian verbs are allowed.",
             "api_error": "☹️ Unfortunetally, I wasn't able to conjugate it.\nPlease try again later or try another verb.",
             "searching": "Searching for verb: {verb}..."

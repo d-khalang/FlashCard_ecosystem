@@ -33,7 +33,7 @@
     },
     "commands": {
         "start": {
-            "welcome": "ðŸ‘‹ Benvenuto! Sono il tuo bot per imparare l'italiano. Ecco come funziona:\n\nâœï¸ Inviami qualsiasi parola o espressione italiana che vuoi imparare.\nðŸ¤– RisponderÃ² con traduzione + spiegazione.\nðŸ’¾ Vedrai due pulsanti:\nSalva â†’ aggiungi la carta alla tua lista di studio.\nRigenera â†’ rigenera la spiegazione se ne vuoi un'altra versione.\nðŸ“… Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\nâš ï¸ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\nâœ¨ Ãˆ tutto â€” inizia a inviare parole!"
+            "welcome": "👋 Benvenuto! Sono il tuo bot per imparare l'italiano. Ecco come funziona:\n\n✍️ Inviami qualsiasi parola o espressione italiana che vuoi imparare.\n🤖 Risponderò con traduzione + spiegazione.\n💾 Vedrai due pulsanti:\nSalva → aggiungi la carta alla tua lista di studio.\nRigenera → rigenera la spiegazione se ne vuoi un'altra versione.\n📅 Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\n⚠️ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\n\n🎥 Guarda come funziona: https://t.me/kartino_official/7\n\n✨ È tutto — inizia a inviare parole!"
         },
         "help": {
             "message": "messaggio di aiuto",
@@ -49,7 +49,7 @@
             "no_expressions": "Nessuna espressione trovata. Aggiungine qualcuna prima!"
         },
         "verb": {
-            "instruction": "âœ‹ Piccolo consiglio!\n\nPer ottenere la coniugazione di un verbo, scrivi:\n/verb &ltil verbo desiderato&gt;\n\nPer esempio:\n/verb andare",
+            "instruction": "✋ Piccolo consiglio!\n\nPer ottenere la coniugazione di un verbo, scrivi:\n/verb &lt;il verbo desiderato&gt;\n\nPer esempio:\n/verb andare\n\n🎥 Guarda la video guida: https://t.me/kartino_official/9",
             "invalid": "Formato verbo non valido. Sono ammessi solo verbi italiani validi.",
             "not_found": "Dati del verbo non trovati.",
             "searching": "Cercando il verbo: {verb}..."
@@ -66,10 +66,18 @@
         "settings": {
             "closed": "Impostazioni chiuse.",
             "controls": "Controlli:",
-            "switched_mode": "Passato in modalitÃ  {mode}",
+            "switched_mode": "Passato in modalità {mode}",
             "saved": "Salvato!",
-            "mode_dual": "Dual ðŸ”„",
-            "mode_standard": "Standard âž¡ï¸"
+            "mode_dual": "Dual 🔄",
+            "mode_standard": "Standard ➡️",
+            "menu": {
+                "heading": "⚙️ <b>Rendi Kartino tuo</b>\n\n🎥 Guarda la video guida: https://t.me/kartino_official/8",
+                "status": "Stato attuale: <b>{status}</b>",
+                "primary_lang": "Lingua principale: <b>{primary_lang}</b>",
+                "secondary_lang": "Lingua secondaria: <b>{secondary_lang}</b>",
+                "target_level": "Livello target: <b>{target_level}</b>",
+                "review_interval": "Intervallo di revisione: <b>{review_interval_minutes} minuti</b>"
+            }
         }
     },
     "messages": {
