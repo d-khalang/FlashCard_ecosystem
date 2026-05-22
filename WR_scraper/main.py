@@ -2,7 +2,8 @@
 import sys, json, time, re
 from urllib.parse import urlencode
 from collections import OrderedDict
-import requests
+from curl_cffi import requests
+from curl_cffi.requests.errors import RequestsError
 from bs4 import BeautifulSoup
 
 BASE = "https://www.wordreference.com/conj/itverbs.aspx"
@@ -51,10 +52,16 @@ def fetch_html(url: str, timeout=20.0, tries=2) -> str:
     last_err = None
     for attempt in range(1, tries + 1):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
+            r = requests.get(
+                url,
+                headers=HEADERS,
+                timeout=timeout,
+                allow_redirects=True,
+                impersonate="chrome"
+            )
             r.raise_for_status()
             return r.text
-        except requests.RequestException as e:
+        except RequestsError as e:
             last_err = e
             if attempt < tries:
                 time.sleep(1.0 * attempt)

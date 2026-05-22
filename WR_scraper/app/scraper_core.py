@@ -3,7 +3,8 @@ import sys, time, re
 from urllib.parse import urlencode
 from collections import OrderedDict
 from typing import Dict, Any
-import requests
+from curl_cffi import requests
+from curl_cffi.requests.errors import RequestsError
 from bs4 import BeautifulSoup
 
 
@@ -31,10 +32,16 @@ def fetch_html(url: str, timeout: float = 20.0, tries: int = 2) -> str:
     last_err = None
     for attempt in range(1, tries + 1):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
+            r = requests.get(
+                url,
+                headers=HEADERS,
+                timeout=timeout,
+                allow_redirects=True,
+                impersonate="chrome"
+            )
             r.raise_for_status()
             return r.text
-        except requests.RequestException as e:
+        except RequestsError as e:
             last_err = e
             if attempt < tries:
                 time.sleep(1.0 * attempt)
