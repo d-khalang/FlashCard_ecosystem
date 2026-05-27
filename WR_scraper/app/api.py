@@ -6,7 +6,7 @@ from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from .scraper_core import scrape_conjugations
+from .db_core import get_conjugations
 from .filters import apply_filters
 from .models import ConjugateQuery, APIResponse, ConjugationResponse, Mood, Tense, Person
 
@@ -54,10 +54,9 @@ def conjugate(
         )
 
     try:
-        data = scrape_conjugations(req.v)
-        has_conj = bool(data.get("conjugations"))
-        if not has_conj:
-            return APIResponse(success=False, error="No conjugations found", requested=req)
+        data = get_conjugations(req.v)
+        if not data or not data.get("conjugations"):
+            return APIResponse(success=False, error="Verb not found in offline database", requested=req)
 
         filtered = apply_filters(data,
                                  ",".join(req.moods) if req.moods else None,
@@ -68,7 +67,7 @@ def conjugate(
         if not filtered.get("conjugations"):
             return APIResponse(
                 success=True,
-                note="Scrape OK, but filters returned no items.",
+                note="Lookup OK, but filters returned no items.",
                 requested=req,
                 data=ConjugationResponse(**filtered),
             )

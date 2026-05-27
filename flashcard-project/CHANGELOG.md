@@ -8,6 +8,28 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.9.0 (2026-05-27)
+
+### Feat
+
+- **locales**: add instructional video links and fix Italian encodings - Added Telegram post links for the new instructional videos in en.json and it.json:   - Video 1 (how it works) added to /start command.   - Video 3 (verb guide) added to /verb command. - Added missing settings menu translations for Italian locale. - Fixed corrupted Unicode emojis and characters in the modified parts of it.json.
+- **llm**: race Groq with Gemini fallback and trace final provider
+- **handlers**: notify user during active LLM provider fallback
+- **services**: implement Groq strategy and Google fallback mechanism
+- **deps**: add Groq dependencies and multi-provider schema support
+
+### Fix
+
+- session cookie
+- **scraper**: use curl-cffi impersonating chrome browser
+- **scraper**: scraper headers updated to normal
+- **user-quota**: enforce daily resets in local generation checks
+- **services**: mock LLMService in lifecycle tests and skip web submodule tests in CI
+
+### Refactor
+
+- **consumption**: consolidate daily reset logic to single source of truth
+
 ## v0.8.0 (2026-04-11)
 
 ### Feat

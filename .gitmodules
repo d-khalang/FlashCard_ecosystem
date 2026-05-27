@@ -1,3 +1,6 @@
 [submodule "web"]
 	path = web
 	url = https://github.com/d-khalang/kartino-web.git
+[submodule "it-conjugator-api"]
+	path = it-conjugator-api
+	url = https://github.com/d-khalang/it-conjugator-api.git
