@@ -20,8 +20,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: 'recursive'
+
+      - name: Checkout conjugator submodule
+        run: git submodule update --init it-conjugator-api
 
       - name: Validate production env file
         run: |
