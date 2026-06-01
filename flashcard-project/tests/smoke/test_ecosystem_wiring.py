@@ -25,7 +25,7 @@ class AnchorParser(HTMLParser):
 def test_docker_compose_defines_expected_services_and_healthchecks():
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 
-    for service_name in ["flashcard-bot", "wr-scraper", "mongo", "caddy"]:
+    for service_name in ["flashcard-bot", "conjugator", "mongo", "caddy"]:
         assert f"{service_name}:" in compose
     assert "http://localhost:8000/health" in compose
     assert "http://localhost:8000/health" in compose
