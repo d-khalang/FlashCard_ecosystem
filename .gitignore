@@ -23,6 +23,7 @@ private-docs/
 !.agent/skills/
 !.agent/workflows/
 .learnings/
+.vscode/
 logs/
 brand/
 scripts/
