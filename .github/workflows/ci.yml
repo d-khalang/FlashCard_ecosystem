@@ -58,9 +58,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
       - name: Build flashcard-bot image
         run: docker build -t flashcard-bot-ci ./flashcard-project
 
-      - name: Build wr-scraper image
-        run: docker build -t wr-scraper-ci ./WR_scraper
+      - name: Build conjugator image
+        run: docker build -t conjugator-ci ./it-conjugator-api
