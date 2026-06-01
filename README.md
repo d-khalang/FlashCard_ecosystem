@@ -22,7 +22,7 @@ Send any Italian word or expression → get an AI-generated explanation card →
 | API Layer | [FastAPI](https://fastapi.tiangolo.com/) |
 | AI/LLM | [Google Gemini](https://ai.google.dev/) (structured JSON output) |
 | Database | [MongoDB](https://www.mongodb.com/) (async via pymongo) |
-| Verb Data | Custom WordReference scraper |
+| Verb Data | [Offline Conjugation API](it-conjugator-api) (SQLite + Kaikki/Wiktionary data) |
 | Deployment | Docker Compose + Caddy (auto-HTTPS, custom domain) |
 
 ## Repository Structure
@@ -34,7 +34,7 @@ FlashCard-ecosystem/
 │   ├── docs/                # Documentation
 │   └── Dockerfile
 ├── web/                     # [Private Submodule] Landing page & brand assets
-├── WR_scraper/              # WordReference conjugation scraper
+├── it-conjugator-api/       # [Public Submodule] Offline Italian conjugation API
 ├── docker-compose.yml       # Multi-service orchestration
 └── .env.example             # Environment variable template
 ```
