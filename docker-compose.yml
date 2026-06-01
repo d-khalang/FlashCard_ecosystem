@@ -23,9 +23,9 @@ services:
     volumes:
       - ./flashcard-project/logs:/app/logs
 
-  wr-scraper:
+  conjugator:
     build:
-      context: ./WR_scraper
+      context: ./it-conjugator-api
     restart: unless-stopped
     expose:
       - "8000"
