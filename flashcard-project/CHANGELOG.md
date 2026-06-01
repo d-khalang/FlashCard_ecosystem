@@ -8,6 +8,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.10.0 (2026-06-01)
+
+### Feat
+
+- **docker**: migrate scraper to offline it-conjugator-api submodule
+
 ## v0.9.0 (2026-05-27)
 
 ### Feat
