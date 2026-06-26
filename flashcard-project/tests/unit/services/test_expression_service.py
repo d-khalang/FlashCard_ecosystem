@@ -229,6 +229,34 @@ class TestGetReviewCandidate:
 
         assert result["direction"] == "forward"
 
+    async def test_simulated_reverse_stats_inherits_created_at(self):
+        """In dual mode, if reverse_stats is missing, its simulated stats use doc['created_at']."""
+        service, cols = _make_service(
+            users={"user_id": "123", "review_mode": "dual"}
+        )
+
+        created_time = "2026-06-26T12:00:00Z"
+        doc = _make_expression_doc(
+            created_at=created_time,
+            reverse_stats=None
+        )
+        cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
+
+        from unittest.mock import patch
+        with patch("flashcard.services.expression.calculate_priority") as mock_calc:
+            mock_calc.return_value = 0.5
+            await service.get_review_candidate("123")
+            
+            assert mock_calc.call_count == 2
+            mock_calc.assert_any_call(doc)
+            
+            args_list = [call[0][0] for call in mock_calc.call_args_list]
+            reverse_arg = [arg for arg in args_list if arg is not doc][0]
+            
+            assert reverse_arg["created_at"] == created_time
+            assert reverse_arg["reps"] == 0
+            assert reverse_arg["ewma_grade"] == 0.0
+
 
 # ===================================================================
 # grade_expression

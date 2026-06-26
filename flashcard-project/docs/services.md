@@ -240,7 +240,7 @@ Priority = 0.40 × Recency + 0.35 × Difficulty + 0.10 × Stability
 
 | Factor | Weight | Formula | Meaning |
 |--------|--------|---------|---------|
-| Recency | 40% | `t / (1 + t)` where `t` = hours since last interaction | Longer unseen → higher priority |
+| Recency | 40% | `t / (24 + t)` where `t` = hours since last interaction | Longer unseen → higher priority |
 | Difficulty | 35% | `1 - (ewma_grade / 5)` | Lower grades → higher priority |
 | Stability | 10% | `1 / (1 + streak)` | Shorter streak → higher priority |
 | Novelty | 5% | `1` if zero reps, else `0` | New cards get a boost |

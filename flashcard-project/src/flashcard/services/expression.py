@@ -252,8 +252,13 @@ class ExpressionService:
                 
             # 2b. Reverse Priority (if Dual Mode)
             if review_mode == "dual":
-                # Ensure reverse_stats exists or use defaults (simulated new item)
-                rev_stats = doc.get("reverse_stats") or {"reps": 0, "ewma_grade": 0.0, "success_streak": 0, "lapses": 0}
+                rev_stats = doc.get("reverse_stats") or {
+                    "reps": 0,
+                    "ewma_grade": 0.0,
+                    "success_streak": 0,
+                    "lapses": 0,
+                    "created_at": doc.get("created_at")
+                }
                 p_rev = calculate_priority(rev_stats)
                 
                 if p_rev > max_priority:
