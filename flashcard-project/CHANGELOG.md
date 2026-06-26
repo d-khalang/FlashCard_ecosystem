@@ -8,6 +8,13 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v0.11.0 (2026-06-26)
+
+### Feat
+
+- **services**: inherit parent created_at for simulated reverse stats
+- **priority**: increase the recency devisor to 24 to avoid Leech Trap
+
 ## v0.10.0 (2026-06-01)
 
 ### Feat
