@@ -49,7 +49,7 @@ def calculate_priority(stats: dict) -> float:
     last_interaction = stats.get("last_interaction_at") or stats.get("last_review_at") or stats.get("created_at")
     last_dt = parse_iso(last_interaction)
     t = hours_since(last_dt) if last_dt else 200 # 200 hours is about 8 days to give new cards more chance to be reviewed
-    recency = t / (1.0 + t)
+    recency = t / (24.0 + t)
 
     # 2) Difficulty (EWMA grade 0..5, where 0 is hard/unknown)
     # We want Difficulty score D to be high if grade is low.
