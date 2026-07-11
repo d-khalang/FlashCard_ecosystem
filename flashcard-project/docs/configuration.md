@@ -136,7 +136,7 @@ Defined in [`pyproject.toml`](../pyproject.toml):
 Defined in [`docker-compose.yml`](../../docker-compose.yml):
 
 | `flashcard-bot` | Main bot (FastAPI + aiogram) | 8000 (internal) |
-| `wr-scraper` | WordReference conjugation scraper API | 8000 (internal) |
+| `conjugator` | Optional Italian conjugation API | 8000 (internal) |
 | `caddy` | Reverse proxy with automatic HTTPS | 80, 443 |
 
 ### Health Check
@@ -152,7 +152,7 @@ Docker is configured to use `/health` so transient database issues do not restar
 graph LR
     INET[Internet] -->|HTTPS| CADDY[Caddy :443]
     CADDY -->|HTTP| BOT[flashcard-bot :8000]
-    BOT -->|HTTP| SCRAPER[wr-scraper :8000]
+    BOT -->|HTTP| SCRAPER[conjugator :8000]
 ```
 
 ---
