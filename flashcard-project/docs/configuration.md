@@ -30,7 +30,7 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 
 ### MongoDB
 
-| `MONGO_URI` | ✅ | MongoDB connection string | `mongodb://localhost:27017` |
+| `MONGO_URI` | ✅ | MongoDB connection string | Docker: `mongodb://secure_user:secure_password@mongo:27017/flashcard_db?authSource=admin`; local host: `mongodb://localhost:27017` |
 | `MONGO_DB` | ✅ | Database name | `flashcard_db` |
 
 > [!TIP]

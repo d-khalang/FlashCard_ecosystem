@@ -50,6 +50,7 @@ cd FlashCard-ecosystem
 
 # 2. Setup
 cp .env.example .env          # Fill in your tokens and config
+# For non-Docker local development, point MONGO_URI at your local MongoDB.
 cd flashcard-project
 python -m venv venv
 venv\Scripts\activate          # Windows
