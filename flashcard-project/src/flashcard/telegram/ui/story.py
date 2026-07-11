@@ -5,15 +5,15 @@ def format_story_messages(story_response: StoryResponse, target_lang: str = "en"
     """
     Formats the story response into a list of messages to be sent sequentially.
     Each paragraph consists of two messages:
-    1. The Italian text.
+    1. The learning-language text.
     2. The translation (hidden behind a spoiler) with the language flag.
     """
     messages = []
     lang_flag = get_language_flag(target_lang)
     
     for paragraph in story_response.paragraphs:
-        # 1. Italian Paragraph
-        messages.append(paragraph.italian_text)
+        # 1. Learning-language paragraph
+        messages.append(paragraph.learning_text)
         
         # 2. Translation with spoiler
         translation_text = f"{lang_flag} <tg-spoiler>{paragraph.translation}</tg-spoiler>"

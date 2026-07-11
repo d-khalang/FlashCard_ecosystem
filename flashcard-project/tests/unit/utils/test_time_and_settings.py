@@ -92,3 +92,75 @@ class TestSettingsWebhookUrl:
         # Remove protocol ://
         after_protocol = url.split("://", 1)[1]
         assert "//" not in after_protocol
+
+
+class TestSettingsLanguageAndConjugation:
+    def _base_settings_kwargs(self):
+        return {
+            "BOT_TOKEN": "123456:test-token",
+            "LOGGER_BOT_TOKEN": "123456:test-logger",
+            "ADMIN_ID": 0,
+            "MONGO_URI": "mongodb://localhost:27017",
+            "MONGO_DB": "test_db",
+            "COLLECTION_USERS": "users",
+            "COLLECTION_EXPRESSION": "expressions",
+            "COLLECTION_CONJUGATION": "conjugations",
+        }
+
+    def test_language_defaults_are_italian(self):
+        from flashcard.settings import Settings
+
+        settings = Settings(
+            **self._base_settings_kwargs(),
+            SCRAPER_API_KEY="key",
+            SCRAPER_URL="http://conjugator",
+            SCRAPER_PORT=8000,
+        )
+
+        assert settings.LEARNING_LANGUAGE_CODE == "it"
+        assert settings.LEARNING_LANGUAGE_NAME == "Italian"
+        assert settings.DEFAULT_PRIMARY_LANGUAGE == "en"
+        assert settings.ENABLE_CONJUGATION is True
+
+    def test_conjugation_disabled_does_not_require_scraper_settings(self):
+        from flashcard.settings import Settings
+
+        settings = Settings(
+            **self._base_settings_kwargs(),
+            ENABLE_CONJUGATION=False,
+            SCRAPER_API_KEY=None,
+            SCRAPER_URL=None,
+            SCRAPER_PORT=None,
+        )
+
+        assert settings.ENABLE_CONJUGATION is False
+        assert settings.SCRAPER_URL is None
+
+    def test_empty_optional_language_settings_are_normalized_to_none(self):
+        from flashcard.settings import Settings
+
+        settings = Settings(
+            **self._base_settings_kwargs(),
+            ENABLE_CONJUGATION=False,
+            DEFAULT_SECONDARY_LANGUAGE="",
+            SCRAPER_API_KEY="",
+            SCRAPER_URL="   ",
+            SCRAPER_PORT=None,
+        )
+
+        assert settings.DEFAULT_SECONDARY_LANGUAGE is None
+        assert settings.SCRAPER_API_KEY is None
+        assert settings.SCRAPER_URL is None
+
+    def test_conjugation_enabled_requires_scraper_settings(self):
+        from flashcard.settings import Settings
+
+        import pytest
+
+        with pytest.raises(ValueError, match="Conjugation is enabled"):
+            Settings(
+                **self._base_settings_kwargs(),
+                SCRAPER_API_KEY=None,
+                SCRAPER_URL=None,
+                SCRAPER_PORT=None,
+            )

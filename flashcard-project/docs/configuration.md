@@ -43,9 +43,9 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
-| `SCRAPER_API_KEY` | ✅ | API key for WR Scraper authentication | `your_key_here` |
-| `SCRAPER_URL` | ✅ | Scraper service URL | `http://wr-scraper` (Docker) or `http://localhost` |
-| `SCRAPER_PORT` | ✅ | Scraper service port | `8000` |
+| `SCRAPER_API_KEY` | When `ENABLE_CONJUGATION=true` | API key for WR Scraper authentication | `your_key_here` |
+| `SCRAPER_URL` | When `ENABLE_CONJUGATION=true` | Scraper service URL | `http://conjugator` (Docker) or `http://localhost` |
+| `SCRAPER_PORT` | When `ENABLE_CONJUGATION=true` | Scraper service port | `8000` |
 
 ### Application
 
@@ -55,7 +55,27 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 | `PORT` | ❌ | `8000` | HTTP server port |
 | `IN_DOCKER` | ❌ | `0` | Set to `1` when running in Docker |
 | `LOG_LEVEL` | ❌ | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `LEARNING_LANGUAGE_CODE` | ❌ | `it` | ISO-like code for the language being learned |
+| `LEARNING_LANGUAGE_NAME` | ❌ | `Italian` | Display/prompt name for the language being learned |
+| `LEARNING_LANGUAGE_FLAG` | ❌ | `🇮🇹` | Label prefix for learning-language definitions |
+| `DEFAULT_PRIMARY_LANGUAGE` | ❌ | `en` | Default translation language for new users |
+| `DEFAULT_SECONDARY_LANGUAGE` | ❌ | empty | Optional second translation language for new users |
+| `DEFAULT_TARGET_LEVEL` | ❌ | `A2` | Default learner level for new users |
+| `UI_LOCALE` | ❌ | `en` | Locale file used for interface text |
+| `ENABLE_CONJUGATION` | ❌ | `true` | Registers `/verb` and requires scraper configuration when enabled |
+| `LANGUAGE_VALIDATOR` | ❌ | `auto` | Input validator: `auto`, `italian`, `latin`, `permissive`, or a custom dotted path |
 | `SCHEDULER_CHECK_INTERVAL_SECONDS` | ❌ | `600` | Scheduler loop interval (seconds) |
+
+### Language Modularity
+
+The bot distinguishes the learning language from translation/UI languages:
+
+- `LEARNING_LANGUAGE_*` controls prompts, generated definitions, examples, story language, and card labels.
+- `DEFAULT_PRIMARY_LANGUAGE` and `DEFAULT_SECONDARY_LANGUAGE` control new users' translation defaults.
+- `UI_LOCALE` controls bot interface text.
+- `LANGUAGE_VALIDATOR` is the pre-LLM input checker. Custom validators can be provided as `module:ClassName` or `module.ClassName` and must implement `validate_expression()` and `validate_import_items()`.
+
+For multiple bots sharing one MongoDB server, prefer separate databases by setting a different `MONGO_DB` per bot instance. This isolates users and flashcards without migrations or collection renames.
 
 ### LLM (Google & Groq)
 

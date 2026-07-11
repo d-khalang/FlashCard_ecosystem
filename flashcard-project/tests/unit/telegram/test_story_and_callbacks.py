@@ -1,7 +1,7 @@
 """
 Unit tests for story UI formatting and callback data factories.
 
-Stories: format_story_messages produces alternating Italian/spoiler message pairs.
+Stories: format_story_messages produces alternating learning-language/spoiler message pairs.
 Callbacks: GradeCallback, SettingsCallback, VerbCallback pack/unpack round-trip.
 """
 from flashcard.schemas.story import StoryResponse, StoryParagraph
@@ -19,7 +19,7 @@ class TestFormatStoryMessages:
     def _make_story(self, n_paragraphs=2) -> StoryResponse:
         paragraphs = [
             StoryParagraph(
-                italian_text=f"Paragrafo italiano {i+1}.",
+                learning_text=f"Learning paragraph {i+1}.",
                 translation=f"English paragraph {i+1}.",
             )
             for i in range(n_paragraphs)
@@ -30,13 +30,13 @@ class TestFormatStoryMessages:
         story = self._make_story(n_paragraphs=2)
         msgs = format_story_messages(story)
 
-        assert len(msgs) == 4  # 2 Italian + 2 translations
+        assert len(msgs) == 4  # 2 learning-language messages + 2 translations
 
-    def test_italian_text_comes_first(self):
+    def test_learning_text_comes_first(self):
         story = self._make_story(n_paragraphs=1)
         msgs = format_story_messages(story)
 
-        assert msgs[0] == "Paragrafo italiano 1."
+        assert msgs[0] == "Learning paragraph 1."
 
     def test_translation_wrapped_in_spoiler(self):
         story = self._make_story(n_paragraphs=1)

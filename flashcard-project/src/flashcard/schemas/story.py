@@ -1,7 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 class StoryParagraph(BaseModel):
-    italian_text: str = Field(description="The paragraph text in Italian")
+    learning_text: str = Field(
+        description="The paragraph text in the learning language",
+        validation_alias=AliasChoices("learning_text", "italian_text"),
+    )
     translation: str = Field(description="The translation of the paragraph in target language")
 
 class StoryResponse(BaseModel):

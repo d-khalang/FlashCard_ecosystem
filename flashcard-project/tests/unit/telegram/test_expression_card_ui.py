@@ -1,4 +1,4 @@
-"""
+﻿"""
 Unit tests for expression card and review message formatting.
 
 Tests render_expression_card (success/failure paths)
@@ -19,13 +19,13 @@ def _make_card(**overrides) -> ExpressionCard:
     base = {
         "success": True,
         "norm": "parlare",
-        "def_it": "Comunicare a voce",
+        "learning_definition": "Comunicare a voce",
         "translations": [
             {"label": "🇬🇧 EN", "text": "to speak"},
             {"label": "🇮🇷 FA", "text": "صحبت کردن"},
         ],
-        "example_it": "Parliamo italiano ogni giorno.",
-        "note_it": None,
+        "learning_example": "Parliamo italiano ogni giorno.",
+        "note": None,
         "suggestions": [],
     }
     base.update(overrides)
@@ -36,10 +36,10 @@ def _make_failure_card(**overrides) -> ExpressionCard:
     base = {
         "success": False,
         "norm": "",
-        "def_it": None,
+        "learning_definition": None,
         "translations": [],
-        "example_it": None,
-        "note_it": "Parola non chiara",
+        "learning_example": None,
+        "note": "Parola non chiara",
         "suggestions": ["parlare", "parlato"],
     }
     base.update(overrides)
@@ -74,8 +74,8 @@ class TestRenderExpressionCard:
         assert "Parola non chiara" in result["content"]
 
     def test_failure_card_without_note_uses_default(self):
-        result = render_expression_card(_make_failure_card(note_it=None))
-        assert "Parola non chiara" in result["content"]
+        result = render_expression_card(_make_failure_card(note=None))
+        assert "Expression not clear" in result["content"]
 
     def test_one_translation_doesnt_crash(self):
         card = _make_card(translations=[{"label": "🇬🇧 EN", "text": "to speak"}])
@@ -130,8 +130,8 @@ class TestFormatReviewMessage:
         assert "parlare" in spoiler_content
 
     def test_missing_definition_uses_translation(self):
-        """If def_it is None, reverse mode should fall back to translations."""
-        card = _make_card(def_it=None)
+        """If learning_definition is None, reverse mode should fall back to translations."""
+        card = _make_card(learning_definition=None)
         msg = format_review_message(card, "parlare", direction="reverse")
 
         assert "to speak" in msg  # falls back to translation

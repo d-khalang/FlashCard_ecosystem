@@ -1,4 +1,4 @@
-"""
+﻿"""
 Unit tests for Pydantic schemas and language normalization.
 
 Tests:
@@ -11,6 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from flashcard.schemas.expression import ExpressionCard, ExpressionDB, ExpressionStats
+from flashcard.schemas.story import StoryParagraph
 from flashcard.schemas.user import UserDB, UserConsumption, LLMUsage
 from flashcard.schemas.languages import (
     normalize_language_input,
@@ -29,10 +30,10 @@ class TestExpressionCard:
         card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Comunicare a voce",
+            learning_definition="Comunicare a voce",
             translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
-            example_it="Parliamo italiano.",
-            note_it=None,
+            learning_example="Parliamo italiano.",
+            note=None,
             suggestions=[],
         )
         assert card.success is True
@@ -42,14 +43,54 @@ class TestExpressionCard:
         card = ExpressionCard(
             success=False,
             norm="",
-            def_it=None,
+            learning_definition=None,
             translations=[],
-            example_it=None,
-            note_it="Parola non chiara",
+            learning_example=None,
+            note="Parola non chiara",
             suggestions=["parlare", "parlato"],
         )
         assert card.success is False
         assert len(card.suggestions) == 2
+
+    def test_legacy_llm_field_aliases_dump_to_language_neutral_names(self):
+        card = ExpressionCard.model_validate(
+            {
+                "success": True,
+                "norm": "parlare",
+                "def_it": "Comunicare a voce",
+                "translations": [{"label": "🇬🇧 EN", "text": "to speak"}],
+                "example_it": "Parliamo italiano.",
+                "note_it": None,
+                "suggestions": [],
+            }
+        )
+
+        dump = card.model_dump()
+
+        assert card.learning_definition == "Comunicare a voce"
+        assert card.learning_example == "Parliamo italiano."
+        assert "learning_definition" in dump
+        assert "learning_example" in dump
+        assert "note" in dump
+        assert "def_it" not in dump
+        assert "example_it" not in dump
+        assert "note_it" not in dump
+
+
+class TestStoryParagraph:
+    def test_legacy_italian_text_alias_dumps_to_learning_text(self):
+        paragraph = StoryParagraph.model_validate(
+            {
+                "italian_text": "Parliamo italiano.",
+                "translation": "We speak Italian.",
+            }
+        )
+
+        dump = paragraph.model_dump()
+
+        assert paragraph.learning_text == "Parliamo italiano."
+        assert "learning_text" in dump
+        assert "italian_text" not in dump
 
 
 # ===================================================================

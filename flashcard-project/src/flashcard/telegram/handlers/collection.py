@@ -2,12 +2,14 @@ from aiogram import Router, flags
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.enums import ChatAction
+from typing import Optional
 
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression_lists import format_expression_list
 from flashcard.utils.logger import get_logger
+from flashcard.services.language_validation import LanguageValidityChecker
 
 logger = get_logger(__name__)
 router = Router()
@@ -25,7 +27,12 @@ async def cmd_remove(message: Message):
 
 @router.message(Command("import"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_import(message: Message, llm_service: LLMService, expression_service: ExpressionService):
+async def cmd_import(
+    message: Message,
+    llm_service: LLMService,
+    expression_service: ExpressionService,
+    language_validator: Optional[LanguageValidityChecker] = None,
+):
     msg_text = message.text or ""
     # Remove command itself to get arguments
     command_args = msg_text[7:] if len(msg_text) >= 7 else ""
@@ -43,8 +50,15 @@ async def cmd_import(message: Message, llm_service: LLMService, expression_servi
         return
 
     if not import_response.import_list:
-         await message.answer(i18n.get("commands.import.no_items_found"))
-         return
+        await message.answer(i18n.get("commands.import.no_items_found"))
+        return
+
+    if language_validator is not None:
+        validation = await language_validator.validate_import_items(import_response.import_list)
+        if not validation.is_valid or not validation.normalized_items:
+            await message.answer(i18n.get("commands.import.no_items_found"))
+            return
+        import_response.import_list = validation.normalized_items
 
     # Bulk Insert
     inserted_items = await expression_service.add_expressions_bulk(message.from_user.id, import_response.import_list)

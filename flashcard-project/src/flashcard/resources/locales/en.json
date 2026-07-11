@@ -36,11 +36,12 @@
             "message": "Sorry, I didn't understand that command. Try /help to see available commands."
         },
         "start": {
-            "welcome": "Ciao! 👋 I'm <b>Kartino</b> — your Italian flashcard buddy.\nI help the words you learn <i>stay with you</i>, effortlessly. 🌱\n\n✏️ Send me any Italian word or phrase\n🤖 I'll craft a fresh explanation every time — no two cards are the same! ✨\n💾 Save the ones you like — I'll bring them back for review using spaced repetition, right when you need a refresh.\n\n🔔 <i>Small heads-up: review your cards when they arrive — new ones won't come until you do!</i>\n\n💡 Type /help to discover everything I can do.\n\n🎥 Watch how it works: https://t.me/kartino_official/7\n\nReady? Drop me your first word!"
+            "welcome": "Ciao! 👋 I'm <b>Kartino</b> — your {language} flashcard buddy.\nI help the words you learn <i>stay with you</i>, effortlessly. 🌱\n\n✏️ Send me any {language} word or phrase\n🤖 I'll craft a fresh explanation every time — no two cards are the same! ✨\n💾 Save the ones you like — I'll bring them back for review using spaced repetition, right when you need a refresh.\n\n🔔 <i>Small heads-up: review your cards when they arrive — new ones won't come until you do!</i>\n\n💡 Type /help to discover everything I can do.\n\n🎥 Watch how it works: https://t.me/kartino_official/7\n\nReady? Drop me your first word!"
         },
         "help": {
-            "message": "<b>📖 What can I do?</b>\n\n✏️ <b>Learn a word</b> — Just send me any Italian word or phrase and I'll explain it with a fresh, AI-crafted card.\n\n📅 /get — <b>Review</b> a saved card (or wait — I'll send them automatically!)\n\n📦 /import — <b>Bulk add</b> a list of words at once.\n\n🗑 /remove — <b>Remove</b> a saved card through inline search.\n\n🔄 /verb <i>andare</i> — Look up <b>verb conjugations</b> instantly.\n\n📖 /story — I'll write a short <b>story</b> using your saved words.\n\n📇 /list_my_flashcards — Browse your <b>full deck</b>.\n\n⚙️ /settings — <b>Make Kartino yours!</b> Set your language, level, review pace & more.\n\n💬 /feedback — Tell me what you think!",
-            "reply": "💡 <b>Quick start:</b> just type an Italian word right here and let's go!"
+            "message": "<b>📖 What can I do?</b>\n\n✏️ <b>Learn a word</b> — Just send me any {language} word or phrase and I'll explain it with a fresh, AI-crafted card.\n\n📅 /get — <b>Review</b> a saved card (or wait — I'll send them automatically!)\n\n📦 /import — <b>Bulk add</b> a list of words at once.\n\n🗑 /remove — <b>Remove</b> a saved card through inline search.{conjugation_help}\n\n📖 /story — I'll write a short <b>story</b> using your saved words.\n\n📇 /list_my_flashcards — Browse your <b>full deck</b>.\n\n⚙️ /settings — <b>Make Kartino yours!</b> Set your language, level, review pace & more.\n\n💬 /feedback — Tell me what you think!",
+            "conjugation_line": "\n\n🔄 /verb <i>andare</i> — Look up <b>verb conjugations</b> instantly.",
+            "reply": "💡 <b>Quick start:</b> just type a {language} word right here and let's go!"
         },
         "get": {
             "no_memory": "Nothing to review right now! You're all caught up. 🎉",
@@ -53,7 +54,7 @@
         },
         "verb": {
             "instruction": "✋ Small tip!\n\nTo get the conjugation of a verb, type:\n/verb &lt;the verb you want&gt;\n\nFor example:\n/verb andare\n\n💡 In the command menu, if you press and hold the /verb command, it will be added to your message box — then you can simply type the verb after it.\n\n🎥 Watch verb guide: https://t.me/kartino_official/9",
-            "invalid": "Invalid verb format. Only valid Italian verbs are allowed.",
+            "invalid": "Invalid verb format. Only valid {language} verbs are allowed.",
             "api_error": "☹️ Unfortunetally, I wasn't able to conjugate it.\nPlease try again later or try another verb.",
             "searching": "Searching for verb: {verb}..."
         },
@@ -61,7 +62,7 @@
             "usage_guide": "Got a list? Let's add them all! 📦\n\nJust type `/import` followed by your words (on new lines or separated by commas):\n\nExample:\n/import\nandare a casa\nfare colazione",
             "processing_error": "Yikes, getting dizzy! 💫 Couldn't process that list right now.",
             "import_failed": "Hmm, I got a bit confused: {log_msg} 🤔",
-            "no_items_found": "I couldn't spot any Italian there! 🕵️‍♂️ Check your spelling?",
+            "no_items_found": "I couldn't spot any {language} there! 🕵️‍♂️ Check your spelling?",
             "success": "Woohoo! 🎉 Saved {count} new cards:\n{items_str}",
             "all_duplicates": "Looks like you already know these! 😉 No new cards added."
         },
@@ -101,12 +102,12 @@
                 "secondary_lang": "Any secondary language? (e.g. your mother tongue, or 'none') 🗣️",
                 "invalid_lang": "Hmm, I didn't recognize that one. 🤔 Try language name or code. e.g. English, DE, Farsi.",
                 "success_lang": "Got it! {type} language is now <b>{lang}</b> {flag}.",
-                "level_select": "What's your current Italian level? 📈"
+                "level_select": "What's your current {language} level? 📈"
             },
             "buttons": {
                 "set_primary": "Primary Language",
                 "set_secondary": "Secondary Language",
-                "set_level": "Your Italian Level",
+                "set_level": "Your {language} Level",
                 "back": "⬅️ Back"
             }
         },
@@ -130,6 +131,7 @@
             "db_unavailable": "Having trouble reaching the database 🗄️ Please try again shortly!",
             "feedback_failed": "Couldn't send that feedback just now 😅: {error}",
             "input_too_long": "Whoa, that's a bit too long! 😅 Let's keep it to short words or expressions (max 150 characters).",
+            "invalid_learning_language_input": "That does not look like {language}. Try a short word or expression in {language}.",
             "quota_exceeded": "You've reached your daily limit for {type} generations today. 🛑\n\nOur resources are limited ☹️ and your limit is {limit} per day. If you need more, please contact admin with /feedback. You can also use your own API key in /settings to have unlimited access! 🚀"
         },
         "buttons": {
@@ -146,7 +148,7 @@
             "grade_5": "5 - Easy peasy! 💪"
         },
         "tips": {
-            "first_save": "💡 <b>Tip:</b> Head to /settings to customize your translation language, Italian level and review pace!",
+            "first_save": "💡 <b>Tip:</b> Head to /settings to customize your translation language, {language} level and review pace!",
             "first_review": "💡 <b>Did you know?</b> Try <b>Dual Mode</b> in /settings — it quizzes you in both directions for deeper retention! 🔄"
         },
         "notifications": {

@@ -6,12 +6,15 @@ from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.user import UserDB
 from flashcard.services.user import UserService
 from flashcard.services.i18n import i18n
+from flashcard.services.language_validation import LanguageValidityChecker
+from flashcard.settings import settings
 
 async def generate_and_render_card(
     llm_service: LLMService,
     user_service: UserService,
     user_id: Union[str, int],
     text: str,
+    language_validator: Optional[LanguageValidityChecker] = None,
     on_llm_fallback: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> tuple[str, bool, Optional[ExpressionCard], UserDB]:
     """
@@ -28,6 +31,19 @@ async def generate_and_render_card(
     """
 
     user = await user_service.get_user(user_id)
+
+    if language_validator is not None:
+        validation = await language_validator.validate_expression(text)
+        if not validation.is_valid:
+            message = i18n.get(
+                "messages.errors.invalid_learning_language_input",
+                language=settings.LEARNING_LANGUAGE_NAME,
+            )
+            if validation.suggestions:
+                message = f"{message}\n" + "\n".join(validation.suggestions[:3])
+            return message, False, None, user
+        if validation.normalized_text:
+            text = validation.normalized_text
 
     # Quota check
     uses_own_key = user.api_config is not None

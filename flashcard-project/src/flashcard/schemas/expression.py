@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from typing import List, Optional 
 
 
@@ -13,15 +13,24 @@ class ExpressionCard(BaseModel):
     success: bool = Field(..., description="True if input was understood")
 
     # Normalization result (typo-fix + normalization rules)
-    norm: str = Field(..., description="Normalized + typo-corrected intended Italian token/phrase")
+    norm: str = Field(..., description="Normalized + typo-corrected intended learning-language token/phrase")
 
     # When success=true
-    def_it: Optional[str] = Field(description="Italian definition at user level")
+    learning_definition: Optional[str] = Field(
+        description="Learning-language definition at user level",
+        validation_alias=AliasChoices("learning_definition", "def_it"),
+    )
     translations: List[TranslationLine] = Field(description="List of translations matching the requested languages (1 or 2 items).")
-    example_it: Optional[str] = Field(description='Italian example sentence, no translation')
+    learning_example: Optional[str] = Field(
+        description="Learning-language example sentence, no translation",
+        validation_alias=AliasChoices("learning_example", "example_it"),
+    )
 
     # When success=false
-    note_it: Optional[str] = Field(description='E.g. "Parola non chiara"')
+    note: Optional[str] = Field(
+        description='E.g. "Word/expression not clear"',
+        validation_alias=AliasChoices("note", "note_it"),
+    )
     suggestions: List[str] = Field(description="Candidate intended tokens")
 
 

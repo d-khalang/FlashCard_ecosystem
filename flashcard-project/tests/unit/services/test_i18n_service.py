@@ -82,6 +82,15 @@ class TestLocaleFallback:
         })
         assert svc.get("greeting", locale="it") == "Ciao"
 
+    def test_default_locale_uses_ui_locale_setting(self, monkeypatch):
+        monkeypatch.setattr("flashcard.services.i18n.settings.UI_LOCALE", "it")
+        svc = _create_i18n_service({
+            "en": {"greeting": "Hello"},
+            "it": {"greeting": "Ciao"},
+        })
+
+        assert svc.get("greeting") == "Ciao"
+
 
 # ===================================================================
 # String formatting with kwargs

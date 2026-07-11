@@ -1,18 +1,18 @@
-# 🇮🇹 FlashCard Ecosystem
+# FlashCard Ecosystem
 
-An AI-powered Telegram bot for learning Italian through spaced repetition flashcards.
+An AI-powered Telegram bot ecosystem for learning languages through spaced repetition flashcards. Italian is the default out-of-the-box configuration.
 
-Send any Italian word or expression → get an AI-generated explanation card → save it → receive scheduled reviews with spaced repetition. See it live at [kartino.it](https://kartino.it).
+Send any target-language word or expression → get an AI-generated explanation card → save it → receive scheduled reviews with spaced repetition. The current production Italian deployment is live at [kartino.it](https://kartino.it).
 
 ## Features
 
-- 📝 **Flashcard Creation** — Send any Italian word/expression and get an AI-generated study card
+- 📝 **Flashcard Creation** — Send any configured learning-language word/expression and get an AI-generated study card
 - 🔄 **Spaced Repetition** — Automatic review scheduling based on your performance (0–5 grading)
 - 📖 **Story Generation** — Generate stories using your saved vocabulary
-- 🔤 **Verb Conjugation** — Look up any Italian verb's conjugation tables
+- 🔤 **Verb Conjugation** — Optional conjugation lookup for languages with a configured conjugator service
 - 📥 **Bulk Import** — Import multiple words at once
 - ⚙️ **User Settings** — Customize language, level, review interval
-- 📊 **Dual Review Mode** — Review in both directions (Italian → English and English → Italian)
+- 📊 **Dual Review Mode** — Review in both directions between the learning language and translation language
 
 ## Tech Stack
 
@@ -22,7 +22,7 @@ Send any Italian word or expression → get an AI-generated explanation card →
 | API Layer | [FastAPI](https://fastapi.tiangolo.com/) |
 | AI/LLM | [Google Gemini](https://ai.google.dev/) (structured JSON output) |
 | Database | [MongoDB](https://www.mongodb.com/) (async via pymongo) |
-| Verb Data | [Offline Conjugation API](it-conjugator-api) (SQLite + Kaikki/Wiktionary data) |
+| Verb Data | Optional [Offline Italian Conjugation API](it-conjugator-api) (SQLite + Kaikki/Wiktionary data) |
 | Deployment | Docker Compose + Caddy (auto-HTTPS, custom domain) |
 
 ## Repository Structure
@@ -34,7 +34,7 @@ FlashCard-ecosystem/
 │   ├── docs/                # Documentation
 │   └── Dockerfile
 ├── web/                     # [Private Submodule] Landing page & brand assets
-├── it-conjugator-api/       # [Public Submodule] Offline Italian conjugation API
+├── it-conjugator-api/       # [Public Submodule] Optional offline Italian conjugation API
 ├── docker-compose.yml       # Multi-service orchestration
 └── .env.example             # Environment variable template
 ```

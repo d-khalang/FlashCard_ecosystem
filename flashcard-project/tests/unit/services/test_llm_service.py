@@ -1,4 +1,4 @@
-"""
+﻿"""
 Unit tests for LLMService and LLMKeyProvider.
 
 LLMService depends on Google genai, so we mock the client entirely
@@ -70,7 +70,7 @@ class TestLLMKeyProvider:
 
 
 # ===================================================================
-# LLMService — mocked genai client
+# LLMService - mocked genai client
 # ===================================================================
 class TestLLMServiceMocked:
     """Tests the LLMService methods with a fully mocked Google genai client."""
@@ -114,10 +114,10 @@ class TestLLMServiceMocked:
         mock_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Comunicare a voce",
+            learning_definition="Comunicare a voce",
             translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
         service, mock_client = self._make_service(parsed_response=mock_card)
@@ -134,13 +134,13 @@ class TestLLMServiceMocked:
 
     async def test_generate_expression_card_with_two_languages(self):
         mock_card = ExpressionCard(
-            success=True, norm="casa", def_it="Abitazione",
+            success=True, norm="casa", learning_definition="Abitazione",
             translations=[
                 {"label": "🇬🇧 EN", "text": "house"},
                 {"label": "🇮🇷 FA", "text": "خانه"},
             ],
-            example_it="La casa è grande.",
-            note_it=None, suggestions=[],
+            learning_example="La casa è grande.",
+            note=None, suggestions=[],
         )
         service, mock_client = self._make_service(parsed_response=mock_card)
 
@@ -154,14 +154,39 @@ class TestLLMServiceMocked:
         # Verify the prompt included both languages
         call_args = mock_client.models.generate_content.call_args
         prompt = call_args[1]["contents"] if "contents" in call_args[1] else call_args[0][0]
-        # prompt is passed as keyword or positional — check call was made
+        # prompt is passed as keyword or positional - check call was made
         mock_client.models.generate_content.assert_called_once()
+
+    async def test_generate_expression_card_uses_configured_learning_language(self):
+        mock_card = ExpressionCard(
+            success=True,
+            norm="walk",
+            learning_definition="Move on foot",
+            translations=[{"label": "IT", "text": "camminare"}],
+            learning_example="I walk every day.",
+            note=None,
+            suggestions=[],
+        )
+        service, mock_client = self._make_service(parsed_response=mock_card)
+
+        with patch("flashcard.services.llm.llm.settings.LEARNING_LANGUAGE_NAME", "English"):
+            await service.generate_expression_card(
+                raw="walk",
+                level="A2",
+                lang1_code="it",
+                lang1_label="IT",
+            )
+
+        call_args = mock_client.models.generate_content.call_args
+        prompt = call_args.kwargs["contents"]
+        assert "English vocabulary helper" in prompt
+        assert "Italian vocabulary helper" not in prompt
 
     async def test_generate_story(self):
         from flashcard.schemas.story import StoryParagraph
 
         mock_story = StoryResponse(paragraphs=[
-            StoryParagraph(italian_text="Marco cammina.", translation="Marco walks."),
+            StoryParagraph(learning_text="Marco cammina.", translation="Marco walks."),
         ])
         service, mock_client = self._make_service(parsed_response=mock_story)
 
@@ -189,7 +214,7 @@ class TestLLMServiceMocked:
         second = service._get_client()
         third = service._get_client()
 
-        # Should cycle: a → b → a
+        # Should cycle: a -> b -> a
         assert first == mock_a
         assert second == mock_b
         assert third == mock_a
@@ -208,10 +233,10 @@ class TestLLMServiceMocked:
         mock_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Comunicare a voce",
+            learning_definition="Comunicare a voce",
             translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
 
@@ -219,7 +244,7 @@ class TestLLMServiceMocked:
         notified = False
 
         async def slow_groq(**kwargs):
-            await asyncio.sleep(0.02)
+            await asyncio.sleep(0.005)
             return LLMGenerationResult(
                 value=mock_card,
                 provider="groq",
@@ -263,13 +288,13 @@ class TestLLMServiceMocked:
         groq_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Groq definition",
-            translations=[{"label": "EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_definition="Groq definition",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
-        google_card = groq_card.model_copy(update={"def_it": "Google definition"})
+        google_card = groq_card.model_copy(update={"learning_definition": "Google definition"})
 
         service = LLMService.__new__(LLMService)
         notified = False
@@ -285,7 +310,7 @@ class TestLLMServiceMocked:
             )
 
         async def google(**kwargs):
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.2)
             return LLMGenerationResult(
                 value=google_card,
                 provider="google",
@@ -307,11 +332,11 @@ class TestLLMServiceMocked:
             raw="parlare",
             level="B1",
             lang1_code="en",
-            lang1_label="EN",
+            lang1_label="🇬🇧 EN",
             on_fallback=notify,
         )
 
-        assert result.def_it == "Groq definition"
+        assert result.learning_definition == "Groq definition"
         assert notified is True
 
     async def test_delayed_fallback_returns_google_if_google_wins_race(self):
@@ -320,13 +345,13 @@ class TestLLMServiceMocked:
         groq_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Groq definition",
-            translations=[{"label": "EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_definition="Groq definition",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
-        google_card = groq_card.model_copy(update={"def_it": "Google definition"})
+        google_card = groq_card.model_copy(update={"learning_definition": "Google definition"})
 
         service = LLMService.__new__(LLMService)
 
@@ -359,10 +384,10 @@ class TestLLMServiceMocked:
             raw="parlare",
             level="B1",
             lang1_code="en",
-            lang1_label="EN",
+            lang1_label="🇬🇧 EN",
         )
 
-        assert result.def_it == "Google definition"
+        assert result.learning_definition == "Google definition"
 
     async def test_groq_failure_before_delay_falls_back_to_google(self):
         from flashcard.services.llm.llm import LLMGenerationResult, LLMService
@@ -370,10 +395,10 @@ class TestLLMServiceMocked:
         google_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Google definition",
-            translations=[{"label": "EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_definition="Google definition",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
@@ -417,10 +442,10 @@ class TestLLMServiceMocked:
         google_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Google definition",
-            translations=[{"label": "EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_definition="Google definition",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
@@ -459,10 +484,10 @@ class TestLLMServiceMocked:
         groq_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Groq definition",
-            translations=[{"label": "EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_definition="Groq definition",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
@@ -525,10 +550,10 @@ class TestLLMServiceMocked:
         google_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Google definition",
-            translations=[{"label": "EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_definition="Google definition",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
@@ -563,10 +588,10 @@ class TestLLMServiceMocked:
         groq_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Groq definition",
-            translations=[{"label": "EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_definition="Groq definition",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
@@ -589,7 +614,7 @@ class TestLLMServiceMocked:
                 raw="parlare",
                 level="B1",
                 lang1_code="en",
-                lang1_label="EN",
+                lang1_label="🇬🇧 EN",
             )
         finally:
             clear_current_trace(token)
@@ -608,10 +633,10 @@ class TestLLMServiceMocked:
         groq_card = ExpressionCard(
             success=True,
             norm="parlare",
-            def_it="Groq definition",
-            translations=[{"label": "EN", "text": "to speak"}],
-            example_it="Io parlo italiano.",
-            note_it=None,
+            learning_definition="Groq definition",
+            translations=[{"label": "🇬🇧 EN", "text": "to speak"}],
+            learning_example="Io parlo italiano.",
+            note=None,
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)

@@ -441,6 +441,7 @@ class LLMService:
         prompt = EXPRESSION_PROMPT_TEMPLATE.format(
             raw=raw,
             level=level,
+            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
             target_langs=", ".join(langs),
             target_labels="\n".join(labels),
         )
@@ -464,7 +465,10 @@ class LLMService:
         """
         Parses a raw text containing a list of items to import using the LLM.
         """
-        prompt = IMPORT_PROMPT_TEMPLATE.format(raw_input=raw_text)
+        prompt = IMPORT_PROMPT_TEMPLATE.format(
+            raw_input=raw_text,
+            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
+        )
 
         output = await self._generate_with_fallback(
             contents=prompt,
@@ -496,6 +500,7 @@ class LLMService:
             level=target_level,
             length=story_length,
             target_lang=target_lang,
+            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
         )
 
         output = await self._generate_with_fallback(

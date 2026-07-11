@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from flashcard.services import trace_logger as trace_logger_module
+from flashcard.services.language_validation import BaseLanguageValidityChecker
 from flashcard.telegram.handlers import (
     collection,
     creation,
@@ -115,6 +116,7 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
         user_service=services["user_service"],
         consumption_service=services["consumption_service"],
         llm_service=llm_service,
+        language_validator=BaseLanguageValidityChecker(),
     )
     yield {
         "bot": bot,

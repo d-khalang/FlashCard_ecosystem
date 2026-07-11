@@ -3,6 +3,7 @@ from typing import Optional
 from enum import Enum
 from pydantic import BaseModel, Field
 from flashcard.schemas.languages import LanguageCode, LanguageLevel
+from flashcard.settings import settings
 from flashcard.utils.time import iso_z, now_utc
 
 class UserAPIConfig(BaseModel):
@@ -40,9 +41,18 @@ class UserDB(BaseModel):
     is_active: bool = Field(True, description="If user is active for scheduler")
     
     # Settings
-    primary_language: LanguageCode = Field("en", description="Primary interface language (e.g. 'en', 'fa')")
-    secondary_language: Optional[LanguageCode] = Field(None, description="Secondary translation language")
-    target_level: LanguageLevel = Field("A2", description="Target CEFR level (A1-C2)")
+    primary_language: LanguageCode = Field(
+        default_factory=lambda: settings.DEFAULT_PRIMARY_LANGUAGE,
+        description="Primary translation language (e.g. 'en', 'fa')",
+    )
+    secondary_language: Optional[LanguageCode] = Field(
+        default_factory=lambda: settings.DEFAULT_SECONDARY_LANGUAGE,
+        description="Secondary translation language",
+    )
+    target_level: LanguageLevel = Field(
+        default_factory=lambda: settings.DEFAULT_TARGET_LEVEL,
+        description="Target CEFR level (A1-C2)",
+    )
     review_mode: str = Field("standard", description="Review mode: standard or dual")
     review_interval_minutes: int = Field(30, description="Minutes between review batches")
     api_config: Optional[UserAPIConfig] = Field(None, description="Custom User API Config")

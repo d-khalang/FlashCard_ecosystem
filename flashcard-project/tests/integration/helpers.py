@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import copy
 import re
@@ -296,13 +296,13 @@ class FakeLLMService:
         self.card = ExpressionCard(
             success=True,
             norm="andare",
-            def_it="muoversi verso un luogo",
+            learning_definition="muoversi verso un luogo",
             translations=[
                 {"label": "EN", "text": "to go"},
                 {"label": "FA", "text": "رفتن"},
             ],
-            example_it="Vado a scuola ogni mattina.",
-            note_it=None,
+            learning_example="Vado a scuola ogni mattina.",
+            note=None,
             suggestions=[],
         )
 
@@ -319,11 +319,11 @@ class FakeLLMService:
         return StoryResponse(
             paragraphs=[
                 StoryParagraph(
-                    italian_text="Andare al mercato e parlare con amici.",
+                    learning_text="Andare al mercato e parlare con amici.",
                     translation="Go to the market and speak with friends.",
                 ),
                 StoryParagraph(
-                    italian_text="Poi torno a casa felice.",
+                    learning_text="Poi torno a casa felice.",
                     translation="Then I return home happy.",
                 ),
             ]

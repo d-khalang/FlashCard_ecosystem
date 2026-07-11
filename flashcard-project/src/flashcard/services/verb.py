@@ -104,6 +104,13 @@ class VerbService:
         """
         Gets the verb from the API.
         """
+        if not settings.ENABLE_CONJUGATION:
+            logger.info("Conjugation lookup skipped because ENABLE_CONJUGATION=False")
+            return None
+
+        if not settings.SCRAPER_URL or not settings.SCRAPER_PORT or not settings.SCRAPER_API_KEY:
+            raise RuntimeError("Conjugation service is enabled but its settings are incomplete")
+
         try:
             res = await self.http_client.get(f"{settings.SCRAPER_URL}:{settings.SCRAPER_PORT}/conjugate",
                 params={"v": verb},

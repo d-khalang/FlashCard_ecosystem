@@ -3,11 +3,13 @@ import os
 from importlib.resources import files
 from typing import Dict, Any
 
+from flashcard.settings import settings
+
 class I18nService:
     def __init__(self, locales_dir: str = None):
         self.locales_dir = locales_dir
         self.translations: Dict[str, Dict[str, Any]] = {}
-        self.default_lang = "en"
+        self.default_lang = settings.UI_LOCALE
         self._load_locales()
 
     def _load_locales(self):
@@ -44,11 +46,14 @@ class I18nService:
                 except Exception as e:
                     print(f"Error loading locale {lang_code}: {e}")
 
-    def get(self, key: str, locale: str = "en", **kwargs) -> str:
+    def get(self, key: str, locale: str | None = None, **kwargs) -> str:
         """
         Retrieves a translation string.
         Supports nested keys using dot notation (e.g., 'start.welcome').
         """
+        if locale is None:
+            locale = self.default_lang
+
         if locale not in self.translations:
             # Try default if locale not found, but we might just use default_lang
             locale = self.default_lang
@@ -69,7 +74,9 @@ class I18nService:
                 return self.get(key, locale=self.default_lang, **kwargs)
             return key  # Return key if not found
             
-        if isinstance(value, str) and kwargs:
+        if isinstance(value, str):
+            kwargs.setdefault("language", settings.LEARNING_LANGUAGE_NAME)
+            kwargs.setdefault("language_lower", settings.LEARNING_LANGUAGE_NAME.lower())
             try:
                 return value.format(**kwargs)
             except KeyError:

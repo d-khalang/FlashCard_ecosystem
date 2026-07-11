@@ -33,10 +33,11 @@
     },
     "commands": {
         "start": {
-            "welcome": "👋 Benvenuto! Sono il tuo bot per imparare l'italiano. Ecco come funziona:\n\n✍️ Inviami qualsiasi parola o espressione italiana che vuoi imparare.\n🤖 Risponderò con traduzione + spiegazione.\n💾 Vedrai due pulsanti:\nSalva → aggiungi la carta alla tua lista di studio.\nRigenera → rigenera la spiegazione se ne vuoi un'altra versione.\n📅 Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\n⚠️ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\n\n🎥 Guarda come funziona: https://t.me/kartino_official/7\n\n✨ È tutto — inizia a inviare parole!"
+            "welcome": "👋 Benvenuto! Sono il tuo bot per imparare {language}. Ecco come funziona:\n\n✍️ Inviami qualsiasi parola o espressione in {language} che vuoi imparare.\n🤖 Risponderò con traduzione + spiegazione.\n💾 Vedrai due pulsanti:\nSalva → aggiungi la carta alla tua lista di studio.\nRigenera → rigenera la spiegazione se ne vuoi un'altra versione.\n📅 Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\n⚠️ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\n\n🎥 Guarda come funziona: https://t.me/kartino_official/7\n\n✨ È tutto — inizia a inviare parole!"
         },
         "help": {
-            "message": "messaggio di aiuto",
+            "message": "messaggio di aiuto{conjugation_help}",
+            "conjugation_line": "\n\n/verb andare - coniugazioni dei verbi",
             "reply": "risposta di aiuto"
         },
         "get": {
@@ -50,7 +51,7 @@
         },
         "verb": {
             "instruction": "✋ Piccolo consiglio!\n\nPer ottenere la coniugazione di un verbo, scrivi:\n/verb &lt;il verbo desiderato&gt;\n\nPer esempio:\n/verb andare\n\n🎥 Guarda la video guida: https://t.me/kartino_official/9",
-            "invalid": "Formato verbo non valido. Sono ammessi solo verbi italiani validi.",
+            "invalid": "Formato verbo non valido. Sono ammessi solo verbi validi in {language}.",
             "not_found": "Dati del verbo non trovati.",
             "searching": "Cercando il verbo: {verb}..."
         },
@@ -93,6 +94,7 @@
             "db_unavailable": "Problemi di connessione al database ðŸ—„ï¸ Riprova tra poco!",
             "feedback_failed": "Errore nell'invio del feedback: {error}",
             "input_too_long": "Ehi, Ã¨ un po' troppo lungo! ðŸ˜… Manteniamolo a parole o brevi espressioni (massimo 150 caratteri).",
+            "invalid_learning_language_input": "Questo non sembra {language}. Prova con una parola o breve espressione in {language}.",
             "quota_exceeded": "Hai raggiunto il tuo limite giornaliero di generazioni {type}. ðŸ›‘\n\nLe nostre risorse sono limitate â˜¹ï¸ e il tuo limite Ã¨ di {limit} al giorno. Se ne hai bisogno di piÃ¹, contatta l'amministratore con /feedback. Puoi anche usare la tua chiave API in /settings per avere accesso illimitato! ðŸš€"
         },
         "buttons": {

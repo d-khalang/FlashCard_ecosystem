@@ -33,6 +33,7 @@ from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.trace_logger import get_trace_logger
+from flashcard.services.language_validation import get_language_validator
 from flashcard.utils.asyncio_errors import install_asyncio_exception_handler
 
 def _build_ipv4_session() -> "AiohttpSession":
@@ -84,7 +85,8 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     # 3. Domain Features
     dp.include_router(start.router)      # /start, /help
     dp.include_router(review.router)     # /get + grade callback
-    dp.include_router(verb.router)       # /verb + conjugation callback
+    if getattr(settings, "ENABLE_CONJUGATION", True):
+        dp.include_router(verb.router)   # /verb + conjugation callback
     dp.include_router(story.router)      # /story
     dp.include_router(collection.router) # /import, /list_my_flashcards
     dp.include_router(inline_remove.router) # inline query card removal
@@ -119,7 +121,8 @@ def build_dispatcher_data(
     expression_service,
     user_service,
     consumption_service,
-    llm_service
+    llm_service,
+    language_validator
 ) -> dict:
     return {
         "cols": cols,
@@ -130,6 +133,7 @@ def build_dispatcher_data(
         "user_service": user_service,
         "consumption_service": consumption_service,
         "llm_service": llm_service,
+        "language_validator": language_validator,
     }
 
 
@@ -156,11 +160,16 @@ async def init_telegram_bot(app: FastAPI, settings):
     http_client = await init_and_get_http_client()
     app.state.http_client = http_client
 
-    verb_service = VerbService(cols=app.state.cols, http_client=app.state.http_client)
+    verb_service = (
+        VerbService(cols=app.state.cols, http_client=app.state.http_client)
+        if getattr(settings, "ENABLE_CONJUGATION", True)
+        else None
+    )
     expression_service = ExpressionService(cols=app.state.cols)
     consumption_service = ConsumptionService(cols=app.state.cols)
     user_service = UserService(cols=app.state.cols, consumption_service=consumption_service)
     llm_service = LLMService()
+    language_validator = get_language_validator(settings)
     app.state.expression_service = expression_service
     app.state.user_service = user_service
     app.state.consumption_service = consumption_service
@@ -175,6 +184,7 @@ async def init_telegram_bot(app: FastAPI, settings):
         user_service=user_service,
         consumption_service=consumption_service,
         llm_service=llm_service,
+        language_validator=language_validator,
     )
     app.state.dispatcher_data = dispatcher_data
 
@@ -257,11 +267,16 @@ async def init_telegram_without_fastapi(settings):
 
     http_client = await init_and_get_http_client()
 
-    verb_service = VerbService(cols=cols, http_client=http_client)
+    verb_service = (
+        VerbService(cols=cols, http_client=http_client)
+        if getattr(settings, "ENABLE_CONJUGATION", True)
+        else None
+    )
     expression_service = ExpressionService(cols=cols)
     consumption_service = ConsumptionService(cols=cols)
     user_service = UserService(cols=cols, consumption_service=consumption_service)
     llm_service = LLMService()
+    language_validator = get_language_validator(settings)
 
     # Polling cannot run while a webhook is active.
     await bot.delete_webhook(drop_pending_updates=False)
@@ -278,7 +293,8 @@ async def init_telegram_without_fastapi(settings):
             expression_service=expression_service,
             user_service=user_service,
             consumption_service=consumption_service,
-            llm_service=llm_service
+            llm_service=llm_service,
+            language_validator=language_validator,
         )
     )
     

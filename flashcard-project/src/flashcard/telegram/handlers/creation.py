@@ -1,6 +1,7 @@
 from aiogram import Router, F, flags
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
 from aiogram.enums import ChatAction
+from typing import Optional
 
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.expression import ExpressionService
@@ -12,13 +13,20 @@ from flashcard.telegram.keyboards import expression_action_kb
 from flashcard.telegram.helpers.card_generator import generate_and_render_card
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger
+from flashcard.services.language_validation import LanguageValidityChecker
 
 logger = get_logger(__name__)
 router = Router()
 
 @router.message(F.text & ~F.via_bot & ~F.from_user.is_bot)
 @flags.chat_action(ChatAction.TYPING)
-async def handle_text_message(message: Message, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
+async def handle_text_message(
+    message: Message,
+    llm_service: LLMService,
+    user_service: UserService,
+    consumption_service: ConsumptionService,
+    language_validator: Optional[LanguageValidityChecker] = None,
+):
     if len(message.text) > 150:
         await message.answer(i18n.get("messages.errors.input_too_long"))
         return
@@ -33,6 +41,7 @@ async def handle_text_message(message: Message, llm_service: LLMService, user_se
         user_service,
         message.from_user.id,
         message.text,
+        language_validator=language_validator,
         on_llm_fallback=notify_fallback,
     )
     
@@ -95,7 +104,13 @@ async def handle_save(callback: CallbackQuery, expression_service: ExpressionSer
 
 @router.callback_query(F.data.startswith("regen:"))
 @flags.chat_action(ChatAction.TYPING)
-async def handle_regen(callback: CallbackQuery, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
+async def handle_regen(
+    callback: CallbackQuery,
+    llm_service: LLMService,
+    user_service: UserService,
+    consumption_service: ConsumptionService,
+    language_validator: Optional[LanguageValidityChecker] = None,
+):
     callback_markup = callback.message.reply_markup
     await callback.message.edit_text(i18n.get("callbacks.regen.working"))
 
@@ -110,6 +125,7 @@ async def handle_regen(callback: CallbackQuery, llm_service: LLMService, user_se
         user_service,
         user_id,
         expression,
+        language_validator=language_validator,
         on_llm_fallback=notify_fallback,
     )
 
