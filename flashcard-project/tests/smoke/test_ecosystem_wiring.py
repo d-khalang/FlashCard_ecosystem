@@ -50,12 +50,22 @@ def test_ci_workflow_runs_unit_and_integration_layers():
     assert "pytest tests/integration tests/smoke" in ci
 
 
-def test_deploy_workflow_validates_production_env_and_uses_compose():
-    deploy = (ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+def test_release_workflow_verifies_and_publishes_immutable_images():
+    release = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
 
-    assert "test -f .env.prod" in deploy
-    assert "docker compose --env-file .env.prod up -d --build" in deploy
-    assert "WEBHOOK_BASE" in deploy
+    assert "types:" in release and "published" in release
+    assert "pytest tests" in release
+    assert "ghcr.io" in release
+    assert "type=semver" in release
+    assert "type=sha" in release
+    assert "subject-digest" in release
+    assert "gh release upload" in release
+
+
+def test_public_repo_has_no_production_deploy_workflow():
+    assert not (ROOT / ".github" / "workflows" / "deploy.yml").exists()
 
 
 @pytest.mark.skipif(
