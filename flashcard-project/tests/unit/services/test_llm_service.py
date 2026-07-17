@@ -298,9 +298,11 @@ class TestLLMServiceMocked:
 
         service = LLMService.__new__(LLMService)
         notified = False
+        fallback_started = asyncio.Event()
+        keep_google_pending = asyncio.Event()
 
         async def slow_groq(**kwargs):
-            await asyncio.sleep(0.02)
+            await fallback_started.wait()
             return LLMGenerationResult(
                 value=groq_card,
                 provider="groq",
@@ -310,7 +312,7 @@ class TestLLMServiceMocked:
             )
 
         async def google(**kwargs):
-            await asyncio.sleep(0.2)
+            await keep_google_pending.wait()
             return LLMGenerationResult(
                 value=google_card,
                 provider="google",
@@ -322,6 +324,7 @@ class TestLLMServiceMocked:
         async def notify():
             nonlocal notified
             notified = True
+            fallback_started.set()
 
         service.groq_providers = {"groq": MagicMock()}
         service.groq_fallback_delay_seconds = 0.001
@@ -354,9 +357,10 @@ class TestLLMServiceMocked:
         google_card = groq_card.model_copy(update={"learning_definition": "Google definition"})
 
         service = LLMService.__new__(LLMService)
+        keep_groq_pending = asyncio.Event()
 
         async def slow_groq(**kwargs):
-            await asyncio.sleep(0.05)
+            await keep_groq_pending.wait()
             return LLMGenerationResult(
                 value=groq_card,
                 provider="groq",
@@ -366,7 +370,6 @@ class TestLLMServiceMocked:
             )
 
         async def google(**kwargs):
-            await asyncio.sleep(0.01)
             return LLMGenerationResult(
                 value=google_card,
                 provider="google",
