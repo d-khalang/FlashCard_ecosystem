@@ -8,6 +8,12 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v1.1.0 (2026-07-17)
+
+### Feat
+
+- **config**: load application secrets at runtime
+
 ## v1.0.0 (2026-07-17)
 
 ### Feat
