@@ -9,6 +9,10 @@ services:
       - ${APP_ENV_FILE:-.env}
     environment:
       - TELEGRAM_DELIVERY_MODE=${TELEGRAM_DELIVERY_MODE:-webhook}
+      - LLM_KEY_FILE=/run/secrets/llm_key.json
+    secrets:
+      - source: llm_key
+        target: llm_key.json
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 120s
@@ -91,6 +95,10 @@ volumes:
   caddy_data:
   caddy_config:
   mongo_flashcard_data:
+
+secrets:
+  llm_key:
+    file: ${LLM_KEY_FILE_HOST:-./flashcard-project/config/llm_key.json}
 
 networks:
   internal:

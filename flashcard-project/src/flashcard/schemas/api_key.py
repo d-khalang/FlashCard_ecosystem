@@ -1,7 +1,8 @@
 import json
-from importlib.resources import files
-from typing import Dict, List
 from functools import lru_cache
+from importlib.resources import files
+from pathlib import Path
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -16,17 +17,21 @@ class APIKeyConfig(BaseModel):
     users: Dict[str, List[str]]
 
 @lru_cache()
-def load_api_keys() -> APIKeyConfig:
+def load_api_keys(key_file: Optional[Union[str, Path]] = None) -> APIKeyConfig:
     """
-    Load API keys from packaged resource data.
+    Load API keys from an external file or the packaged resource fallback.
     """
-    resource_path = files("flashcard").joinpath("resources/llm_key.json")
+    resource_path = (
+        Path(key_file).expanduser()
+        if key_file
+        else files("flashcard").joinpath("resources/llm_key.json")
+    )
 
     try:
         data = json.loads(resource_path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise FileNotFoundError(
-            f"API key file not found in package resources at {resource_path}"
+            f"API key file not found at {resource_path}"
         ) from exc
-        
-    return APIKeyConfig(**data)
+
+    return APIKeyConfig.model_validate(data)

@@ -1,0 +1,11 @@
+{
+  "core": [
+    {
+      "name": "google-primary",
+      "api_key": "replace-with-your-api-key",
+      "provider": "google"
+    }
+  ],
+  "reminder": [],
+  "users": {}
+}

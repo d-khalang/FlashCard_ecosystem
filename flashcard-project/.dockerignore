@@ -1,0 +1,18 @@
+# Runtime secrets must never be copied into an image layer.
+**/*llm_key*.json
+**/.env*
+
+# Local development and test artifacts are not image inputs.
+tests/
+logs/
+venv/
+.venv/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+**/*.egg-info/
+.git/

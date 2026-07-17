@@ -146,11 +146,53 @@ class TestSettingsLanguageAndConjugation:
             SCRAPER_API_KEY="",
             SCRAPER_URL="   ",
             SCRAPER_PORT=None,
+            LLM_KEY_FILE="",
         )
 
         assert settings.DEFAULT_SECONDARY_LANGUAGE is None
         assert settings.SCRAPER_API_KEY is None
         assert settings.SCRAPER_URL is None
+        assert settings.LLM_KEY_FILE is None
+
+    def test_runtime_secrets_override_sensitive_environment_values(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        from flashcard.settings import Settings
+
+        secret_values = {
+            "BOT_TOKEN": "123456:secret-bot",
+            "LOGGER_BOT_TOKEN": "123456:secret-logger",
+            "MONGO_URI": "mongodb://secret-mongo:27017",
+            "SCRAPER_API_KEY": "secret-scraper-key",
+            "WEBHOOK_SECRET": "secret-webhook",
+        }
+        for name, value in secret_values.items():
+            (tmp_path / name).write_text(value, encoding="utf-8")
+            monkeypatch.setenv(name, f"environment-{name.lower()}")
+
+        settings = Settings(
+            _env_file=None,
+            _secrets_dir=tmp_path,
+            ADMIN_ID=0,
+            TELEGRAM_DELIVERY_MODE="webhook",
+            WEBHOOK_BASE="https://bot.example.com",
+            WEBHOOK_PATH="/webhook",
+            MONGO_DB="test_db",
+            COLLECTION_USERS="users",
+            COLLECTION_EXPRESSION="expressions",
+            COLLECTION_CONJUGATION="conjugations",
+            ENABLE_CONJUGATION=True,
+            SCRAPER_URL="http://conjugator",
+            SCRAPER_PORT=8000,
+        )
+
+        assert settings.BOT_TOKEN == secret_values["BOT_TOKEN"]
+        assert settings.LOGGER_BOT_TOKEN == secret_values["LOGGER_BOT_TOKEN"]
+        assert settings.MONGO_URI == secret_values["MONGO_URI"]
+        assert settings.SCRAPER_API_KEY == secret_values["SCRAPER_API_KEY"]
+        assert settings.WEBHOOK_SECRET == secret_values["WEBHOOK_SECRET"]
 
     def test_conjugation_enabled_requires_scraper_settings(self):
         from flashcard.settings import Settings

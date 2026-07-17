@@ -13,6 +13,7 @@ build/
 .DS_Store
 .coverage
 *llm_key*.json
+!flashcard-project/config/llm_key.example.json
 generate_tree.py
 
 .pytest_cache/

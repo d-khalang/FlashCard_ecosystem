@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal, Optional
 
 from pydantic import field_validator, model_validator
@@ -37,6 +38,7 @@ class Settings(BaseSettings):
     LLM_GROQ_MODEL: str = "openai/gpt-oss-120b"
     LLM_GROQ_FALLBACK_DELAY_SECONDS: float = 4.0
     LLM_MAX_ATTEMPTS: int = 2
+    LLM_KEY_FILE: Optional[str] = None
 
     # ──────────────────────────────────────────────
     # Quota / Tier Limits
@@ -56,7 +58,29 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    @field_validator("DEFAULT_SECONDARY_LANGUAGE", "SCRAPER_API_KEY", "SCRAPER_URL", mode="before")
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        return (
+            init_settings,
+            file_secret_settings,
+            env_settings,
+            dotenv_settings,
+        )
+
+    @field_validator(
+        "DEFAULT_SECONDARY_LANGUAGE",
+        "SCRAPER_API_KEY",
+        "SCRAPER_URL",
+        "LLM_KEY_FILE",
+        mode="before",
+    )
     @classmethod
     def empty_string_to_none(cls, value):
         if isinstance(value, str) and not value.strip():
@@ -101,7 +125,8 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_setting() -> Settings:
-    return Settings()
+    secrets_dir = Path("/run/secrets")
+    return Settings(_secrets_dir=secrets_dir if secrets_dir.is_dir() else None)
 
 
 settings = get_setting()

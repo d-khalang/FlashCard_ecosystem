@@ -1,9 +1,13 @@
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
+
 from flashcard.schemas.api_key import load_api_keys, APIKeyConfig
+from flashcard.settings import settings
 
 class LLMKeyProvider:
-    def __init__(self):
-        self._config: APIKeyConfig = load_api_keys()
+    def __init__(self, key_file: Optional[Union[str, Path]] = None):
+        configured_file = settings.LLM_KEY_FILE if key_file is None else key_file
+        self._config: APIKeyConfig = load_api_keys(configured_file)
         
     def get_core_key(self, name: str) -> Optional[str]:
         """

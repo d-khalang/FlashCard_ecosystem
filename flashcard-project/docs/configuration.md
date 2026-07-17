@@ -65,6 +65,21 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 | `ENABLE_CONJUGATION` | ❌ | `true` | Registers `/verb` and requires scraper configuration when enabled |
 | `LANGUAGE_VALIDATOR` | ❌ | `auto` | Input validator: `auto`, `italian`, `latin`, `permissive`, or a custom dotted path |
 | `SCHEDULER_CHECK_INTERVAL_SECONDS` | ❌ | `600` | Scheduler loop interval (seconds) |
+| `LLM_KEY_FILE` | ❌ | packaged resource | External LLM key JSON path, such as `/run/secrets/llm_key.json` |
+
+Docker Compose mounts the host file selected by `LLM_KEY_FILE_HOST` at
+`/run/secrets/llm_key.json` and sets `LLM_KEY_FILE` automatically. New clones
+should copy `config/llm_key.example.json` to `config/llm_key.json`; the root
+`.env.example` already points direct and Docker runs at that ignored copy.
+Each `core` entry must set `provider` to `google` or `groq`; add additional
+entries when multiple provider keys should participate in fallback rotation.
+
+When `/run/secrets` exists, the application also reads settings from files
+whose names match their setting names. Production deployments can mount files
+such as `BOT_TOKEN`, `LOGGER_BOT_TOKEN`, `MONGO_URI`, `SCRAPER_API_KEY`, and
+`WEBHOOK_SECRET`. Runtime secret files take precedence over environment and
+`.env` values; explicit constructor values remain highest priority in tests and
+embedded use.
 
 ### Language Modularity
 

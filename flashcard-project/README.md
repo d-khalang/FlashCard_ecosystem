@@ -42,6 +42,10 @@ pip install -e .
 # Configure environment
 cp ../.env.example ../.env
 # Edit ../.env with your values (see docs/configuration.md for reference)
+
+# Configure LLM API keys
+cp config/llm_key.example.json config/llm_key.json
+# Replace the placeholder API key in config/llm_key.json
 ```
 
 ### Entry Points
@@ -66,6 +70,8 @@ TELEGRAM_DELIVERY_MODE=polling flashcard-bot
 From the repository root:
 
 ```bash
+cp flashcard-project/config/llm_key.example.json flashcard-project/config/llm_key.json
+# Replace the placeholder API key, then start the service.
 docker compose up --build flashcard-bot
 ```
 

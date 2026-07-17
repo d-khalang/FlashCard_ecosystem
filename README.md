@@ -50,6 +50,8 @@ cd FlashCard-ecosystem
 
 # 2. Setup
 cp .env.example .env          # Fill in your tokens and config
+cp flashcard-project/config/llm_key.example.json flashcard-project/config/llm_key.json
+# Replace the placeholder LLM key in flashcard-project/config/llm_key.json.
 # For non-Docker local development, point MONGO_URI at your local MongoDB.
 cd flashcard-project
 python -m venv venv
@@ -64,6 +66,9 @@ flashcard-bot-dev-poll
 
 ```bash
 cp .env.example .env  # Fill in your values
+cp flashcard-project/config/llm_key.example.json flashcard-project/config/llm_key.json
+# Replace the placeholder LLM key. The runtime copy is ignored by Git.
+# Compose mounts it read-only; it is excluded from the image build context.
 docker compose up --build
 ```
 
