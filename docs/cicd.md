@@ -5,9 +5,11 @@
 This repository uses:
 
 - CI workflow: `.github/workflows/ci.yml`
-- CD workflow: `.github/workflows/deploy.yml`
+- Release workflow: `.github/workflows/release.yml`
 
-CI runs on GitHub-hosted runners. CD runs on a self-hosted runner installed on the production VM.
+CI and release builds run on GitHub-hosted runners. Production deployment will
+move to the private `kartino-deploy` repository, which pins immutable image
+digests and owns the production Compose topology.
 
 ## CI
 
@@ -15,42 +17,31 @@ CI runs on GitHub-hosted runners. CD runs on a self-hosted runner installed on t
 
 Checks:
 
-- Python unit tests (`flashcard-project/tests/unit`)
+- Python unit, integration, and smoke tests
 - Docker build check for:
   - `flashcard-project/Dockerfile`
-  - `WR_scraper/Dockerfile`
+  - `it-conjugator-api/Dockerfile`
 
-CI injects test-safe environment variables directly in the workflow so no production secrets are required.
+CI injects test-safe values directly in the workflow. It does not use
+production secrets. Third-party actions are pinned to immutable commit SHAs.
 
-## CD
+## Container Releases
 
-`deploy.yml` is manual (`workflow_dispatch`) and deploys on a self-hosted runner with labels:
+Publishing a GitHub Release triggers `release.yml`. The workflow:
 
-- `self-hosted`
-- `linux`
-- `x64`
-- `flashcard-prod`
+- Verifies the tag matches `flashcard-project/pyproject.toml`.
+- Runs the complete Python test suite.
+- Publishes version and full commit-SHA tags to GHCR.
+- Publishes no mutable `latest` tag.
+- Generates an SBOM and signed build provenance.
+- Attaches each immutable image digest to the GitHub Release.
 
-Deployment command:
+See [Releasing Container Images](../flashcard-project/docs/releasing.md) for the
+operator procedure and resulting image names.
 
-```bash
-APP_ENV_FILE=.env.prod docker compose --env-file .env.prod up -d --build
-```
+## Deployment Boundary
 
-`pull` is attempted first to support future image-based deployment.
-
-## Required production host setup
-
-1. Install Docker Engine + Docker Compose plugin.
-2. Clone this repository on the VM.
-3. Create `.env.prod` at repo root (never commit it).
-4. Install and register a GitHub self-hosted runner on the VM with label `flashcard-prod`.
-5. Ensure runner service has permission to run Docker commands.
-
-## Production env strategy
-
-- Local development: `.env` or `.env.dev`
-- Production deployment: `.env.prod`
-- Template/reference only: `.env.example`
-
-Do not commit `.env.prod`.
+This public repository has no production deployment workflow, production
+credentials, or access to a production runner. It produces tested container
+images only. The private `kartino-deploy` repository owns production Compose,
+runtime secrets, image digest updates, rollout, and rollback.

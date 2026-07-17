@@ -81,6 +81,7 @@ docker compose up --build
 | [Handlers](flashcard-project/docs/handlers.md) | Bot commands, router order, UI layer |
 | [Configuration](flashcard-project/docs/configuration.md) | Environment variables, Docker services |
 | [CI/CD](docs/cicd.md) | GitHub Actions pipelines and deployment workflow |
+| [Releasing](flashcard-project/docs/releasing.md) | Versioned GHCR images, digests, and release procedure |
 | [Contributing](flashcard-project/docs/contributing.md) | How to add features, conventions |
 
 ## License
