@@ -8,6 +8,17 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 - Existing project functionality before automated release tracking was introduced.
 
+## v1.0.0 (2026-07-17)
+
+### Feat
+
+- **language**: make learning language configurable
+
+### Fix
+
+- **config**: make docker mongo defaults usable
+- **config**: align docker conjugator service name
+
 ## v0.11.0 (2026-06-26)
 
 ### Feat
