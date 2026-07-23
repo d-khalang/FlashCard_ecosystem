@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v1.1.1 (2026-07-23)
+
+### CI
+
+- Publish versioned flashcard-bot and conjugator images to GHCR from GitHub Releases.
+
+### Test
+
+- Stabilize provider race tests and align smoke checks with the release pipeline.
+
 
 ### Added
 - Existing project functionality before automated release tracking was introduced.
