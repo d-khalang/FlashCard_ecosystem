@@ -219,10 +219,8 @@ async def init_telegram_bot(app: FastAPI, settings):
         scheduler_loop(
             bot=bot,
             logger_bot=logger_bot,
-            expression_service=expression_service,
             user_service=user_service,
-            consumption_service=consumption_service,
-            llm_service=llm_service,
+            review_use_cases=dispatcher_data["review_use_cases"],
             admin_id=settings.ADMIN_ID
         )
     )
@@ -288,22 +286,24 @@ async def init_telegram_without_fastapi(settings):
     # Polling cannot run while a webhook is active.
     await bot.delete_webhook(drop_pending_updates=False)
 
+    dispatcher_data = build_dispatcher_data(
+        cols=cols,
+        http_client=http_client,
+        logger_bot=logger_bot,
+        verb_service=verb_service,
+        expression_service=expression_service,
+        user_service=user_service,
+        consumption_service=consumption_service,
+        llm_service=llm_service,
+        language_validator=language_validator,
+    )
+
     # Run polling in background
     polling_task = asyncio.create_task(
         dp.start_polling(
             bot,
             allowed_updates=get_allowed_updates(dp),
-            **build_dispatcher_data(
-                cols=cols,
-                http_client=http_client,
-                logger_bot=logger_bot,
-                verb_service=verb_service,
-                expression_service=expression_service,
-                user_service=user_service,
-                consumption_service=consumption_service,
-                llm_service=llm_service,
-                language_validator=language_validator,
-            ),
+            **dispatcher_data,
         )
     )
     
@@ -313,10 +313,8 @@ async def init_telegram_without_fastapi(settings):
         scheduler_loop(
             bot=bot,
             logger_bot=logger_bot,
-            expression_service=expression_service,
             user_service=user_service,
-            consumption_service=consumption_service,
-            llm_service=llm_service,
+            review_use_cases=dispatcher_data["review_use_cases"],
             admin_id=settings.ADMIN_ID
         )
     )

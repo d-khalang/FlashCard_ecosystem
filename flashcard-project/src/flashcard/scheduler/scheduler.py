@@ -7,11 +7,8 @@ from aiogram import Bot
 
 from flashcard.schemas.trace import TraceData
 from flashcard.schemas.user import UserDB
-from flashcard.schemas.languages import get_language_flag
-from flashcard.services.expression import ExpressionService
+from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
 from flashcard.services.user import UserService
-from flashcard.services.consumption import ConsumptionService
-from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
@@ -24,7 +21,7 @@ logger = get_logger(__name__)
 # Scheduler configuration
 SCHEDULER_CHECK_INTERVAL_SECONDS = settings.SCHEDULER_CHECK_INTERVAL_SECONDS
 
-from flashcard.schemas.defaults import DEFAULT_LANG_LEVEL, DEFAULT_LANG_1_CODE, DEFAULT_LANG_1_LABEL, DEFAULT_SCHEDULER_INTERVAL_MINUTES
+from flashcard.schemas.defaults import DEFAULT_SCHEDULER_INTERVAL_MINUTES
 
 
 async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
@@ -89,70 +86,34 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
 async def send_scheduled_review(
     bot: Bot,
     user: UserDB,
-    expression_service: ExpressionService,
-    llm_service: LLMService,
-    user_service: UserService,
-    consumption_service: ConsumptionService,
+    review_use_cases: ReviewUseCases,
 ) -> bool:
     """
     Sends a scheduled review to a user.
-    Replicates the /get command logic but uses bot.send_message instead of message.answer.
-    Uses user preferences for language and level.
 
     Returns:
-        True if a flashcard was actually sent, False if no candidate was available.
+        True if a flashcard was actually sent, False if no candidate was available
+        or the user is over quota (skipped silently).
 
     Raises exceptions on failure (caught by per-user error handler in scheduler loop).
     """
     user_id = user.user_id
-    # 1. Get review candidate
-    result = await expression_service.get_review_candidate(user_id)
+    result = await review_use_cases.prepare_next(user_id, user=user)
 
-    if not result:
-        # No cards to review, skip silently
+    if isinstance(result, NoCandidate):
         logger.debug(f"No review candidate for user {user_id}")
         return False
 
-    candidate = result["doc"]
-    direction = result.get("direction", "forward")
-
-    # Quota check
-    uses_own_key = user.api_config is not None
-    if not user_service.can_generate_card(user, uses_own_key=uses_own_key):
-        logger.info(f"Skipping scheduled review for user {user_id} due to quota limits (tier={user.tier.value})")
+    if isinstance(result, QuotaExceeded):
+        logger.info(f"Skipping scheduled review for user {user_id} due to quota limits (tier={result.tier})")
         return False
 
-    # 2. Generate card content using user preferences
-    card = await llm_service.generate_expression_card(
-        raw=candidate['value'],
-        level=user.target_level or DEFAULT_LANG_LEVEL,
-        lang1_code=user.primary_language or DEFAULT_LANG_1_CODE,
-        lang2_code=user.secondary_language,
-        lang1_label=get_language_flag(user.primary_language),
-        lang2_label=get_language_flag(user.secondary_language)
-    )
+    text = format_review_message(result.card, result.value, direction=result.direction)
+    keyboard = get_review_keyboard(result.expression_id, direction=result.direction)
+    sent_msg = await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
+    await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
 
-    # 3. Format message
-    text = format_review_message(card, candidate['value'], direction=direction)
-
-    # 4. Get keyboard
-    keyboard = get_review_keyboard(str(candidate['_id']), direction=direction)
-
-    # 5. Send via bot
-    sent_msg = await bot.send_message(
-        chat_id=user_id,
-        text=text,
-        reply_markup=keyboard
-    )
-
-    # 6. Update database
-    await expression_service.update_expression_sent(str(candidate['_id']), sent_msg.message_id)
-    await user_service.update_user_last_push(user_id)
-
-    # Track consumption
-    await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)
-
-    logger.info(f"Scheduled review sent to user {user_id}: {candidate['value']}")
+    logger.info(f"Scheduled review sent to user {user_id}: {result.value}")
     return True
 
 
@@ -249,10 +210,8 @@ async def _observed_send_admin_metrics(
 async def scheduler_loop(
     bot: Bot,
     logger_bot: Bot,
-    expression_service: ExpressionService,
     user_service: UserService,
-    consumption_service: ConsumptionService,
-    llm_service: LLMService,
+    review_use_cases: ReviewUseCases,
     admin_id: int
 ) -> None:
     """
@@ -298,10 +257,7 @@ async def scheduler_loop(
                         send_scheduled_review(
                             bot=bot,
                             user=user,
-                            expression_service=expression_service,
-                            llm_service=llm_service,
-                            user_service=user_service,
-                            consumption_service=consumption_service,
+                            review_use_cases=review_use_cases,
                         ),
                         timeout=PER_USER_TIMEOUT,
                     )

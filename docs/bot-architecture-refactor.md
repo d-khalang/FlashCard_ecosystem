@@ -23,7 +23,7 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 
 - [x] Characterization tests for `/get`, scheduled review, grading
 - [x] `app/review.py`: `ReviewUseCases.prepare_next` / `mark_sent`; `/get` routed through it
-- [ ] Scheduler routed through `ReviewUseCases` (removes the duplicated `/get` logic)
+- [x] Scheduler routed through `ReviewUseCases` (removes the duplicated `/get` logic)
 - [ ] Grading moved into `ReviewUseCases.grade`
 - [ ] Creation, collection, settings, story use cases
 

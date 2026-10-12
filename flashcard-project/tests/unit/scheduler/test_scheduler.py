@@ -201,10 +201,7 @@ class TestSchedulerLoopTracing:
 
         mock_bot = MagicMock()
         mock_logger_bot = MagicMock()
-        mock_expression_service = MagicMock()
         mock_user_service = MagicMock()
-        mock_consumption_service = MagicMock()
-        mock_llm_service = MagicMock()
         mock_trace_logger = MagicMock()
 
         async def _break_sleep(_seconds):
@@ -220,10 +217,8 @@ class TestSchedulerLoopTracing:
                 await scheduler_loop(
                     bot=mock_bot,
                     logger_bot=mock_logger_bot,
-                    expression_service=mock_expression_service,
                     user_service=mock_user_service,
-                    consumption_service=mock_consumption_service,
-                    llm_service=mock_llm_service,
+                    review_use_cases=MagicMock(),
                     admin_id=12345,
                 )
             except _BreakLoop:
@@ -238,10 +233,7 @@ class TestSchedulerLoopTracing:
 
         mock_bot = MagicMock()
         mock_logger_bot = MagicMock()
-        mock_expression_service = MagicMock()
         mock_user_service = MagicMock()
-        mock_consumption_service = MagicMock()
-        mock_llm_service = MagicMock()
         mock_trace_logger = MagicMock()
 
         # One due user to trigger metrics path and observed wrappers.
@@ -266,10 +258,8 @@ class TestSchedulerLoopTracing:
                 await scheduler_loop(
                     bot=mock_bot,
                     logger_bot=mock_logger_bot,
-                    expression_service=mock_expression_service,
                     user_service=mock_user_service,
-                    consumption_service=mock_consumption_service,
-                    llm_service=mock_llm_service,
+                    review_use_cases=MagicMock(),
                     admin_id=12345,
                 )
             except _BreakLoop:

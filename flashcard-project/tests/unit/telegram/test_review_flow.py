@@ -57,6 +57,11 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
                            user=user, sent=sent)
 
 
+def _use_cases(d) -> ReviewUseCases:
+    return ReviewUseCases(expression_service=d.expression_service, user_service=d.user_service,
+                          consumption_service=d.consumption_service, llm_service=d.llm_service)
+
+
 @pytest.fixture
 def ui():
     """Formatting is presentation; pin that it is called with the right inputs."""
@@ -76,18 +81,14 @@ def _message(sent):
 
 async def _run_get(d):
     message = _message(d.sent)
-    use_cases = ReviewUseCases(expression_service=d.expression_service, user_service=d.user_service,
-                               consumption_service=d.consumption_service, llm_service=d.llm_service)
-    await review.cmd_get(message, review_use_cases=use_cases)
+    await review.cmd_get(message, review_use_cases=_use_cases(d))
     return message
 
 
 async def _run_scheduled(d):
     bot = MagicMock()
     bot.send_message = AsyncMock(return_value=d.sent)
-    result = await scheduler.send_scheduled_review(
-        bot=bot, user=d.user, expression_service=d.expression_service, llm_service=d.llm_service,
-        user_service=d.user_service, consumption_service=d.consumption_service)
+    result = await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d))
     return bot, result
 
 
@@ -151,11 +152,9 @@ class TestGetCommand:
         d = _deps()
         message = _message(d.sent)
         message.answer = AsyncMock(side_effect=RuntimeError("telegram down"))
-        use_cases = ReviewUseCases(expression_service=d.expression_service, user_service=d.user_service,
-                                   consumption_service=d.consumption_service, llm_service=d.llm_service)
 
         with pytest.raises(RuntimeError):
-            await review.cmd_get(message, review_use_cases=use_cases)
+            await review.cmd_get(message, review_use_cases=_use_cases(d))
 
         d.expression_service.update_expression_sent.assert_not_awaited()
         d.user_service.update_user_last_push.assert_not_awaited()
@@ -217,9 +216,7 @@ class TestScheduledReview:
         bot.send_message = AsyncMock(side_effect=RuntimeError("telegram down"))
 
         with pytest.raises(RuntimeError):
-            await scheduler.send_scheduled_review(
-                bot=bot, user=d.user, expression_service=d.expression_service, llm_service=d.llm_service,
-                user_service=d.user_service, consumption_service=d.consumption_service)
+            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d))
 
         d.expression_service.update_expression_sent.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
