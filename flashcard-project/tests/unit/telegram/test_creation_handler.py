@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.types import Message
 
+from flashcard.app.creation import CreationUseCases
 from flashcard.telegram.handlers.creation import handle_text_message
 from flashcard.schemas.user import UserDB
 from flashcard.services.language_validation import LanguageValidationResult
@@ -24,7 +25,8 @@ async def test_handle_text_message_too_long():
         mock_i18n_get.return_value = "Input too long error message"
 
         # Call handler
-        await handle_text_message(message, llm_service, user_service, consumption_service)
+        use_cases = CreationUseCases(MagicMock(), user_service, consumption_service, llm_service)
+        await handle_text_message(message, creation_use_cases=use_cases)
 
         # Assertions
         # 1. It should answer with an error message
@@ -59,13 +61,9 @@ async def test_handle_text_message_invalid_language_skips_generation():
         )
     )
 
-    await handle_text_message(
-        message,
-        llm_service,
-        user_service,
-        consumption_service,
-        language_validator=language_validator,
-    )
+    use_cases = CreationUseCases(MagicMock(), user_service, consumption_service, llm_service,
+                                 language_validator=language_validator)
+    await handle_text_message(message, creation_use_cases=use_cases)
 
     llm_service.generate_expression_card.assert_not_called()
     consumption_service.increment.assert_not_called()

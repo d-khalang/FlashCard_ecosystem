@@ -25,7 +25,9 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 - [x] `app/review.py`: `ReviewUseCases.prepare_next` / `mark_sent`; `/get` routed through it
 - [x] Scheduler routed through `ReviewUseCases` (removes the duplicated `/get` logic)
 - [x] Grading moved into `ReviewUseCases.grade` (+ `claim_first_review_tip`)
-- [ ] Creation, collection, settings, story use cases
+- [x] Characterization tests for text-to-card, regenerate, save
+- [x] `app/creation.py`: `CreationUseCases.generate` / `save` / `claim_first_save_tip`; `card_generator.py` removed
+- [ ] Collection, settings, story use cases
 
 ## Deferred issues (do not forget)
 
@@ -48,10 +50,10 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
   - Creation passes user preferences to the LLM without the defaults review
     uses (`DEFAULT_LANG_LEVEL`, `DEFAULT_LANG_1_CODE`); with no secondary
     language, creation sends label `None` while review sends 🌍. Unify.
-  - First-save tip has the same race grading had: check `onboarding_step`,
-    send the tip, then advance, so a double tap can show it twice. Use the
-    claim-then-send pattern from `claim_first_review_tip`.
   - Regenerate failure (quota, unclear input) replaces the card and removes
     the Save/Regenerate buttons, so the user can neither retry nor save.
+- **Onboarding is spread across use cases.** `claim_first_review_tip` and
+  `claim_first_save_tip` are the same pattern on different steps. Move them
+  into one onboarding concept when a third tip appears or with #3.
 - **Duplicated startup** in `bot.py`: `init_telegram_bot` and
   `init_telegram_without_fastapi` build the same services twice (#10).

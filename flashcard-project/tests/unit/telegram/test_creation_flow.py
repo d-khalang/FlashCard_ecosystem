@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from flashcard.app.creation import CreationUseCases
 from flashcard.schemas.expression import ExpressionCard, TranslationLine
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.i18n import i18n
@@ -65,6 +66,12 @@ def _deps(*, card=None, user=None, can_generate=True, validation=None):
                            expression_service=expression_service, validator=validator, user=user)
 
 
+def _use_cases(d) -> CreationUseCases:
+    return CreationUseCases(expression_service=d.expression_service, user_service=d.user_service,
+                            consumption_service=d.consumption_service, llm_service=d.llm_service,
+                            language_validator=d.validator)
+
+
 QUOTA_TEXT = lambda: i18n.get("messages.errors.quota_exceeded", type="card", tier="normal", limit=10)
 
 
@@ -78,9 +85,7 @@ async def _run_text(d, text="andare"):
     message.text = text
     message.from_user.id = USER_ID
     message.answer = AsyncMock(return_value=status)
-    await creation.handle_text_message(message, llm_service=d.llm_service, user_service=d.user_service,
-                                       consumption_service=d.consumption_service,
-                                       language_validator=d.validator)
+    await creation.handle_text_message(message, creation_use_cases=_use_cases(d))
     return message, status
 
 
@@ -192,8 +197,7 @@ def _callback(data, markup=None, text="CARD TEXT"):
 
 async def _run_regen(d, data="regen:andare"):
     callback = _callback(data, markup=expression_action_kb("andare"))
-    await creation.handle_regen(callback, llm_service=d.llm_service, user_service=d.user_service,
-                                consumption_service=d.consumption_service, language_validator=d.validator)
+    await creation.handle_regen(callback, creation_use_cases=_use_cases(d))
     return callback
 
 
@@ -230,7 +234,7 @@ class TestRegenerate:
 # ===================================================================
 async def _run_save(d, data="save:andare", markup=None):
     callback = _callback(data, markup=markup)
-    await creation.handle_save(callback, expression_service=d.expression_service, user_service=d.user_service)
+    await creation.handle_save(callback, creation_use_cases=_use_cases(d))
     return callback
 
 

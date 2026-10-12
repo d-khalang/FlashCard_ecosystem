@@ -7,6 +7,8 @@ they deliver messages, then report the delivered message back via mark_sent.
 from dataclasses import dataclass
 from typing import Literal, Optional, Union, get_args
 
+from flashcard.app.quota import QuotaExceeded
+from flashcard.app.types import UserId
 from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.languages import get_language_flag
@@ -16,7 +18,6 @@ from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.user import UserService
 
-UserId = Union[str, int]
 Direction = Literal["forward", "reverse"]
 
 MIN_GRADE = 0
@@ -35,12 +36,6 @@ class ReviewReady:
 @dataclass(frozen=True)
 class NoCandidate:
     pass
-
-
-@dataclass(frozen=True)
-class QuotaExceeded:
-    tier: str
-    limit: int
 
 
 PrepareResult = Union[ReviewReady, NoCandidate, QuotaExceeded]

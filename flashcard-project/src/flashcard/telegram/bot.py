@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
+from flashcard.app.creation import CreationUseCases
 from flashcard.app.review import ReviewUseCases
 from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
@@ -140,6 +141,13 @@ def build_dispatcher_data(
             user_service=user_service,
             consumption_service=consumption_service,
             llm_service=llm_service,
+        ),
+        "creation_use_cases": CreationUseCases(
+            expression_service=expression_service,
+            user_service=user_service,
+            consumption_service=consumption_service,
+            llm_service=llm_service,
+            language_validator=language_validator,
         ),
     }
 
