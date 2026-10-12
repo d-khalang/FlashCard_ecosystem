@@ -5,7 +5,7 @@ Callers own presentation and delivery: they format the card, send it however
 they deliver messages, then report the delivered message back via mark_sent.
 """
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Literal, Optional, Union, get_args
 
 from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
 from flashcard.schemas.expression import ExpressionCard
@@ -17,13 +17,17 @@ from flashcard.services.llm.llm import LLMService
 from flashcard.services.user import UserService
 
 UserId = Union[str, int]
+Direction = Literal["forward", "reverse"]
+
+MIN_GRADE = 0
+MAX_GRADE = 5
 
 
 @dataclass(frozen=True)
 class ReviewReady:
     expression_id: str
     value: str
-    direction: str
+    direction: Direction
     card: ExpressionCard
     uses_own_key: bool
 
@@ -109,8 +113,16 @@ class ReviewUseCases:
         await self.users.update_user_last_push(user_id)
         await self.consumption.increment(user_id, "cards_generated", uses_own_key=ready.uses_own_key)
 
-    async def grade(self, user_id: UserId, expression_id: str, grade: int, direction: str) -> GradeResult:
-        """Apply a 0-5 grade in the given direction ('forward' or 'reverse')."""
+    async def grade(self, user_id: UserId, expression_id: str, grade: int, direction: Direction) -> GradeResult:
+        """
+        Apply a 0-5 grade in the given direction.
+        Raises ValueError for an out-of-range grade or unknown direction.
+        """
+        if type(grade) is not int or not MIN_GRADE <= grade <= MAX_GRADE:
+            raise ValueError(f"grade must be an integer {MIN_GRADE}-{MAX_GRADE}, got {grade!r}")
+        if direction not in get_args(Direction):
+            raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
+
         updated = await self.expressions.grade_expression(user_id, expression_id, grade, direction)
         return Graded() if updated else CardNotFound()
 

@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from flashcard.app.review import CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases
+from flashcard.app.review import (
+    MAX_GRADE, MIN_GRADE, CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
+)
 from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 
@@ -176,6 +178,29 @@ class TestGrade:
         await use_cases.grade(111, EXPRESSION_ID, 3, "forward")
         users.get_user.assert_not_awaited()
         users.advance_onboarding.assert_not_awaited()
+
+
+    @pytest.mark.parametrize("grade", [MIN_GRADE, MAX_GRADE])
+    async def test_boundary_grades_are_accepted(self, grade):
+        use_cases, *_ = _use_cases()
+
+        assert await use_cases.grade(111, EXPRESSION_ID, grade, "forward") == Graded()
+
+    @pytest.mark.parametrize("grade", [-1, 6, 9, True, 2.5, "3"])
+    async def test_invalid_grade_raises_without_writing(self, grade):
+        use_cases, expressions, *_ = _use_cases()
+
+        with pytest.raises(ValueError, match="grade"):
+            await use_cases.grade(111, EXPRESSION_ID, grade, "forward")
+        expressions.grade_expression.assert_not_awaited()
+
+    @pytest.mark.parametrize("direction", ["fwd", "rev", "sideways", ""])
+    async def test_unknown_direction_raises_without_writing(self, direction):
+        use_cases, expressions, *_ = _use_cases()
+
+        with pytest.raises(ValueError, match="direction"):
+            await use_cases.grade(111, EXPRESSION_ID, 3, direction)
+        expressions.grade_expression.assert_not_awaited()
 
 
 class TestClaimFirstReviewTip:

@@ -37,5 +37,10 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
   `user_id` is `int` in `/get` and `str` in the scheduler (#9); `/get` reloads the
   user, the scheduler reuses it; over quota, `/get` tells the user while the
   scheduler skips silently. Decide deliberately, then unify.
+- **Redundant grade check in `ExpressionService.grade_expression` (#3).** It
+  still checks `0 <= grade <= 5` and returns `None`, which callers cannot tell
+  apart from "card not found". `ReviewUseCases.grade` now validates grade and
+  direction first, so remove the service check (and the `None` overload) when
+  services are cleaned up.
 - **Duplicated startup** in `bot.py`: `init_telegram_bot` and
   `init_telegram_without_fastapi` build the same services twice (#10).

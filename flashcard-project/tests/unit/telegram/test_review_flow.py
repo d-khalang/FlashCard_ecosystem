@@ -275,6 +275,18 @@ class TestGrade:
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.error_missing"), show_alert=True)
         callback.message.edit_text.assert_not_awaited()
 
+    async def test_out_of_range_grade_alerts_invalid_data_and_admin(self):
+        d = _deps()
+        logger_bot = MagicMock()
+        with patch.object(review, "notify_admin_with_trace", new=AsyncMock()) as notify:
+            callback = await _run_grade(d, grade=9, logger_bot=logger_bot)
+
+        callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.invalid_data"), show_alert=True)
+        callback.message.edit_text.assert_not_awaited()
+        d.expression_service.grade_expression.assert_not_awaited()
+        notify.assert_awaited_once()
+        assert notify.await_args.args[0] is logger_bot
+
     async def test_unexpected_error_alerts_user_and_admin(self):
         d = _deps()
         d.expression_service.grade_expression.side_effect = RuntimeError("db down")
