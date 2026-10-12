@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
+from flashcard.app.review import ReviewUseCases
 from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
 from flashcard.telegram.handlers import (
@@ -134,6 +135,12 @@ def build_dispatcher_data(
         "consumption_service": consumption_service,
         "llm_service": llm_service,
         "language_validator": language_validator,
+        "review_use_cases": ReviewUseCases(
+            expression_service=expression_service,
+            user_service=user_service,
+            consumption_service=consumption_service,
+            llm_service=llm_service,
+        ),
     }
 
 
@@ -284,17 +291,19 @@ async def init_telegram_without_fastapi(settings):
     # Run polling in background
     polling_task = asyncio.create_task(
         dp.start_polling(
-            bot, 
+            bot,
             allowed_updates=get_allowed_updates(dp),
-            cols=cols, 
-            http_client=http_client,
-            logger_bot=logger_bot,
-            verb_service=verb_service,
-            expression_service=expression_service,
-            user_service=user_service,
-            consumption_service=consumption_service,
-            llm_service=llm_service,
-            language_validator=language_validator,
+            **build_dispatcher_data(
+                cols=cols,
+                http_client=http_client,
+                logger_bot=logger_bot,
+                verb_service=verb_service,
+                expression_service=expression_service,
+                user_service=user_service,
+                consumption_service=consumption_service,
+                llm_service=llm_service,
+                language_validator=language_validator,
+            ),
         )
     )
     

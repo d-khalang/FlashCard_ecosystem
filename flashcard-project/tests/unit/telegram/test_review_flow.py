@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
+from flashcard.app.review import ReviewUseCases
+from flashcard.schemas.defaults import DEFAULT_LANG_LEVEL
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.i18n import i18n
 from flashcard.telegram.handlers import review
@@ -74,8 +76,9 @@ def _message(sent):
 
 async def _run_get(d):
     message = _message(d.sent)
-    await review.cmd_get(message, expression_service=d.expression_service, llm_service=d.llm_service,
-                         user_service=d.user_service, consumption_service=d.consumption_service)
+    use_cases = ReviewUseCases(expression_service=d.expression_service, user_service=d.user_service,
+                               consumption_service=d.consumption_service, llm_service=d.llm_service)
+    await review.cmd_get(message, review_use_cases=use_cases)
     return message
 
 
@@ -148,7 +151,7 @@ class TestGetCommand:
         d = _deps(user=_user().model_copy(update={"target_level": None}))
         await _run_get(d)
 
-        assert d.llm_service.generate_expression_card.await_args.kwargs["level"] == review.DEFAULT_LANG_LEVEL
+        assert d.llm_service.generate_expression_card.await_args.kwargs["level"] == DEFAULT_LANG_LEVEL
 
 
 # ===================================================================
