@@ -1,5 +1,5 @@
 """
-Review use cases: pick the next card, generate it and record its delivery.
+Review use cases: pick the next card, generate it, record its delivery and grade it.
 
 Callers own presentation and delivery: they format the card, send it however
 they deliver messages, then report the delivered message back via mark_sent.
@@ -40,6 +40,19 @@ class QuotaExceeded:
 
 
 PrepareResult = Union[ReviewReady, NoCandidate, QuotaExceeded]
+
+
+@dataclass(frozen=True)
+class Graded:
+    pass
+
+
+@dataclass(frozen=True)
+class CardNotFound:
+    pass
+
+
+GradeResult = Union[Graded, CardNotFound]
 
 
 class ReviewUseCases:
@@ -95,3 +108,18 @@ class ReviewUseCases:
         await self.expressions.update_expression_sent(ready.expression_id, message_id)
         await self.users.update_user_last_push(user_id)
         await self.consumption.increment(user_id, "cards_generated", uses_own_key=ready.uses_own_key)
+
+    async def grade(self, user_id: UserId, expression_id: str, grade: int, direction: str) -> GradeResult:
+        """Apply a 0-5 grade in the given direction ('forward' or 'reverse')."""
+        updated = await self.expressions.grade_expression(user_id, expression_id, grade, direction)
+        return Graded() if updated else CardNotFound()
+
+    async def claim_first_review_tip(self, user_id: UserId) -> bool:
+        """
+        True exactly once, after the user's first graded review.
+        Advances onboarding atomically, so concurrent grades cannot both claim it.
+        """
+        user = await self.users.get_user(user_id)
+        if user.onboarding_step != 1:
+            return False
+        return await self.users.advance_onboarding(user_id, 1)

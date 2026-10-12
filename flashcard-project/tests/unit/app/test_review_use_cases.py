@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases
+from flashcard.app.review import CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases
 from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 
@@ -24,12 +24,14 @@ def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
     expressions = MagicMock()
     expressions.get_review_candidate = AsyncMock(return_value=candidate)
     expressions.update_expression_sent = AsyncMock()
+    expressions.grade_expression = AsyncMock(return_value={"value": "andare"})
 
     users = MagicMock()
     users.get_user = AsyncMock(return_value=user or _user())
     users.can_generate_card = MagicMock(return_value=can_generate)
     users.card_limit = MagicMock(return_value=card_limit)
     users.update_user_last_push = AsyncMock()
+    users.advance_onboarding = AsyncMock(return_value=True)
 
     consumption = MagicMock()
     consumption.increment = AsyncMock()
@@ -152,3 +154,47 @@ class TestMarkSent:
         expressions.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42)
         users.update_user_last_push.assert_awaited_once_with(111)
         consumption.increment.assert_awaited_once_with(111, "cards_generated", uses_own_key=uses_own_key)
+
+
+class TestGrade:
+
+    async def test_graded_passes_grade_and_direction_through(self):
+        use_cases, expressions, *_ = _use_cases()
+
+        assert await use_cases.grade(111, EXPRESSION_ID, 3, "reverse") == Graded()
+        expressions.grade_expression.assert_awaited_once_with(111, EXPRESSION_ID, 3, "reverse")
+
+    async def test_missing_card_is_reported(self):
+        use_cases, expressions, *_ = _use_cases()
+        expressions.grade_expression.return_value = None
+
+        assert await use_cases.grade(111, EXPRESSION_ID, 3, "forward") == CardNotFound()
+
+    async def test_grade_does_not_touch_onboarding(self):
+        use_cases, _, users, _, _ = _use_cases()
+
+        await use_cases.grade(111, EXPRESSION_ID, 3, "forward")
+        users.get_user.assert_not_awaited()
+        users.advance_onboarding.assert_not_awaited()
+
+
+class TestClaimFirstReviewTip:
+
+    async def test_claimed_at_step_one_and_onboarding_advances(self):
+        use_cases, _, users, _, _ = _use_cases(user=_user(onboarding_step=1))
+
+        assert await use_cases.claim_first_review_tip(111) is True
+        users.advance_onboarding.assert_awaited_once_with(111, 1)
+
+    @pytest.mark.parametrize("step", [0, 2])
+    async def test_not_claimed_at_other_steps(self, step):
+        use_cases, _, users, _, _ = _use_cases(user=_user(onboarding_step=step))
+
+        assert await use_cases.claim_first_review_tip(111) is False
+        users.advance_onboarding.assert_not_awaited()
+
+    async def test_not_claimed_when_a_concurrent_grade_advanced_first(self):
+        use_cases, _, users, _, _ = _use_cases(user=_user(onboarding_step=1))
+        users.advance_onboarding.return_value = False
+
+        assert await use_cases.claim_first_review_tip(111) is False

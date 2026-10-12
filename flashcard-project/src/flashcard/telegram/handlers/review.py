@@ -5,10 +5,8 @@ from aiogram.enums import ChatAction
 
 import asyncio
 
-from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
+from flashcard.app.review import CardNotFound, NoCandidate, QuotaExceeded, ReviewUseCases
 from flashcard.settings import settings
-from flashcard.services.expression import ExpressionService
-from flashcard.services.user import UserService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard
@@ -49,7 +47,7 @@ async def cmd_get(message: Message, review_use_cases: ReviewUseCases):
 
 
 @router.callback_query(GradeCallback.filter())
-async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, expression_service: ExpressionService, user_service: UserService, logger_bot: Bot):
+async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, review_use_cases: ReviewUseCases, logger_bot: Bot):
     """
     Handle grading callbacks: grade:{expression_id}:{grade}:{direction_code}
     direction_code: 'fwd' | 'rev' (optional, defaults to 'fwd' for backward compat)
@@ -63,20 +61,18 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, ex
         
         user_id = callback.from_user.id
         
-        updated_doc = await expression_service.grade_expression(user_id, expression_id, grade, direction)
-        
-        if updated_doc:
-            value = updated_doc.get("value", "Unknown")
-            await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
-            await safe_answer_callback(callback, i18n.get("callbacks.grade.success"))
-            
-            # Onboarding tip: after first review, nudge about Dual Mode
-            user = await user_service.get_user(user_id)
-            if user.onboarding_step == 1:
-                await callback.message.answer(i18n.get("messages.tips.first_review"))
-                await user_service.advance_onboarding(user_id, 1)
-        else:
+        result = await review_use_cases.grade(user_id, expression_id, grade, direction)
+
+        if isinstance(result, CardNotFound):
             await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
+            return
+
+        await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
+        await safe_answer_callback(callback, i18n.get("callbacks.grade.success"))
+
+        # Onboarding tip: after first review, nudge about Dual Mode
+        if await review_use_cases.claim_first_review_tip(user_id):
+            await callback.message.answer(i18n.get("messages.tips.first_review"))
         
     except ValueError:
         #TODO: Have a consistent schema for logging errors to logger bot

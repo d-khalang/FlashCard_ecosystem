@@ -239,8 +239,8 @@ def _callback(text="CARD TEXT"):
 async def _run_grade(d, *, grade=4, direction="fwd", logger_bot=None):
     callback = _callback()
     data = GradeCallback(expression_id=EXPRESSION_ID, grade=grade, direction=direction)
-    await review.handle_grade(callback, data, expression_service=d.expression_service,
-                              user_service=d.user_service, logger_bot=logger_bot or MagicMock())
+    await review.handle_grade(callback, data, review_use_cases=_use_cases(d),
+                              logger_bot=logger_bot or MagicMock())
     return callback
 
 
