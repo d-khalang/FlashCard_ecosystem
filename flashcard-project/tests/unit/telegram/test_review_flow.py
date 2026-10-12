@@ -41,7 +41,7 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
     user_service = MagicMock()
     user_service.get_user = AsyncMock(return_value=user)
     user_service.can_generate_card = MagicMock(return_value=can_generate)
-    user_service._get_effective_limits = MagicMock(return_value={"cards": 10, "stories": 2})
+    user_service.card_limit = MagicMock(return_value=10)
     user_service.update_user_last_push = AsyncMock()
     user_service.advance_onboarding = AsyncMock()
 
@@ -146,6 +146,20 @@ class TestGetCommand:
         d.user_service.can_generate_card.assert_called_once_with(d.user, uses_own_key=True)
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=True)
+
+    async def test_send_failure_propagates_and_records_nothing(self, ui):
+        d = _deps()
+        message = _message(d.sent)
+        message.answer = AsyncMock(side_effect=RuntimeError("telegram down"))
+        use_cases = ReviewUseCases(expression_service=d.expression_service, user_service=d.user_service,
+                                   consumption_service=d.consumption_service, llm_service=d.llm_service)
+
+        with pytest.raises(RuntimeError):
+            await review.cmd_get(message, review_use_cases=use_cases)
+
+        d.expression_service.update_expression_sent.assert_not_awaited()
+        d.user_service.update_user_last_push.assert_not_awaited()
+        d.consumption_service.increment.assert_not_awaited()
 
     async def test_missing_target_level_falls_back_to_default(self, ui):
         d = _deps(user=_user().model_copy(update={"target_level": None}))

@@ -1,0 +1,154 @@
+"""
+Unit tests for ReviewUseCases: the review contract, independent of Telegram.
+"""
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases
+from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
+from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
+
+
+EXPRESSION_ID = "65f000000000000000000001"
+
+
+def _user(**overrides) -> UserDB:
+    fields = {"user_id": "111", "primary_language": "en", "secondary_language": None,
+              "target_level": "B1", "tier": UserTier.normal}
+    fields.update(overrides)
+    return UserDB(**fields)
+
+
+def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
+    expressions = MagicMock()
+    expressions.get_review_candidate = AsyncMock(return_value=candidate)
+    expressions.update_expression_sent = AsyncMock()
+
+    users = MagicMock()
+    users.get_user = AsyncMock(return_value=user or _user())
+    users.can_generate_card = MagicMock(return_value=can_generate)
+    users.card_limit = MagicMock(return_value=card_limit)
+    users.update_user_last_push = AsyncMock()
+
+    consumption = MagicMock()
+    consumption.increment = AsyncMock()
+
+    llm = MagicMock()
+    llm.generate_expression_card = AsyncMock(return_value="CARD")
+
+    use_cases = ReviewUseCases(expression_service=expressions, user_service=users,
+                               consumption_service=consumption, llm_service=llm)
+    return use_cases, expressions, users, consumption, llm
+
+
+def _candidate(direction="forward", **doc):
+    return {"doc": {"_id": EXPRESSION_ID, "value": "andare", **doc}, "direction": direction}
+
+
+class TestPrepareNext:
+
+    async def test_no_candidate_skips_user_lookup_and_generation(self):
+        use_cases, _, users, _, llm = _use_cases(candidate=None)
+
+        assert await use_cases.prepare_next(111) == NoCandidate()
+        users.get_user.assert_not_awaited()
+        llm.generate_expression_card.assert_not_awaited()
+
+    async def test_quota_exceeded_reports_tier_and_card_limit(self):
+        user = _user(tier=UserTier.digi)
+        use_cases, _, users, _, llm = _use_cases(candidate=_candidate(), user=user,
+                                                 can_generate=False, card_limit=40)
+
+        assert await use_cases.prepare_next(111) == QuotaExceeded(tier="digi", limit=40)
+        users.card_limit.assert_called_once_with(user)
+        llm.generate_expression_card.assert_not_awaited()
+
+    async def test_ready_carries_everything_the_caller_needs(self):
+        use_cases, *_ = _use_cases(candidate=_candidate(direction="reverse"))
+
+        assert await use_cases.prepare_next(111) == ReviewReady(
+            expression_id=EXPRESSION_ID, value="andare", direction="reverse",
+            card="CARD", uses_own_key=False)
+
+    async def test_missing_direction_defaults_to_forward(self):
+        use_cases, *_ = _use_cases(candidate={"doc": {"_id": EXPRESSION_ID, "value": "andare"}})
+
+        assert (await use_cases.prepare_next(111)).direction == "forward"
+
+    async def test_object_id_is_returned_as_string(self):
+        from bson import ObjectId
+        use_cases, *_ = _use_cases(candidate={"doc": {"_id": ObjectId(EXPRESSION_ID), "value": "andare"}})
+
+        assert (await use_cases.prepare_next(111)).expression_id == EXPRESSION_ID
+
+    async def test_fetches_user_when_not_given(self):
+        use_cases, _, users, _, _ = _use_cases(candidate=_candidate())
+
+        await use_cases.prepare_next(111)
+        users.get_user.assert_awaited_once_with(111)
+
+    async def test_uses_given_user_without_fetching(self):
+        given = _user(target_level="C1")
+        use_cases, _, users, _, llm = _use_cases(candidate=_candidate())
+
+        await use_cases.prepare_next("111", user=given)
+        users.get_user.assert_not_awaited()
+        assert llm.generate_expression_card.await_args.kwargs["level"] == "C1"
+
+    async def test_own_api_key_is_reported_and_used_for_quota(self):
+        user = _user(api_config=UserAPIConfig(api_key="test"))
+        use_cases, _, users, _, _ = _use_cases(candidate=_candidate(), user=user)
+
+        result = await use_cases.prepare_next(111)
+        assert result.uses_own_key is True
+        users.can_generate_card.assert_called_once_with(user, uses_own_key=True)
+
+    async def test_generation_uses_user_preferences(self):
+        user = _user(primary_language="fa", secondary_language="en", target_level="A2")
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate(), user=user)
+
+        await use_cases.prepare_next(111)
+        llm.generate_expression_card.assert_awaited_once_with(
+            raw="andare", level="A2", lang1_code="fa", lang2_code="en",
+            lang1_label="🇮🇷", lang2_label="🇬🇧")
+
+    async def test_generation_falls_back_to_default_level_and_language(self):
+        user = _user().model_copy(update={"target_level": None, "primary_language": None})
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate(), user=user)
+
+        await use_cases.prepare_next(111)
+        kwargs = llm.generate_expression_card.await_args.kwargs
+        assert kwargs["level"] == DEFAULT_LANG_LEVEL
+        assert kwargs["lang1_code"] == DEFAULT_LANG_1_CODE
+
+    async def test_generation_failure_propagates(self):
+        use_cases, _, _, consumption, llm = _use_cases(candidate=_candidate())
+        llm.generate_expression_card.side_effect = RuntimeError("provider down")
+
+        with pytest.raises(RuntimeError):
+            await use_cases.prepare_next(111)
+        consumption.increment.assert_not_awaited()
+
+    async def test_prepare_writes_nothing(self):
+        use_cases, expressions, users, consumption, _ = _use_cases(candidate=_candidate())
+
+        await use_cases.prepare_next(111)
+        expressions.update_expression_sent.assert_not_awaited()
+        users.update_user_last_push.assert_not_awaited()
+        consumption.increment.assert_not_awaited()
+
+
+class TestMarkSent:
+
+    @pytest.mark.parametrize("uses_own_key", [False, True])
+    async def test_records_message_push_and_usage(self, uses_own_key):
+        use_cases, expressions, users, consumption, _ = _use_cases()
+        ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
+                            card="CARD", uses_own_key=uses_own_key)
+
+        await use_cases.mark_sent(111, ready, 42)
+
+        expressions.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42)
+        users.update_user_last_push.assert_awaited_once_with(111)
+        consumption.increment.assert_awaited_once_with(111, "cards_generated", uses_own_key=uses_own_key)

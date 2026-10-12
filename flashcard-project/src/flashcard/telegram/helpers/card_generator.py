@@ -48,12 +48,11 @@ async def generate_and_render_card(
     # Quota check
     uses_own_key = user.api_config is not None
     if not user_service.can_generate_card(user, uses_own_key=uses_own_key):
-        limits = user_service._get_effective_limits(user)
         quota_msg = i18n.get(
             "messages.errors.quota_exceeded",
             type="card",
             tier=user.tier.value,
-            limit=limits["cards"]
+            limit=user_service.card_limit(user)
         )
         return quota_msg, False, None, user
     

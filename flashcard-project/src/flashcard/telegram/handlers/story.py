@@ -53,12 +53,11 @@ async def cmd_story(message: Message, llm_service: LLMService, expression_servic
     # Quota check
     uses_own_key = user.api_config is not None
     if not user_service.can_generate_story(user, uses_own_key=uses_own_key):
-        limits = user_service._get_effective_limits(user)
         quota_msg = i18n.get(
             "messages.errors.quota_exceeded",
             type="story",
             tier=user.tier.value,
-            limit=limits["stories"]
+            limit=user_service.story_limit(user)
         )
         await message.answer(quota_msg)
         return

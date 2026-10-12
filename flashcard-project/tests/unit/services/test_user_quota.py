@@ -68,6 +68,23 @@ class TestUserServiceQuota:
         assert limits["cards"] == 10
         assert limits["stories"] == 2
 
+    @pytest.mark.parametrize("tier, cards, stories", [
+        (UserTier.admin, 999, 99),
+        (UserTier.digi, 40, 3),
+    ])
+    def test_public_limits_match_tier(self, tier, cards, stories):
+        service, _ = _make_service()
+        user = UserDB(user_id="1", tier=tier)
+        assert service.card_limit(user) == cards
+        assert service.story_limit(user) == stories
+
+    def test_public_limits_follow_trial_expiry(self):
+        service, _ = _make_service()
+        expired = UserDB(user_id="1", tier=UserTier.normal,
+                         created_at=iso_z(now_utc() - timedelta(days=20)))
+        assert service.card_limit(expired) == 10
+        assert service.story_limit(expired) == 2
+
     def test_can_generate_card_admin_always_true(self):
         service, _ = _make_service()
         user = UserDB(user_id="1", tier=UserTier.admin)

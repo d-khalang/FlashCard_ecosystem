@@ -160,6 +160,14 @@ class UserService:
         
         return TIER_LIMITS.get(user.tier, TIER_LIMITS[UserTier.normal])
 
+    def card_limit(self, user: UserDB) -> int:
+        """Daily card generation limit for the user's tier and trial state."""
+        return self._get_effective_limits(user)["cards"]
+
+    def story_limit(self, user: UserDB) -> int:
+        """Daily story generation limit for the user's tier and trial state."""
+        return self._get_effective_limits(user)["stories"]
+
     def _get_today_usage(self, user: UserDB, metric: str) -> int:
         """
         Returns the user's usage for a specific metric today.

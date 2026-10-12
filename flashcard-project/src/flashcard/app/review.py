@@ -72,8 +72,7 @@ class ReviewUseCases:
 
         uses_own_key = user.api_config is not None
         if not self.users.can_generate_card(user, uses_own_key=uses_own_key):
-            limits = self.users._get_effective_limits(user)
-            return QuotaExceeded(tier=user.tier.value, limit=limits["cards"])
+            return QuotaExceeded(tier=user.tier.value, limit=self.users.card_limit(user))
 
         card = await self.llm.generate_expression_card(
             raw=candidate["value"],
