@@ -42,5 +42,16 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
   apart from "card not found". `ReviewUseCases.grade` now validates grade and
   direction first, so remove the service check (and the `None` overload) when
   services are cleaned up.
+- **Creation flow quirks**, pinned by `test_creation_flow.py` and kept for now:
+  - Unclear input (`card.success == False`) calls the LLM but is not counted
+    as usage, so failed generations are free and invisible to quota (#6).
+  - Creation passes user preferences to the LLM without the defaults review
+    uses (`DEFAULT_LANG_LEVEL`, `DEFAULT_LANG_1_CODE`); with no secondary
+    language, creation sends label `None` while review sends 🌍. Unify.
+  - First-save tip has the same race grading had: check `onboarding_step`,
+    send the tip, then advance, so a double tap can show it twice. Use the
+    claim-then-send pattern from `claim_first_review_tip`.
+  - Regenerate failure (quota, unclear input) replaces the card and removes
+    the Save/Regenerate buttons, so the user can neither retry nor save.
 - **Duplicated startup** in `bot.py`: `init_telegram_bot` and
   `init_telegram_without_fastapi` build the same services twice (#10).
