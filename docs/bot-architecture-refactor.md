@@ -34,6 +34,8 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 - [x] `/import` quota: one card generation per import, checked before the LLM call
 - [x] `/list_my_flashcards` and inline remove tests, incl. known quirks
 - [x] `CollectionUseCases.list_items` / `search` / `remove`; both handlers routed through it
+- [x] List/remove fixes: no item repeated at message splits; a stale message after
+  confirm still reports removed/missing; unreachable unknown-action branch removed
 - [ ] Settings, story, verb use cases
 
 ## Deferred issues (do not forget)
@@ -78,16 +80,6 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 - **Onboarding is spread across use cases.** `claim_first_review_tip` and
   `claim_first_save_tip` are the same pattern on different steps. Move them
   into one onboarding concept when a third tip appears or with #3.
-- **List and remove quirks**, pinned by `test_list_flow.py` / `test_remove_flow.py`:
-  - A long deck is split into several messages, and the item at each split is
-    sent twice (`format_expression_list` starts the new chunk with the line,
-    then appends it again). One-line fix.
-  - If Telegram rejects clearing the buttons after a successful delete, the
-    user is told the action is stale although the card is gone.
-  - Flag parsing accepts any word starting with `-` that contains `p` or `t`
-    (e.g. `-xyzt`).
-  - The "unknown action" branch in `inline_remove.py` is unreachable:
-    `InlineRemoveCallback.action` is a `Literal`, so bad data fails to unpack.
 - **Expression queries disagree (#3, #8).** `get_all_expressions` ignores
   `status`, while search and remove only touch `status: "active"`; its `-t`
   path uses `find` (keeps duplicates), the default uses `distinct`. `/story`

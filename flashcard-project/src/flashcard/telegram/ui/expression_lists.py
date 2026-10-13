@@ -51,8 +51,8 @@ def format_expression_list(expressions: List[str], plain: bool = False, sort_alp
         # Check limit
         if len(current_chunk) + len(line) > 4000:
             messages.append(current_chunk)
-            current_chunk = line
-        
+            current_chunk = ""
+
         current_chunk += line
     
     if footer:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import suppress
+
 from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
@@ -137,7 +139,10 @@ async def handle_inline_remove_callback(
 
         if callback_data.action == "confirm":
             result = await collection_use_cases.remove(callback.from_user.id, expression_id)
-            await _edit_inline_reply_markup(callback, reply_markup=None)
+            # The removal already happened; clearing the buttons is cosmetic, so a stale
+            # message must not turn the answer into "invalid".
+            with suppress(TelegramBadRequest):
+                await _edit_inline_reply_markup(callback, reply_markup=None)
 
             if isinstance(result, Removed):
                 await safe_answer_callback(
@@ -151,13 +156,6 @@ async def handle_inline_remove_callback(
                     show_alert=True,
                 )
             return
-
-        logger.warning(f"Unknown inline remove callback action received: {callback_data.action}")
-        await safe_answer_callback(
-            callback,
-            i18n.get("callbacks.inline_remove.invalid"),
-            show_alert=True,
-        )
     except TelegramBadRequest as exc:
         logger.warning(f"TelegramBadRequest while handling inline remove callback: {exc}")
         await safe_call(

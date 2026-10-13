@@ -51,6 +51,13 @@ def _callback(*, inline=True):
     return callback
 
 
+def _stale_callback():
+    callback = _callback()
+    callback.bot.edit_message_reply_markup = AsyncMock(
+        side_effect=TelegramBadRequest(method=MagicMock(), message="message to edit not found"))
+    return callback
+
+
 async def _press(d, action, callback=None, expression_id=EXPRESSION_ID):
     callback = callback or _callback()
     data = InlineRemoveCallback(action=action, expression_id=expression_id)
@@ -168,14 +175,23 @@ class TestRemoveErrors:
 
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.inline_remove.error"), show_alert=True)
 
-    async def test_known_quirk_stale_message_after_delete_reports_invalid(self):
-        # The card is deleted before the buttons are cleared; if Telegram rejects the edit,
-        # the user is told the action is stale although the removal succeeded.
-        d = _deps(removed=True)
-        callback = _callback()
-        callback.bot.edit_message_reply_markup = AsyncMock(
-            side_effect=TelegramBadRequest(method=MagicMock(), message="message is not modified"))
+    @pytest.mark.parametrize("removed, text_key, show_alert", [
+        (True, "callbacks.inline_remove.removed", False),
+        (False, "callbacks.inline_remove.missing", True),
+    ])
+    async def test_stale_message_after_confirm_still_reports_the_removal(self, removed, text_key, show_alert):
+        # Clearing the buttons is cosmetic; the answer reflects what happened to the card.
+        d = _deps(removed=removed)
+        callback = _stale_callback()
         await _press(d, "confirm", callback=callback)
 
         d.expression_service.remove_expression.assert_awaited_once()
+        callback.answer.assert_awaited_once_with(i18n.get(text_key), show_alert=show_alert)
+
+    async def test_stale_message_on_prompt_reports_invalid(self):
+        d = _deps()
+        callback = _stale_callback()
+        await _press(d, "prompt", callback=callback)
+
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.inline_remove.invalid"), show_alert=True)
+        d.expression_service.remove_expression.assert_not_awaited()

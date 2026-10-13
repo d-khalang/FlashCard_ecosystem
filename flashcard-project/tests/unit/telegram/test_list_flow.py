@@ -96,15 +96,19 @@ class TestListFormat:
         assert len(sent) == 3
         assert all(len(chunk) <= 4096 for chunk in sent)
 
-    async def test_known_quirk_item_at_each_split_is_sent_twice(self):
-        # format_expression_list starts the next chunk with the line and then appends it again.
-        values = [f"parola{i:04d} " + "x" * 40 for i in range(200)]
-        message = await _run(_deps(values))
+    @pytest.mark.parametrize("flags", ["", " -p", " -t", " -pt"])
+    @pytest.mark.parametrize("count, width", [(200, 40), (1000, 5), (90, 120)])
+    async def test_every_item_is_sent_exactly_once_across_splits(self, flags, count, width):
+        # Varied first letters, so letter headings also fall on chunk boundaries.
+        values = [f"{'abcdefghij'[i % 10]}parola{i:04d} " + "x" * width for i in range(count)]
+        message = await _run(_deps(values), text="/list_my_flashcards" + flags)
 
         sent = _sent(message)
-        first_of_second = sent[1].splitlines()[0]
-        assert sent[1].count(first_of_second) == 2
-        assert sum(chunk.count("parola") for chunk in sent) == 200 + (len(sent) - 1)
+        assert len(sent) > 1
+        assert all(len(chunk) <= 4096 for chunk in sent)
+        sent_lines = [line for chunk in sent for line in chunk.splitlines() if "parola" in line]
+        expected = values if "t" in flags else sorted(values, key=str.lower)
+        assert sent_lines == expected
 
 
 class TestListArguments:
