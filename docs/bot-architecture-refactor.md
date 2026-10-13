@@ -61,13 +61,12 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 - **Usage counting differs between flows (#6).** `/import` counts every
   answered LLM call (one card generation per import); creation counts only
   successful cards. Pick one rule when quota becomes its own concept.
-- **"Own API key" is never used for LLM calls (#6).** `user.api_config` only
+- **"Own API key" is never used for LLM calls (#6).** Pending feature; gets
+  its own module after the refactor is finished. `user.api_config` only
   switches quota to `uses_own_key=True` (unlimited, counted under `user_api`);
   `LLMService` always calls with the system keys. Users with `api_config` get
   unlimited system-key usage. The quota message advertises own keys in
   /settings, but that section only says "reach out to admin (Feature pending)".
-- **Broken characters in `it.json`.** About 10 strings are double-encoded
-  UTF-8 (e.g. `giÃ `, `piÃ¹`, broken emoji).
 - **Italian locale has no `/import` texts.** `it.json` lacks every
   `commands.import.*` key (including the new `too_long`), so Italian users get
   them in English via fallback.
