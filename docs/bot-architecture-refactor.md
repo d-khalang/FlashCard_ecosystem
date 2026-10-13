@@ -67,9 +67,13 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
   `LLMService` always calls with the system keys. Users with `api_config` get
   unlimited system-key usage. The quota message advertises own keys in
   /settings, but that section only says "reach out to admin (Feature pending)".
-- **Italian locale has no `/import` texts.** `it.json` lacks every
-  `commands.import.*` key (including the new `too_long`), so Italian users get
-  them in English via fallback.
+- **Unused locale keys.** 9 keys exist in both locales but no code uses them
+  (e.g. `callbacks.regen.failed`, `commands.settings.mode_dual`,
+  `messages.buttons.verb_web_table`). Remove or wire up during the settings,
+  story and verb steps.
+- **i18n returns the raw key when the UI locale lacks it.** There is no
+  fallback to English. `test_locales.py` now keeps locales in sync, but a
+  real fallback would be safer (#7, with the i18n singleton).
 - **Onboarding is spread across use cases.** `claim_first_review_tip` and
   `claim_first_save_tip` are the same pattern on different steps. Move them
   into one onboarding concept when a third tip appears or with #3.

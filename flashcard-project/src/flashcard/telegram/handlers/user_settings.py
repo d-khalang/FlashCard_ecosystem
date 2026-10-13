@@ -158,7 +158,8 @@ async def answer_setting_prompt(message: Message, state: FSMContext, user_servic
         # Determine setting type
         is_primary = current_state == SettingsPrompts.waiting_primary_lang.state
         setting_key = "primary_language" if is_primary else "secondary_language"
-        type_label = "Primary" if is_primary else "Secondary"
+        type_label = i18n.get(
+            "commands.settings.prompts.primary_label" if is_primary else "commands.settings.prompts.secondary_label")
 
         # Validate Input
         lang_code = normalize_language_input(input_text, none_allowed=not is_primary)

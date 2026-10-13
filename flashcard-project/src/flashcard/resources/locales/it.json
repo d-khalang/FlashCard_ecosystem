@@ -32,13 +32,16 @@
         }
     },
     "commands": {
+        "unknown": {
+            "message": "Scusa, non ho capito questo comando. Prova /help per vedere i comandi disponibili."
+        },
         "start": {
             "welcome": "👋 Benvenuto! Sono il tuo bot per imparare {language}. Ecco come funziona:\n\n✍️ Inviami qualsiasi parola o espressione in {language} che vuoi imparare.\n🤖 Risponderò con traduzione + spiegazione.\n💾 Vedrai due pulsanti:\nSalva → aggiungi la carta alla tua lista di studio.\nRigenera → rigenera la spiegazione se ne vuoi un'altra versione.\n📅 Le carte salvate ti verranno inviate automaticamente per il ripasso.\n\n⚠️ Nota: non riceverai nuove FlashCard se non valuti quella precedente o ne salvi una nuova.\n\n🎥 Guarda come funziona: https://t.me/kartino_official/7\n\n✨ È tutto — inizia a inviare parole!"
         },
         "help": {
-            "message": "messaggio di aiuto{conjugation_help}",
-            "conjugation_line": "\n\n/verb andare - coniugazioni dei verbi",
-            "reply": "risposta di aiuto"
+            "message": "<b>📖 Cosa posso fare?</b>\n\n✏️ <b>Impara una parola</b> — Inviami una parola o espressione in {language} e te la spiego con una carta nuova creata dall'IA.\n\n📅 /get — <b>Ripassa</b> una carta salvata (oppure aspetta — te le invio io in automatico!)\n\n📦 /import — <b>Aggiungi in blocco</b> una lista di parole.\n\n🗑 /remove — <b>Rimuovi</b> una carta salvata tramite la ricerca inline.{conjugation_help}\n\n📖 /story — Scrivo una breve <b>storia</b> con le tue parole salvate.\n\n📇 /list_my_flashcards — Sfoglia <b>tutto il mazzo</b>.\n\n⚙️ /settings — <b>Rendi Kartino tuo!</b> Imposta lingua, livello, ritmo dei ripassi e altro.\n\n💬 /feedback — Dimmi cosa ne pensi!",
+            "conjugation_line": "\n\n🔄 /verb <i>andare</i> — Cerca subito le <b>coniugazioni dei verbi</b>.",
+            "reply": "💡 <b>Per iniziare:</b> scrivi qui una parola in {language} e partiamo!"
         },
         "get": {
             "no_memory": "Scusa ma non hai nessuna memoria (◡︵◡)\n(O tutte le carte sono state riviste di recente!)",
@@ -52,17 +55,19 @@
         "verb": {
             "instruction": "✋ Piccolo consiglio!\n\nPer ottenere la coniugazione di un verbo, scrivi:\n/verb &lt;il verbo desiderato&gt;\n\nPer esempio:\n/verb andare\n\n🎥 Guarda la video guida: https://t.me/kartino_official/9",
             "invalid": "Formato verbo non valido. Sono ammessi solo verbi validi in {language}.",
-            "not_found": "Dati del verbo non trovati.",
+            "api_error": "☹️ Purtroppo non sono riuscito a coniugarlo.\nRiprova più tardi o prova un altro verbo.",
             "searching": "Cercando il verbo: {verb}..."
         },
         "import": {
-             "help": "Aiuto"
+            "usage_guide": "Hai una lista? Aggiungiamole tutte! 📦\n\nScrivi `/import` seguito dalle tue parole (su righe nuove o separate da virgole):\n\nEsempio:\n/import\nandare a casa\nfare colazione",
+            "too_long": "Questa lista è un po' troppo lunga! ✂️ Invia al massimo {limit} caratteri per ogni /import.",
+            "import_failed": "Hmm, mi sono un po' confuso: {log_msg} 🤔",
+            "no_items_found": "Non ho trovato nessuna parola in {language}! 🕵️‍♂️ Controlla l'ortografia?",
+            "success": "Evviva! 🎉 Ho salvato {count} nuove carte:\n{items_str}",
+            "all_duplicates": "Sembra che tu le conosca già! 😉 Nessuna nuova carta aggiunta."
         },
-        "feedback": {
-            "prompt": "Scrivi il tuo feedback/messaggio (o scrivi /cancel per annullare):",
-            "placeholder": "Scrivi il tuo messaggio qui...",
-            "success": "Messaggio inviato! Grazie per il tuo feedback.",
-            "cancelled": "Feedback annullato."
+        "remove": {
+            "guide": "<b>Vuoi rimuovere una flashcard?</b>\n\n1. In qualsiasi chat, scrivi <code>{inline_name}</code> seguito dalla parola che vuoi rimuovere.\n2. Scegli la flashcard tra i risultati inline.\n3. Tocca <b>Rimuovi</b>, poi toccalo ancora una volta per confermare.\n\nEsempio:\n<code>{inline_name} errare</code>\n\nhttps://t.me/kartino_official/5"
         },
         "settings": {
             "closed": "Impostazioni chiuse.",
@@ -78,7 +83,41 @@
                 "secondary_lang": "Lingua secondaria: <b>{secondary_lang}</b>",
                 "target_level": "Livello target: <b>{target_level}</b>",
                 "review_interval": "Intervallo di revisione: <b>{review_interval_minutes} minuti</b>"
+            },
+            "status_active": "Attivo ✅",
+            "status_paused": "In pausa ⏸",
+            "status_info": "Stato attuale: {status}",
+            "menu_options": {
+                "language": "🌍 Lingua e livello",
+                "interval": "🔔 Intervallo di ripasso",
+                "api": "🔑 Configurazione API"
+            },
+            "sections": {
+                "language": "Seleziona l'impostazione da modificare:",
+                "interval": "Scegli ogni quanti minuti vuoi ricevere le FlashCard di ripasso:",
+                "api": "Per configurare la tua chiave API, contatta l'amministratore (funzione in arrivo)."
+            },
+            "prompts": {
+                "primary_lang": "In quale lingua devo tradurre? (ad es. English) 🌍",
+                "secondary_lang": "Vuoi una lingua secondaria? (ad es. la tua lingua madre, oppure 'none') 🗣️",
+                "invalid_lang": "Hmm, non l'ho riconosciuta. 🤔 Prova con il nome o il codice della lingua, ad es. English, DE, Farsi.",
+                "success_lang": "Fatto! Lingua {type} impostata su <b>{lang}</b> {flag}.",
+                "level_select": "Qual è il tuo livello attuale di {language}? 📈",
+                "primary_label": "principale",
+                "secondary_label": "secondaria"
+            },
+            "buttons": {
+                "set_primary": "Lingua principale",
+                "set_secondary": "Lingua secondaria",
+                "set_level": "Il tuo livello di {language}",
+                "back": "⬅️ Indietro"
             }
+        },
+        "feedback": {
+            "prompt": "Scrivi il tuo feedback/messaggio (o scrivi /cancel per annullare):",
+            "placeholder": "Scrivi il tuo messaggio qui...",
+            "success": "Messaggio inviato! Grazie per il tuo feedback.",
+            "cancelled": "Feedback annullato."
         }
     },
     "messages": {
@@ -103,7 +142,6 @@
             "inline_remove": "Rimuovi",
             "inline_remove_cancel": "Tieni con me",
             "inline_remove_confirm": "Rimuovi",
-            "help": "Aiuto",
             "pause_learning": "⏸ Pausa Apprendimento",
             "resume_learning": "▶ Riprendi Apprendimento",
             "close_settings": "❌ Chiudi Impostazioni",
@@ -112,8 +150,12 @@
             "grade_5": "5 - Conosciuto come la famiglia"
         },
         "tips": {
-            "first_save": "💡 <b>Consiglio:</b> Vai su /settings per impostare la lingua di traduzione e il ritmo delle revisioni — rendi Kartino davvero tuo!",
+            "first_save": "💡 <b>Consiglio:</b> Vai su /settings per impostare la lingua di traduzione, il tuo livello di {language} e il ritmo dei ripassi!",
             "first_review": "💡 <b>Lo sapevi?</b> Prova la <b>Modalità Doppia</b> in /settings — ti interroga in entrambe le direzioni per un apprendimento più profondo! 🔄"
+        },
+        "notifications": {
+            "resumed": "Bentornato! 🌱 Ricomincerò a inviarti le carte di ripasso.",
+            "paused": "Ci prendiamo una pausa, nessun problema! 😴 Non ti invierò ripassi finché non sarai pronto."
         }
     }
 }
