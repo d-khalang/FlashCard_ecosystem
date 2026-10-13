@@ -1,13 +1,16 @@
 """
-Unit tests for CollectionUseCases.import_items: the import contract, independent of Telegram.
+Unit tests for CollectionUseCases: import, list, search and remove, independent of Telegram.
 """
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from bson import ObjectId
+
 from flashcard.app.collection import (
-    MAX_IMPORT_CHARS, AllDuplicates, CollectionUseCases, Imported, InvalidLanguage, NothingFound,
-    ParseFailed, TooLong,
+    MAX_IMPORT_CHARS, MAX_SEARCH_CHARS, MAX_SEARCH_RESULTS, AllDuplicates, CollectionUseCases, Imported,
+    InvalidLanguage, Matches, NotFound, NothingFound, ParseFailed, QueryTooLong, QueryTooShort, Removed,
+    SavedItem, TooLong,
 )
 from flashcard.app.quota import QuotaExceeded
 from flashcard.schemas.import_model import ImportResponse
@@ -200,3 +203,79 @@ class TestImportQuota:
         await use_cases.import_items(333, text)
         users.get_user.assert_not_awaited()
         consumption.increment.assert_not_awaited()
+
+
+def _saved(*, values=None, found=None, removed=True):
+    expressions = MagicMock()
+    expressions.get_all_expressions = AsyncMock(return_value=list(values or []))
+    expressions.search_expressions = AsyncMock(return_value=list(found or []))
+    expressions.remove_expression = AsyncMock(return_value=removed)
+    use_cases = CollectionUseCases(expression_service=expressions, user_service=MagicMock(),
+                                   consumption_service=MagicMock(), llm_service=MagicMock())
+    return use_cases, expressions
+
+
+class TestListItems:
+
+    async def test_alphabetical_ignores_case(self):
+        use_cases, expressions = _saved(values=["fare", "Andare", "bere"])
+
+        assert await use_cases.list_items(333) == ["Andare", "bere", "fare"]
+        expressions.get_all_expressions.assert_awaited_once_with(333, sort_by_time=False)
+
+    async def test_created_keeps_storage_order(self):
+        use_cases, expressions = _saved(values=["fare", "Andare", "bere"])
+
+        assert await use_cases.list_items(333, order="created") == ["fare", "Andare", "bere"]
+        expressions.get_all_expressions.assert_awaited_once_with(333, sort_by_time=True)
+
+    async def test_unknown_order_is_rejected(self):
+        use_cases, expressions = _saved()
+
+        with pytest.raises(ValueError):
+            await use_cases.list_items(333, order="newest")
+        expressions.get_all_expressions.assert_not_awaited()
+
+
+class TestSearch:
+
+    @pytest.mark.parametrize("query", ["", "a", "  a  "])
+    async def test_short_query_does_not_search(self, query):
+        use_cases, expressions = _saved()
+
+        assert await use_cases.search(333, query) == QueryTooShort()
+        expressions.search_expressions.assert_not_awaited()
+
+    async def test_long_query_does_not_search(self):
+        use_cases, expressions = _saved()
+
+        assert await use_cases.search(333, "a" * (MAX_SEARCH_CHARS + 1)) == QueryTooLong()
+        expressions.search_expressions.assert_not_awaited()
+
+    async def test_query_at_the_limit_is_searched(self):
+        use_cases, expressions = _saved()
+
+        assert await use_cases.search(333, "a" * MAX_SEARCH_CHARS) == Matches(items=[])
+        expressions.search_expressions.assert_awaited_once()
+
+    async def test_matches_are_typed_and_malformed_ones_skipped(self):
+        good = ObjectId()
+        use_cases, expressions = _saved(found=[{"value": "no id"}, {"_id": ObjectId(), "value": ""},
+                                               {"_id": good, "value": "casa"}])
+
+        assert await use_cases.search(333, " cas ") == Matches(items=[SavedItem(id=str(good), value="casa")])
+        expressions.search_expressions.assert_awaited_once_with(333, "cas", limit=MAX_SEARCH_RESULTS)
+
+
+class TestRemove:
+
+    async def test_removed(self):
+        use_cases, expressions = _saved(removed=True)
+
+        assert await use_cases.remove(333, "abc") == Removed()
+        expressions.remove_expression.assert_awaited_once_with(333, "abc")
+
+    async def test_not_found(self):
+        use_cases, _ = _saved(removed=False)
+
+        assert await use_cases.remove(333, "abc") == NotFound()

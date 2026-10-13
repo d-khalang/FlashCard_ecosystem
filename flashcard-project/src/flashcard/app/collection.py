@@ -1,11 +1,11 @@
 """
-Collection use cases: import expressions in bulk.
+Collection use cases: import expressions in bulk, list, search and remove saved ones.
 
 Callers own presentation and command parsing: they extract the text to import
 and turn results into messages.
 """
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Literal, Optional, Union, get_args
 
 from flashcard.app.quota import QuotaExceeded
 from flashcard.app.types import UserId
@@ -14,9 +14,18 @@ from flashcard.services.expression import ExpressionService
 from flashcard.services.language_validation import LanguageValidityChecker
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.user import UserService
+from flashcard.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Bounds LLM cost per import; roughly 50-100 short expressions.
 MAX_IMPORT_CHARS = 1000
+
+MIN_SEARCH_CHARS = 2
+MAX_SEARCH_CHARS = 150
+MAX_SEARCH_RESULTS = 50
+
+ListOrder = Literal["alphabetical", "created"]
 
 
 @dataclass(frozen=True)
@@ -54,6 +63,44 @@ class TooLong:
 
 
 ImportResult = Union[Imported, AllDuplicates, ParseFailed, NothingFound, InvalidLanguage, TooLong, QuotaExceeded]
+
+
+@dataclass(frozen=True)
+class SavedItem:
+    id: str
+    value: str
+
+
+@dataclass(frozen=True)
+class Matches:
+    items: list[SavedItem]
+
+
+@dataclass(frozen=True)
+class QueryTooShort:
+    pass
+
+
+@dataclass(frozen=True)
+class QueryTooLong:
+    pass
+
+
+SearchResult = Union[Matches, QueryTooShort, QueryTooLong]
+
+
+@dataclass(frozen=True)
+class Removed:
+    pass
+
+
+@dataclass(frozen=True)
+class NotFound:
+    """No active card with this id belongs to the user (also for malformed ids)."""
+    pass
+
+
+RemoveResult = Union[Removed, NotFound]
 
 
 class CollectionUseCases:
@@ -103,3 +150,33 @@ class CollectionUseCases:
 
         inserted = await self.expressions.add_expressions_bulk(user_id, items)
         return Imported(items=list(inserted)) if inserted else AllDuplicates()
+
+    async def list_items(self, user_id: UserId, order: ListOrder = "alphabetical") -> list[str]:
+        """All saved values: alphabetical (case-insensitive) or oldest first."""
+        if order not in get_args(ListOrder):
+            raise ValueError(f"Unknown list order: {order!r}")
+        values = await self.expressions.get_all_expressions(user_id, sort_by_time=order == "created")
+        return sorted(values, key=str.lower) if order == "alphabetical" else list(values)
+
+    async def search(self, user_id: UserId, query: str) -> SearchResult:
+        """Saved cards whose value contains the query, case-insensitively."""
+        query = query.strip()
+        if len(query) < MIN_SEARCH_CHARS:
+            return QueryTooShort()
+        if len(query) > MAX_SEARCH_CHARS:
+            logger.warning("Skipping search for user %s: query exceeds %s characters.", user_id, MAX_SEARCH_CHARS)
+            return QueryTooLong()
+
+        docs = await self.expressions.search_expressions(user_id, query, limit=MAX_SEARCH_RESULTS)
+        items = []
+        for doc in docs:
+            expression_id, value = str(doc.get("_id", "")), doc.get("value")
+            if not expression_id or not value:
+                logger.warning(f"Skipping malformed expression in search results: {doc}")
+                continue
+            items.append(SavedItem(id=expression_id, value=value))
+        return Matches(items=items)
+
+    async def remove(self, user_id: UserId, expression_id: str) -> RemoveResult:
+        removed = await self.expressions.remove_expression(user_id, expression_id)
+        return Removed() if removed else NotFound()

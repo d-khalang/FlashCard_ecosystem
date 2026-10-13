@@ -7,7 +7,6 @@ from flashcard.app.collection import (
     AllDuplicates, CollectionUseCases, Imported, InvalidLanguage, NothingFound, ParseFailed, TooLong,
 )
 from flashcard.app.quota import QuotaExceeded
-from flashcard.services.expression import ExpressionService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression_lists import format_expression_list
 from flashcard.utils.logger import get_logger
@@ -56,34 +55,17 @@ async def cmd_import(message: Message, command: CommandObject, collection_use_ca
 
 @router.message(Command("list_my_flashcards"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_list_my_flashcards(message: Message, expression_service: ExpressionService):
-    msg_text = message.text or ""
-    # Parse arguments
-    # Supports -p, -t, or -pt, -tp, or -p -t etc.
-    args = msg_text.split()
-    
-    plain = False
-    sort_by_time = False
-    
-    for arg in args[1:]: # Skip command itself
+async def cmd_list_my_flashcards(message: Message, collection_use_cases: CollectionUseCases):
+    # Flags: -p plain list, -t creation order; combinable as -pt, -tp or -p -t.
+    plain = sort_by_time = False
+    for arg in (message.text or "").split()[1:]:
         if arg.startswith("-"):
-            if "p" in arg:
-                plain = True
-            if "t" in arg:
-                sort_by_time = True
-    
-    # Logic:
-    # -t -> sort_by_time=True in service
-    # -p -> plain=True in UI
-    # -t also means sort_alphabetical=False in UI (implied by getting time-sorted list from DB)
-    
-    expressions = await expression_service.get_all_expressions(message.from_user.id, sort_by_time=sort_by_time)
-    
-    # If sorted by time, we disable UI alphabetical sort to preserve DB order
-    sort_alphabetical = not sort_by_time
-    
-    messages = format_expression_list(expressions, plain=plain, sort_alphabetical=sort_alphabetical)
-    
-    for msg in messages:
-        await message.answer(msg)
+            plain = plain or "p" in arg
+            sort_by_time = sort_by_time or "t" in arg
 
+    order = "created" if sort_by_time else "alphabetical"
+    values = await collection_use_cases.list_items(message.from_user.id, order=order)
+
+    # Letter headings only make sense for an alphabetical list.
+    for msg in format_expression_list(values, plain=plain, sort_alphabetical=order == "alphabetical"):
+        await message.answer(msg)

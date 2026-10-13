@@ -11,7 +11,7 @@ from aiogram.types import (
     InputTextMessageContent,
 )
 
-from flashcard.services.expression import ExpressionService
+from flashcard.app.collection import CollectionUseCases, Matches, QueryTooShort, Removed
 from flashcard.services.i18n import i18n
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback, safe_call
 from flashcard.telegram.ui.factories.inline_remove_callback import InlineRemoveCallback
@@ -19,10 +19,6 @@ from flashcard.utils.logger import get_logger
 
 logger = get_logger(__name__)
 router = Router()
-
-_MIN_INLINE_QUERY_LENGTH = 2
-_MAX_INLINE_QUERY_LENGTH = 150
-_INLINE_RESULT_LIMIT = 50
 
 
 def _build_initial_remove_markup(expression_id: str) -> InlineKeyboardMarkup:
@@ -86,46 +82,24 @@ async def _edit_inline_reply_markup(
 @router.inline_query()
 async def handle_inline_remove_query(
     inline_query: InlineQuery,
-    expression_service: ExpressionService,
+    collection_use_cases: CollectionUseCases,
 ):
-    query = (inline_query.query or "").strip()
-    if len(query) < _MIN_INLINE_QUERY_LENGTH:
-        await inline_query.answer(results=[], cache_time=1, is_personal=True)
-        return
-    if len(query) > _MAX_INLINE_QUERY_LENGTH:
-        logger.warning(
-            "Skipping inline remove query for user %s because it exceeds %s characters.",
-            inline_query.from_user.id,
-            _MAX_INLINE_QUERY_LENGTH,
-        )
-        await inline_query.answer(results=[], cache_time=2, is_personal=True)
+    result = await collection_use_cases.search(inline_query.from_user.id, inline_query.query or "")
+    if not isinstance(result, Matches):
+        cache_time = 1 if isinstance(result, QueryTooShort) else 2
+        await inline_query.answer(results=[], cache_time=cache_time, is_personal=True)
         return
 
-    expressions = await expression_service.search_expressions(
-        inline_query.from_user.id,
-        query,
-        limit=_INLINE_RESULT_LIMIT,
-    )
-
-    results: list[InlineQueryResultArticle] = []
-    for expression in expressions:
-        expression_id = str(expression.get("_id", ""))
-        value = expression.get("value")
-
-        if not expression_id or not value:
-            logger.warning(f"Skipping malformed inline remove expression: {expression}")
-            continue
-
-        results.append(
-            InlineQueryResultArticle(
-                id=expression_id,
-                title=value,
-                description=i18n.get("callbacks.inline_remove.result_description"),
-                input_message_content=InputTextMessageContent(message_text=value),
-                reply_markup=_build_initial_remove_markup(expression_id),
-            )
+    results = [
+        InlineQueryResultArticle(
+            id=item.id,
+            title=item.value,
+            description=i18n.get("callbacks.inline_remove.result_description"),
+            input_message_content=InputTextMessageContent(message_text=item.value),
+            reply_markup=_build_initial_remove_markup(item.id),
         )
-
+        for item in result.items
+    ]
     await inline_query.answer(results=results, cache_time=2, is_personal=True)
 
 
@@ -133,7 +107,7 @@ async def handle_inline_remove_query(
 async def handle_inline_remove_callback(
     callback: CallbackQuery,
     callback_data: InlineRemoveCallback,
-    expression_service: ExpressionService,
+    collection_use_cases: CollectionUseCases,
 ):
     expression_id = callback_data.expression_id
 
@@ -162,13 +136,10 @@ async def handle_inline_remove_callback(
             return
 
         if callback_data.action == "confirm":
-            removed = await expression_service.remove_expression(
-                callback.from_user.id,
-                expression_id,
-            )
+            result = await collection_use_cases.remove(callback.from_user.id, expression_id)
             await _edit_inline_reply_markup(callback, reply_markup=None)
 
-            if removed:
+            if isinstance(result, Removed):
                 await safe_answer_callback(
                     callback,
                     i18n.get("callbacks.inline_remove.removed"),
