@@ -21,40 +21,41 @@ def _use_cases(data=DATA):
     return VerbUseCases(verb_service=verbs, consumption_service=consumption), verbs, consumption
 
 
+class TestParse:
+
+    def test_valid_verb_is_returned_stripped(self):
+        use_cases, _, _ = _use_cases()
+
+        assert use_cases.parse(" parlare ") == "parlare"
+
+    @pytest.mark.parametrize("text", [None, "", "   "])
+    def test_no_verb(self, text):
+        use_cases, _, _ = _use_cases()
+
+        assert use_cases.parse(text) == NoVerb()
+
+    @pytest.mark.parametrize("text", ["andare a casa", "parl4re", "<b>"])
+    def test_invalid_verb(self, text):
+        use_cases, _, _ = _use_cases()
+
+        assert use_cases.parse(text) == InvalidVerb(verb=text)
+
+
 class TestLookup:
 
     async def test_found_is_counted(self):
         use_cases, verbs, consumption = _use_cases()
 
-        assert await use_cases.lookup(999, " parlare ") == Found(data=DATA)
+        assert await use_cases.lookup(999, "parlare") == Found(data=DATA)
         verbs.get_verb_data.assert_awaited_once_with("parlare")
         consumption.increment.assert_awaited_once_with(999, "verb_lookups")
 
-    async def test_searching_is_announced_before_the_lookup(self):
-        use_cases, verbs, _ = _use_cases()
-        calls = []
-
-        async def on_searching(verb):
-            calls.append((verb, verbs.get_verb_data.await_count))
-
-        await use_cases.lookup(999, "parlare", on_searching=on_searching)
-
-        assert calls == [("parlare", 0)]
-
-    @pytest.mark.parametrize("text", [None, "", "   "])
-    async def test_no_verb(self, text):
+    @pytest.mark.parametrize("verb", ["", " parlare ", "andare a casa", "parl4re"])
+    async def test_unparsed_input_is_rejected_without_lookup(self, verb):
         use_cases, verbs, _ = _use_cases()
 
-        assert await use_cases.lookup(999, text) == NoVerb()
-        verbs.get_verb_data.assert_not_awaited()
-
-    @pytest.mark.parametrize("text", ["andare a casa", "parl4re", "<b>"])
-    async def test_invalid_verb_is_not_looked_up_or_announced(self, text):
-        use_cases, verbs, _ = _use_cases()
-        on_searching = AsyncMock()
-
-        assert await use_cases.lookup(999, text, on_searching=on_searching) == InvalidVerb(verb=text)
-        on_searching.assert_not_awaited()
+        with pytest.raises(ValueError):
+            await use_cases.lookup(999, verb)
         verbs.get_verb_data.assert_not_awaited()
 
     async def test_not_found_is_not_counted(self):

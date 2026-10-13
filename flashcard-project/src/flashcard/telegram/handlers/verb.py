@@ -1,5 +1,3 @@
-from typing import Optional
-
 from aiogram import F, Router, Bot, flags
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, CallbackQuery
@@ -25,38 +23,31 @@ async def cmd_verb(message: Message, command: CommandObject, verb_use_cases: Ver
     """
     Handle /verb command.
     """
-    # "Searching..." is replaced by the result or the error.
-    status_msg: Optional[Message] = None
-
-    async def notify_searching(verb: str) -> None:
-        nonlocal status_msg
-        status_msg = await message.answer(i18n.get("commands.verb.searching", verb=verb))
-
-    async def show(text: str, reply_markup=None) -> None:
-        if status_msg is None:
-            await message.answer(text, reply_markup=reply_markup)
-        else:
-            await status_msg.edit_text(text=text, reply_markup=reply_markup)
-
     # aiogram strips the command and any @botname; args is None when empty or whitespace.
+    verb = verb_use_cases.parse(command.args)
+    if isinstance(verb, NoVerb):
+        await message.answer(i18n.get("commands.verb.instruction"))
+        return
+    if isinstance(verb, InvalidVerb):
+        logger.warning(f"Invalid verb: {verb.verb}")
+        await message.answer(i18n.get("commands.verb.invalid"))
+        return
+
+    # "Searching..." is replaced by the result or the error.
+    status_msg = await message.answer(i18n.get("commands.verb.searching", verb=verb))
+    error_text = i18n.get("commands.verb.api_error")
     try:
-        result = await verb_use_cases.lookup(message.from_user.id, command.args, on_searching=notify_searching)
+        result = await verb_use_cases.lookup(message.from_user.id, verb)
     except Exception as e:
-        logger.error(f"Verb data retrieval error for '{command.args}': {e}")
-        await notify_admin_with_trace(
-            logger_bot, f"Verb data error for '{command.args}' (user {message.from_user.id}): {str(e)}")
-        await show(i18n.get("commands.verb.api_error"))
+        logger.error(f"Verb data retrieval error for '{verb}': {e}")
+        await notify_admin_with_trace(logger_bot, f"Verb data error for '{verb}' (user {message.from_user.id}): {str(e)}")
+        await status_msg.edit_text(text=error_text, reply_markup=None)
         return
 
     if isinstance(result, Found):
-        await show(format_verb_message(result.data), reply_markup=get_verb_keyboard(result.data))
-    elif isinstance(result, NoVerb):
-        await show(i18n.get("commands.verb.instruction"))
-    elif isinstance(result, InvalidVerb):
-        logger.warning(f"Invalid verb: {result.verb}")
-        await show(i18n.get("commands.verb.invalid"))
+        await status_msg.edit_text(text=format_verb_message(result.data), reply_markup=get_verb_keyboard(result.data))
     else:
-        await show(i18n.get("commands.verb.api_error"))
+        await status_msg.edit_text(text=error_text, reply_markup=None)
 
 
 @router.callback_query(VerbCallback.filter())
