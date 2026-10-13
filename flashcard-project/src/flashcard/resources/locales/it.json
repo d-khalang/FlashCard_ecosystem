@@ -74,22 +74,25 @@
             "controls": "Controlli:",
             "switched_mode": "Passato in modalità {mode}",
             "saved": "Salvato!",
+            "invalid_value": "Questa opzione non è disponibile. 🤔",
             "mode_dual": "Dual 🔄",
             "mode_standard": "Standard ➡️",
+            "no_language": "Nessuna",
             "menu": {
                 "heading": "⚙️ <b>Rendi Kartino tuo</b>\n\n🎥 Guarda la video guida: https://t.me/kartino_official/8",
                 "status": "Stato attuale: <b>{status}</b>",
                 "primary_lang": "Lingua principale: <b>{primary_lang}</b>",
                 "secondary_lang": "Lingua secondaria: <b>{secondary_lang}</b>",
                 "target_level": "Livello target: <b>{target_level}</b>",
-                "review_interval": "Intervallo di revisione: <b>{review_interval_minutes} minuti</b>"
+                "review_interval": "Intervallo di revisione: <b>{review_interval_minutes} minuti</b>",
+                "review_mode": "Modalità di ripasso: <b>{review_mode}</b>"
             },
             "status_active": "Attivo ✅",
             "status_paused": "In pausa ⏸",
-            "status_info": "Stato attuale: {status}",
             "menu_options": {
                 "language": "🌍 Lingua e livello",
                 "interval": "🔔 Intervallo di ripasso",
+                "review_mode": "Modalità: {mode}",
                 "api": "🔑 Configurazione API"
             },
             "sections": {

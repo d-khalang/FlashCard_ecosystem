@@ -13,6 +13,7 @@ from flashcard.services.http_client import close_http_client_on_client, init_and
 from flashcard.app.collection import CollectionUseCases
 from flashcard.app.creation import CreationUseCases
 from flashcard.app.review import ReviewUseCases
+from flashcard.app.settings import SettingsUseCases
 from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
 from flashcard.telegram.handlers import (
@@ -150,6 +151,7 @@ def build_dispatcher_data(
             llm_service=llm_service,
             language_validator=language_validator,
         ),
+        "settings_use_cases": SettingsUseCases(user_service=user_service),
         "collection_use_cases": CollectionUseCases(
             expression_service=expression_service,
             user_service=user_service,

@@ -74,22 +74,25 @@
             "controls": "Controls:",
             "switched_mode": "Switched to {mode} Mode",
             "saved": "Saved!",
+            "invalid_value": "That option isn't available. 🤔",
             "mode_dual": "Dual 🔄",
             "mode_standard": "Standard ➡️",
+            "no_language": "None",
             "menu": {
                 "heading": "⚙️ <b>Make Kartino yours</b>",
                 "status": "Current Status: <b>{status}</b>",
                 "primary_lang": "Primary Language: <b>{primary_lang}</b>",
                 "secondary_lang": "Secondary Language: <b>{secondary_lang}</b>",
                 "target_level": "Target Level: <b>{target_level}</b>",
-                "review_interval": "Review Interval: <b>{review_interval_minutes} minutes</b>"
+                "review_interval": "Review Interval: <b>{review_interval_minutes} minutes</b>",
+                "review_mode": "Review Mode: <b>{review_mode}</b>"
             },
             "status_active": "Active ✅",
             "status_paused": "Paused ⏸",
-            "status_info": "Current Status: {status}",
             "menu_options": {
                 "language": "🌍 Language & Level",
                 "interval": "🔔 Review Interval",
+                "review_mode": "Mode: {mode}",
                 "api": "🔑 API Config"
             },
             "sections": {

@@ -123,6 +123,9 @@ def get_reply_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
 
 from flashcard.schemas.user import UserDB
 
+def review_mode_label(mode: str) -> str:
+    return i18n.get("commands.settings.mode_dual" if mode == "dual" else "commands.settings.mode_standard")
+
 def get_main_settings_keyboard(user_data: UserDB = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
@@ -132,15 +135,10 @@ def get_main_settings_keyboard(user_data: UserDB = None) -> InlineKeyboardMarkup
     # 🔔 Schedule/Interval
     builder.button(text=i18n.get("commands.settings.menu_options.interval"), callback_data=SettingsCallback(action="nav", section="interval").pack())
     
-    # 🔄 Review Mode (Standard/Dual)
-    mode = "Standard"
-    if user_data:
-        mode = user_data.review_mode.capitalize()
-        if mode == "Dual": mode = "Dual 🔄" 
-        else: mode = "Standard ➡️"
-        
-    # We use a toggle action effectively
-    builder.button(text=f"Mode: {mode}", callback_data=SettingsCallback(action="select", section="review_mode", value="toggle").pack())
+    # 🔄 Review Mode (Standard/Dual), toggled on press
+    mode = review_mode_label(user_data.review_mode if user_data else "standard")
+    builder.button(text=i18n.get("commands.settings.menu_options.review_mode", mode=mode),
+                   callback_data=SettingsCallback(action="select", section="review_mode", value="toggle").pack())
 
     # 🔑 API Config
     builder.button(text=i18n.get("commands.settings.menu_options.api"), callback_data=SettingsCallback(action="nav", section="api").pack())

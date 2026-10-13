@@ -36,7 +36,13 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 - [x] `CollectionUseCases.list_items` / `search` / `remove`; both handlers routed through it
 - [x] List/remove fixes: no item repeated at message splits; a stale message after
   confirm still reports removed/missing; unreachable unknown-action branch removed
-- [ ] Settings, story, verb use cases
+- [x] `/settings` tests (menu, navigation, selections, language prompts, pause/resume/close), incl. known quirks
+- [x] `app/settings.py`: `SettingsUseCases` (get, level, interval, languages, review mode, pause/resume);
+  settings and reply-button handlers routed through it
+- [x] Settings fixes: setters validate input (level A1-C2, interval 15-240 minutes,
+  language must be text), invalid values answer "invalid" instead of "Saved!";
+  localized "None", review mode and "Settings closed."; one callback answer per tap
+- [ ] Story, verb use cases
 
 ## Deferred issues (do not forget)
 
@@ -70,16 +76,21 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
   `LLMService` always calls with the system keys. Users with `api_config` get
   unlimited system-key usage. The quota message advertises own keys in
   /settings, but that section only says "reach out to admin (Feature pending)".
-- **Unused locale keys.** 9 keys exist in both locales but no code uses them
-  (e.g. `callbacks.regen.failed`, `commands.settings.mode_dual`,
-  `messages.buttons.verb_web_table`). Remove or wire up during the settings,
-  story and verb steps.
+- **Unused locale keys.** 5 keys exist in both locales but no code uses them:
+  `callbacks.save.success_alert`, `callbacks.regen.failed`,
+  `commands.get.generation_error`, `commands.story.generation_error`,
+  `messages.buttons.verb_web_table`. Remove or wire up during the story and verb steps.
 - **i18n returns the raw key when the UI locale lacks it.** There is no
   fallback to English. `test_locales.py` now keeps locales in sync, but a
   real fallback would be safer (#7, with the i18n singleton).
 - **Onboarding is spread across use cases.** `claim_first_review_tip` and
   `claim_first_save_tip` are the same pattern on different steps. Move them
   into one onboarding concept when a third tip appears or with #3.
+- **Settings leftovers:**
+  - `UserService.update_setting(field, value)` writes any field, and
+    `toggle_active_status` reads then writes, so it is not atomic (#3, #8).
+  - Pause/resume/close buttons match text from the deployment locale only (#1, #7).
+  - "none" is stored as the string `"none"`, not `None`; readers check both.
 - **Expression queries disagree (#3, #8).** `get_all_expressions` ignores
   `status`, while search and remove only touch `status: "active"`; its `-t`
   path uses `find` (keeps duplicates), the default uses `distinct`. `/story`

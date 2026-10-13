@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from flashcard.app.settings import SettingsUseCases
 from flashcard.schemas.user import UserDB
 from flashcard.services.i18n import i18n
 from flashcard.telegram.handlers import user_settings
@@ -41,7 +42,8 @@ async def test_confirmation_uses_localized_language_label(locale, prompt, label)
     message = _message("English")
 
     with patch.object(i18n, "default_lang", locale):
-        await user_settings.answer_setting_prompt(message, state=state, user_service=user_service)
+        await user_settings.answer_setting_prompt(
+            message, state=state, settings_use_cases=SettingsUseCases(user_service=user_service))
         expected = i18n.get("commands.settings.prompts.success_lang", type=label, lang="English", flag="🇬🇧")
 
     message.reply.assert_awaited_once_with(expected)

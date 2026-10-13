@@ -4,7 +4,7 @@ from aiogram.filters import Command
 from aiogram.enums import ChatAction
 from aiogram import flags
 
-from flashcard.services.user import UserService
+from flashcard.app.settings import SettingsUseCases
 from flashcard.telegram.keyboards import get_reply_settings_keyboard
 from flashcard.services.i18n import i18n
 
@@ -12,13 +12,12 @@ router = Router()
 
 @router.message(F.text == i18n.get("messages.buttons.pause_learning"))
 @router.message(F.text == i18n.get("messages.buttons.resume_learning"))
-async def handle_status_change(message: Message, user_service: UserService):
+async def handle_status_change(message: Message, settings_use_cases: SettingsUseCases):
     """
     Handles the text buttons from the persistent ReplyKeyboard.
     """
-    user_id = message.from_user.id
     # Toggle (logic is same for both buttons: flip the bit)
-    new_status = await user_service.toggle_active_status(user_id)
+    new_status = await settings_use_cases.toggle_active(message.from_user.id)
     
     # Send feedback + NEW keyboard (with opposite option)
     action_key = "messages.notifications.resumed" if new_status else "messages.notifications.paused"
@@ -34,4 +33,4 @@ async def handle_close_settings(message: Message):
     """
     Removes the reply keyboard.
     """
-    await message.answer("Settings closed.", reply_markup=ReplyKeyboardRemove())
+    await message.answer(i18n.get("commands.settings.closed"), reply_markup=ReplyKeyboardRemove())
