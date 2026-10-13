@@ -1,18 +1,16 @@
-import html
-from aiogram import Router, Bot, flags
-from aiogram.filters import Command
+from typing import Optional
+
+from aiogram import F, Router, Bot, flags
+from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, CallbackQuery
 from aiogram.enums import ChatAction
 from contextlib import suppress
 from aiogram.exceptions import TelegramBadRequest
 
-from flashcard.settings import settings
-
-from flashcard.services.verb import VerbService
+from flashcard.app.verb import Found, InvalidVerb, NoVerb, VerbUseCases
 from flashcard.telegram.ui.verb import format_verb_conjugation, format_verb_message
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.services.i18n import i18n
-from flashcard.services.consumption import ConsumptionService
 from flashcard.telegram.keyboards import get_verb_keyboard
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
@@ -23,80 +21,63 @@ router = Router()
 
 @router.message(Command("verb"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_verb(message: Message, verb_service: VerbService, consumption_service: ConsumptionService, logger_bot: Bot):
+async def cmd_verb(message: Message, command: CommandObject, verb_use_cases: VerbUseCases, logger_bot: Bot):
     """
     Handle /verb command.
     """
-    # 1. Extract verb
-    extracted_verb = verb_service.extract_verb(message.text)
-    
-    if not extracted_verb:
-        await message.answer(i18n.get("commands.verb.instruction"))
-        return
-    
-    # 2. Validate verb format
-    if not verb_service.is_valid_verb(extracted_verb):
-        logger.warning(f"Invalid verb: {extracted_verb}")
-        await message.answer(i18n.get("commands.verb.invalid"))
-        return
+    # "Searching..." is replaced by the result or the error.
+    status_msg: Optional[Message] = None
 
-    # 3. Get verb data (DB or API)
-    # Give feedback to user that we are processing
-    status_msg = await message.answer(i18n.get("commands.verb.searching", verb=extracted_verb))
-    
+    async def notify_searching(verb: str) -> None:
+        nonlocal status_msg
+        status_msg = await message.answer(i18n.get("commands.verb.searching", verb=verb))
+
+    async def show(text: str, reply_markup=None) -> None:
+        if status_msg is None:
+            await message.answer(text, reply_markup=reply_markup)
+        else:
+            await status_msg.edit_text(text=text, reply_markup=reply_markup)
+
+    # aiogram strips the command and any @botname; args is None when empty or whitespace.
     try:
-        verb_data = await verb_service.get_verb_data(extracted_verb)
+        result = await verb_use_cases.lookup(message.from_user.id, command.args, on_searching=notify_searching)
     except Exception as e:
-        logger.error(f"Verb data retrieval error for '{extracted_verb}': {e}")
-        await notify_admin_with_trace(logger_bot, f"Verb data error for '{extracted_verb}' (user {message.from_user.id}): {str(e)}")
-        await message.answer(i18n.get("commands.verb.api_error"))
-        return
-     
-    if not verb_data:
-        # Not found in DB or API
-        error_text = i18n.get("commands.verb.api_error")
-        await message.answer(error_text)
+        logger.error(f"Verb data retrieval error for '{command.args}': {e}")
+        await notify_admin_with_trace(
+            logger_bot, f"Verb data error for '{command.args}' (user {message.from_user.id}): {str(e)}")
+        await show(i18n.get("commands.verb.api_error"))
         return
 
-    # Editing searching message
-    # 4. Return success response
-    formatted_text = format_verb_message(verb_data)
-    keyboard = get_verb_keyboard(verb_data)
-    
-    await status_msg.edit_text(text=formatted_text, reply_markup=keyboard)
-    
-    # Track consumption (verb lookups always use system/third-party)
-    await consumption_service.increment(message.from_user.id, "verb_lookups")
+    if isinstance(result, Found):
+        await show(format_verb_message(result.data), reply_markup=get_verb_keyboard(result.data))
+    elif isinstance(result, NoVerb):
+        await show(i18n.get("commands.verb.instruction"))
+    elif isinstance(result, InvalidVerb):
+        logger.warning(f"Invalid verb: {result.verb}")
+        await show(i18n.get("commands.verb.invalid"))
+    else:
+        await show(i18n.get("commands.verb.api_error"))
 
 
 @router.callback_query(VerbCallback.filter())
-async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallback, verb_service: VerbService):
+async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallback, verb_use_cases: VerbUseCases):
     """
     Handle verb conjugation navigation callbacks.
     """
-    verb = callback_data.verb
-    mood = callback_data.mood
-    tense = callback_data.tense
-    
-    # 1. Fetch verb data 
-    # Since this is a callback, likely it's in DB.
-    verb_data = await verb_service.get_verb_data(verb)
-    
-    if not verb_data:
-        # Edge case: Verb somehow missing?
+    result = await verb_use_cases.conjugation(callback_data.verb)
+    if not isinstance(result, Found):
         await safe_answer_callback(callback, i18n.get("callbacks.verb.not_found"), show_alert=True)
         return
 
-    # 2. Format specific view
-    html_text = format_verb_conjugation(verb_data, mood, tense)
-    
-    # 3. Edit message    
-    # 'suppress' handles the crash if the user clicks the same button twice (content doesn't change)
+    html_text = format_verb_conjugation(result.data, callback_data.mood, callback_data.tense)
+
+    # Pressing the shown tense again leaves the text unchanged, which Telegram rejects.
     with suppress(TelegramBadRequest):
-        await callback.message.edit_text(
-            text=html_text,
-            # Pass the same keyboard back if you want the buttons to stay
-            reply_markup=callback.message.reply_markup
-        )
-        
-        await safe_answer_callback(callback, i18n.get("callbacks.verb.updated"))
+        await callback.message.edit_text(text=html_text, reply_markup=callback.message.reply_markup)
+    await safe_answer_callback(callback, i18n.get("callbacks.verb.updated"))
+
+
+@router.callback_query(F.data.startswith("noop|"))
+async def handle_header_button(callback: CallbackQuery):
+    """Section headers in the verb keyboard are labels; just stop the spinner."""
+    await safe_answer_callback(callback)

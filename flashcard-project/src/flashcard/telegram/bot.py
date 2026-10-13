@@ -14,6 +14,8 @@ from flashcard.app.collection import CollectionUseCases
 from flashcard.app.creation import CreationUseCases
 from flashcard.app.review import ReviewUseCases
 from flashcard.app.settings import SettingsUseCases
+from flashcard.app.story import StoryUseCases
+from flashcard.app.verb import VerbUseCases
 from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
 from flashcard.telegram.handlers import (
@@ -152,6 +154,17 @@ def build_dispatcher_data(
             language_validator=language_validator,
         ),
         "settings_use_cases": SettingsUseCases(user_service=user_service),
+        "story_use_cases": StoryUseCases(
+            expression_service=expression_service,
+            user_service=user_service,
+            consumption_service=consumption_service,
+            llm_service=llm_service,
+        ),
+        # None when conjugation is disabled; the verb router is not included then.
+        "verb_use_cases": (
+            VerbUseCases(verb_service=verb_service, consumption_service=consumption_service)
+            if verb_service is not None else None
+        ),
         "collection_use_cases": CollectionUseCases(
             expression_service=expression_service,
             user_service=user_service,

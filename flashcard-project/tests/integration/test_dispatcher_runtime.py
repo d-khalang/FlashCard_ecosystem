@@ -258,3 +258,15 @@ async def test_import_command_without_args_shows_usage_and_skips_llm(dispatcher_
     send_calls = [call for call in dispatcher_env["session"].calls if call.method == "SendMessage"]
     assert len(send_calls) == 1
     assert "/import" in send_calls[0].payload["text"]
+
+
+async def test_verb_header_button_is_answered(dispatcher_env):
+    # Section headers are labels ("noop|hdr|..."); the tap must still stop the spinner.
+    await dispatcher_env["dp"].feed_update(
+        dispatcher_env["bot"],
+        make_callback_update(data="noop|hdr|indicativo"),
+        **dispatcher_env["dispatcher_data"],
+    )
+
+    answers = [call for call in dispatcher_env["session"].calls if call.method == "AnswerCallbackQuery"]
+    assert len(answers) == 1

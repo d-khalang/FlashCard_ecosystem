@@ -1,8 +1,8 @@
 """
 Unit tests for flashcard.services.verb.VerbService
 
-Tests validation, extraction, and the DB→API fallback orchestration.
-Pure methods (is_valid_verb, extract_verb) need no mocking.
+Tests validation and the DB→API fallback orchestration.
+The pure method is_valid_verb needs no mocking.
 get_verb_data orchestration uses mocked DB + HTTP.
 """
 import pytest
@@ -69,40 +69,6 @@ class TestIsValidVerb:
     def test_none_input_rejected(self):
         service, _, _ = _make_service()
         assert service.is_valid_verb(None) is False
-
-
-# ===================================================================
-# extract_verb — pure function
-# ===================================================================
-class TestExtractVerb:
-
-    def test_normal_extraction(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verb parlare") == "parlare"
-
-    def test_just_command_returns_none(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verb") is None
-
-    def test_just_command_with_space_returns_none(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verb ") is None
-
-    def test_empty_string_returns_none(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("") is None
-
-    def test_none_returns_none(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb(None) is None
-
-    def test_preserves_original_case(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verb Parlare") == "Parlare"
-
-    def test_with_verb_command_prefix_without_space(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verbparlare") == "parlare"
 
 
 # ===================================================================

@@ -1,11 +1,8 @@
 import re
 from typing import Optional
 
-from aiogram.types import InlineKeyboardMarkup
-
 from flashcard.settings import settings
 from flashcard.schemas.conjugations import ConjugationDBResponse, ConjugationAPIResponse, ConjugationResponse
-from flashcard.telegram.keyboards import get_verb_keyboard
 from flashcard.utils.logger import get_logger
 from flashcard.utils.tracing import observe
 
@@ -33,28 +30,6 @@ class VerbService:
             
         return bool(re.match(self.REGEX_VERB, cleaned))
 
-
-    def extract_verb(self, message_text: str) -> Optional[str]:
-        """
-        Extracts the verb from the message text.
-        Returns None if extraction fails or text is too short logic applies.
-        """
-        if not message_text:
-            return None
-            
-        clean_verb = message_text.replace("/verb", "").strip()
-        
-        # Basic check to avoid empty strings after strip if message was just "/verb"
-        if not clean_verb:
-            return None
-            
-        return clean_verb
-
-    def get_verb_keyboard(self, data: ConjugationResponse) -> InlineKeyboardMarkup:
-        """
-        Gets the verb keyboard.
-        """
-        return get_verb_keyboard(data)
 
     @observe(name="VerbService.get_verb_data")
     async def get_verb_data(self, verb: str) -> Optional[ConjugationResponse]:

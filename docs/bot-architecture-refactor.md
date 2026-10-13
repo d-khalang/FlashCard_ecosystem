@@ -42,7 +42,14 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 - [x] Settings fixes: setters validate input (level A1-C2, interval 15-240 minutes,
   language must be text), invalid values answer "invalid" instead of "Saved!";
   localized "None", review mode and "Settings closed."; one callback answer per tap
-- [ ] Story, verb use cases
+- [x] `/story` and `/verb` tests, incl. known quirks
+- [x] `app/story.py` (`StoryUseCases.write`) and `app/verb.py` (`VerbUseCases.lookup` /
+  `conjugation`); handlers routed through them
+- [x] Story/verb fixes: quota checked before "writing…"; an empty story shows an
+  error and is not counted; `/verb@botname` works (`CommandObject.args`);
+  "Searching…" is replaced by the error; repeated tense and header buttons are
+  answered; unused `VerbService.extract_verb` / `get_verb_keyboard` removed
+- [x] No Telegram handler calls a service directly
 
 ## Deferred issues (do not forget)
 
@@ -76,10 +83,10 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
   `LLMService` always calls with the system keys. Users with `api_config` get
   unlimited system-key usage. The quota message advertises own keys in
   /settings, but that section only says "reach out to admin (Feature pending)".
-- **Unused locale keys.** 5 keys exist in both locales but no code uses them:
+- **Unused locale keys.** 4 keys exist in both locales but no code uses them:
   `callbacks.save.success_alert`, `callbacks.regen.failed`,
-  `commands.get.generation_error`, `commands.story.generation_error`,
-  `messages.buttons.verb_web_table`. Remove or wire up during the story and verb steps.
+  `commands.get.generation_error`, `messages.buttons.verb_web_table`.
+  Remove or wire up (e.g. regenerate failure, verb web link).
 - **i18n returns the raw key when the UI locale lacks it.** There is no
   fallback to English. `test_locales.py` now keeps locales in sync, but a
   real fallback would be safer (#7, with the i18n singleton).
@@ -91,6 +98,12 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
     `toggle_active_status` reads then writes, so it is not atomic (#3, #8).
   - Pause/resume/close buttons match text from the deployment locale only (#1, #7).
   - "none" is stored as the string `"none"`, not `None`; readers check both.
+- **Story/verb leftovers:**
+  - Verb lookups are counted but not limited, by design: they use our own
+    scraper and DB cache, no paid provider.
+  - `VerbService.is_valid_verb` still strips `/verb` itself (harmless; clean up with #3).
+- **Trace middleware writes users.** It updates `username` fire-and-forget via
+  `user_service.update_username` on every message/callback (#3).
 - **Expression queries disagree (#3, #8).** `get_all_expressions` ignores
   `status`, while search and remove only touch `status: "active"`; its `-t`
   path uses `find` (keeps duplicates), the default uses `distinct`. `/story`
