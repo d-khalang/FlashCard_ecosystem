@@ -52,6 +52,19 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
     language, creation sends label `None` while review sends 🌍. Unify.
   - Regenerate failure (quota, unclear input) replaces the card and removes
     the Save/Regenerate buttons, so the user can neither retry nor save.
+- **`/import` quirks**, pinned by `test_import_flow.py` and kept for now:
+  - **No quota and no usage count.** Every `/import` calls the LLM, but there is
+    no `can_generate_card` check and nothing is counted, so imports are free
+    and unlimited (#6). Highest-risk item in this list.
+  - **No input length limit.** Text messages are capped at 150 characters;
+    `/import` sends any length to the LLM.
+  - **Arguments are cut with `message.text[7:]`.** `/import@botname words`
+    sends `@botname words` to the LLM, and whitespace-only arguments still
+    trigger an LLM call. Use aiogram's `CommandObject.args`.
+  - **Wrong message on invalid language.** A validator rejection says "no
+    items found" instead of the invalid-language message.
+  - **Unused locale key** `commands.import.processing_error`: LLM errors
+    propagate to the global error handler instead.
 - **Onboarding is spread across use cases.** `claim_first_review_tip` and
   `claim_first_save_tip` are the same pattern on different steps. Move them
   into one onboarding concept when a third tip appears or with #3.
