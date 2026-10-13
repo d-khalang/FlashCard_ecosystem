@@ -60,7 +60,7 @@
         },
         "import": {
             "usage_guide": "Got a list? Let's add them all! 📦\n\nJust type `/import` followed by your words (on new lines or separated by commas):\n\nExample:\n/import\nandare a casa\nfare colazione",
-            "processing_error": "Yikes, getting dizzy! 💫 Couldn't process that list right now.",
+            "too_long": "That list is a bit too long! ✂️ Please send at most {limit} characters per /import.",
             "import_failed": "Hmm, I got a bit confused: {log_msg} 🤔",
             "no_items_found": "I couldn't spot any {language} there! 🕵️‍♂️ Check your spelling?",
             "success": "Woohoo! 🎉 Saved {count} new cards:\n{items_str}",

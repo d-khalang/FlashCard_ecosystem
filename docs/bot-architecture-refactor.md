@@ -27,7 +27,13 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 - [x] Grading moved into `ReviewUseCases.grade` (+ `claim_first_review_tip`)
 - [x] Characterization tests for text-to-card, regenerate, save
 - [x] `app/creation.py`: `CreationUseCases.generate` / `save` / `claim_first_save_tip`; `card_generator.py` removed
-- [ ] Collection, settings, story use cases
+- [x] `/import` tests, incl. known quirks
+- [x] `app/collection.py`: `CollectionUseCases.import_items`; `/import` routed through it
+- [x] `/import` fixes: 1,000-character limit, `CommandObject.args` (strips `@botname`,
+  blank input shows usage), invalid-language message, unused `processing_error` removed
+- [x] `/import` quota: one card generation per import, checked before the LLM call
+- [ ] `/list_my_flashcards`, inline remove
+- [ ] Settings, story, verb use cases
 
 ## Deferred issues (do not forget)
 
@@ -52,19 +58,19 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
     language, creation sends label `None` while review sends 🌍. Unify.
   - Regenerate failure (quota, unclear input) replaces the card and removes
     the Save/Regenerate buttons, so the user can neither retry nor save.
-- **`/import` quirks**, pinned by `test_import_flow.py` and kept for now:
-  - **No quota and no usage count.** Every `/import` calls the LLM, but there is
-    no `can_generate_card` check and nothing is counted, so imports are free
-    and unlimited (#6). Highest-risk item in this list.
-  - **No input length limit.** Text messages are capped at 150 characters;
-    `/import` sends any length to the LLM.
-  - **Arguments are cut with `message.text[7:]`.** `/import@botname words`
-    sends `@botname words` to the LLM, and whitespace-only arguments still
-    trigger an LLM call. Use aiogram's `CommandObject.args`.
-  - **Wrong message on invalid language.** A validator rejection says "no
-    items found" instead of the invalid-language message.
-  - **Unused locale key** `commands.import.processing_error`: LLM errors
-    propagate to the global error handler instead.
+- **Usage counting differs between flows (#6).** `/import` counts every
+  answered LLM call (one card generation per import); creation counts only
+  successful cards. Pick one rule when quota becomes its own concept.
+- **"Own API key" is never used for LLM calls (#6).** `user.api_config` only
+  switches quota to `uses_own_key=True` (unlimited, counted under `user_api`);
+  `LLMService` always calls with the system keys. Users with `api_config` get
+  unlimited system-key usage. The quota message advertises own keys in
+  /settings, but that section only says "reach out to admin (Feature pending)".
+- **Broken characters in `it.json`.** About 10 strings are double-encoded
+  UTF-8 (e.g. `giÃ `, `piÃ¹`, broken emoji).
+- **Italian locale has no `/import` texts.** `it.json` lacks every
+  `commands.import.*` key (including the new `too_long`), so Italian users get
+  them in English via fallback.
 - **Onboarding is spread across use cases.** `claim_first_review_tip` and
   `claim_first_save_tip` are the same pattern on different steps. Move them
   into one onboarding concept when a third tip appears or with #3.

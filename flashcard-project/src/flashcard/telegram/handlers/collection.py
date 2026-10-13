@@ -1,15 +1,16 @@
 from aiogram import Router, flags
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from aiogram.enums import ChatAction
-from typing import Optional
 
+from flashcard.app.collection import (
+    AllDuplicates, CollectionUseCases, Imported, InvalidLanguage, NothingFound, ParseFailed, TooLong,
+)
+from flashcard.app.quota import QuotaExceeded
 from flashcard.services.expression import ExpressionService
-from flashcard.services.llm.llm import LLMService
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression_lists import format_expression_list
 from flashcard.utils.logger import get_logger
-from flashcard.services.language_validation import LanguageValidityChecker
 
 logger = get_logger(__name__)
 router = Router()
@@ -27,48 +28,30 @@ async def cmd_remove(message: Message):
 
 @router.message(Command("import"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_import(
-    message: Message,
-    llm_service: LLMService,
-    expression_service: ExpressionService,
-    language_validator: Optional[LanguageValidityChecker] = None,
-):
-    msg_text = message.text or ""
-    # Remove command itself to get arguments
-    command_args = msg_text[7:] if len(msg_text) >= 7 else ""
-    
-    if not command_args:
+async def cmd_import(message: Message, command: CommandObject, collection_use_cases: CollectionUseCases):
+    # aiogram strips the command and any @botname; args is None when empty or whitespace.
+    if not command.args:
         await message.answer(i18n.get("commands.import.usage_guide"))
         return
 
-    # Parse with LLM
-    import_response = await llm_service.parse_import_list(command_args)
+    result = await collection_use_cases.import_items(message.from_user.id, command.args)
 
-    if not import_response.success:
-        log_msg = import_response.log or "Unknown error."
-        await message.answer(i18n.get("commands.import.import_failed", log_msg=log_msg))
-        return
-
-    if not import_response.import_list:
-        await message.answer(i18n.get("commands.import.no_items_found"))
-        return
-
-    if language_validator is not None:
-        validation = await language_validator.validate_import_items(import_response.import_list)
-        if not validation.is_valid or not validation.normalized_items:
-            await message.answer(i18n.get("commands.import.no_items_found"))
-            return
-        import_response.import_list = validation.normalized_items
-
-    # Bulk Insert
-    inserted_items = await expression_service.add_expressions_bulk(message.from_user.id, import_response.import_list)
-    
-    if inserted_items:
-        count = len(inserted_items)
-        items_str = "\n".join(inserted_items)
-        await message.answer(i18n.get("commands.import.success", count=count, items_str=items_str))
-    else:
+    if isinstance(result, Imported):
+        await message.answer(i18n.get(
+            "commands.import.success", count=len(result.items), items_str="\n".join(result.items)))
+    elif isinstance(result, AllDuplicates):
         await message.answer(i18n.get("commands.import.all_duplicates"))
+    elif isinstance(result, ParseFailed):
+        await message.answer(i18n.get("commands.import.import_failed", log_msg=result.log or "Unknown error."))
+    elif isinstance(result, NothingFound):
+        await message.answer(i18n.get("commands.import.no_items_found"))
+    elif isinstance(result, InvalidLanguage):
+        await message.answer(i18n.get("messages.errors.invalid_learning_language_input"))
+    elif isinstance(result, TooLong):
+        await message.answer(i18n.get("commands.import.too_long", limit=result.limit))
+    elif isinstance(result, QuotaExceeded):
+        await message.answer(i18n.get(
+            "messages.errors.quota_exceeded", type="card", tier=result.tier, limit=result.limit))
 
 
 @router.message(Command("list_my_flashcards"))

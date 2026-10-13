@@ -231,3 +231,30 @@ async def test_llm_failure_is_handled_by_global_error_handler(dispatcher_env):
         or "sorry" in call.payload["text"].lower()
         for call in send_calls
     )
+
+
+async def test_import_command_receives_args_without_bot_mention(dispatcher_env):
+    await dispatcher_env["dp"].feed_update(
+        dispatcher_env["bot"],
+        make_message_update(text="/import andare, fare"),
+        **dispatcher_env["dispatcher_data"],
+    )
+
+    assert dispatcher_env["llm_service"].import_calls == ["andare, fare"]
+    send_calls = [call for call in dispatcher_env["session"].calls if call.method == "SendMessage"]
+    assert len(send_calls) == 1
+    saved = await dispatcher_env["expression_service"].get_all_expressions("42")
+    assert sorted(saved) == ["andare", "fare"]
+
+
+async def test_import_command_without_args_shows_usage_and_skips_llm(dispatcher_env):
+    await dispatcher_env["dp"].feed_update(
+        dispatcher_env["bot"],
+        make_message_update(text="/import   "),
+        **dispatcher_env["dispatcher_data"],
+    )
+
+    assert dispatcher_env["llm_service"].import_calls == []
+    send_calls = [call for call in dispatcher_env["session"].calls if call.method == "SendMessage"]
+    assert len(send_calls) == 1
+    assert "/import" in send_calls[0].payload["text"]
