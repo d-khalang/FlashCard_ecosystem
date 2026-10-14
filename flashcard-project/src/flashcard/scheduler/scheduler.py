@@ -1,10 +1,11 @@
 import asyncio
 import html
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 from aiogram import Bot
 
+from flashcard.app.review_schedule import PauseComparison, interval_elapsed
 from flashcard.schemas.trace import TraceData
 from flashcard.schemas.user import UserDB
 from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
@@ -60,26 +61,40 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
     async for user_doc in users_cursor:
         # Parse to UserDB for type safety
         user = UserDB.model_validate(user_doc)
-
-        # Check if enough time has passed since last review
-        last_reviewed = user.last_reviewed_at
-
-        if not last_reviewed:
-            # Never reviewed, they're due
-            users_due.append(user)
-            continue
-
-        # Parse timestamp and check user's specific interval
-        interval_minutes = user.review_interval_minutes
-        last_reviewed_dt = datetime.fromisoformat(last_reviewed.replace('Z', '+00:00'))
-
-        # Calculate time elapsed
-        elapsed_seconds = (now - last_reviewed_dt).total_seconds()
-
-        if elapsed_seconds >= interval_minutes * 60:
+        if interval_elapsed(user, now):
             users_due.append(user)
 
     return users_due
+
+
+async def compare_pause_rules(user_service: UserService) -> PauseComparison:
+    """
+    Shadow compare for the review-state migration: legacy `has_pending` vs the
+    current_review + last_seen_at rule. Reads only; changes nothing.
+
+    Only active users where either rule could pause are read; everyone else agrees.
+    """
+    comparison = PauseComparison()
+    cursor = user_service.cols['users'].find({
+        "is_active": True,
+        "$or": [{"has_pending": True}, {"current_review": {"$ne": None}}],
+    })
+    async for user_doc in cursor:
+        comparison.add(UserDB.model_validate(user_doc))
+    return comparison
+
+
+async def _log_pause_comparison(user_service: UserService) -> None:
+    """Never lets the shadow compare break a scheduler cycle."""
+    try:
+        comparison = await compare_pause_rules(user_service)
+    except Exception:
+        logger.warning("Review-state shadow compare failed", exc_info=True)
+        return
+    counts = " ".join(f"{name}={count}" for name, count in sorted(comparison.counts.items()))
+    logger.info(f"Review-state shadow compare: {counts or 'no paused users'}")
+    for user_id, result in comparison.mismatches:
+        logger.debug(f"Review-state shadow mismatch: user={user_id} {result}")
 
 
 @observe(name="scheduler.send_scheduled_review", include_output=False)
@@ -249,6 +264,7 @@ async def scheduler_loop(
             # Find users who need reviews
             users_to_push = await _observed_find_users_due_for_review(user_service)
             logger.info(f"Found {len(users_to_push)} users due for review")
+            await _log_pause_comparison(user_service)
 
             # Process each user with isolated error handling + per-user timeout
             for user in users_to_push:

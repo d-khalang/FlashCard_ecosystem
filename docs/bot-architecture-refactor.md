@@ -102,10 +102,42 @@ Migration (each step deployable and reversible):
   the latest card with a non-null `pending_message_id`, direction `unknown` (either
   direction's grade clears it); never overwrites one the bot wrote
 - [ ] Backfill run: after the expand step is deployed; dry run per language DB first
-- [ ] Shadow compare: scheduler computes "due" both ways and logs mismatches
+- [x] Shadow compare: rules in `app/review_schedule.py` (pure). Each scheduler tick logs
+  one line, `Review-state shadow compare: agree=… resumed_by_interaction=…
+  missing_current_review=… new_pauses=…`; per-user mismatches at DEBUG. Expected:
+  `resumed_by_interaction` (intended change), `missing_current_review` before the
+  backfill run. Investigate any `new_pauses`. Read-only; failures never break a tick
+- [ ] Observe in production for a few days after deploy + backfill
 - [ ] Switch reads to `current_review` + `last_seen_at`; keep dual writes for rollback
 - [ ] Contract: stop legacy writes; drop `has_pending`, `pending_message_id`,
   `last_push_at`, `last_sent_at` after a backup
+
+### Remove after the migration is validated (contract step)
+
+Temporary code that becomes dead once the switch is proven in production:
+
+- **Shadow compare:** `Comparison`, `compare_pause`, `PauseComparison` in
+  `app/review_schedule.py` (keep `interval_elapsed`, `awaiting_answer`);
+  `compare_pause_rules`, `_log_pause_comparison` and its call in `scheduler_loop`;
+  tests `TestComparePause`, `TestComparePauseRules`.
+- **Shadow writes:** `app/shadow.py`; review-state writes become authoritative, so a
+  failure must propagate. Drop the "survives a … failure" use-case tests.
+- **Backfill:** `flashcard/migrations/` and `tests/unit/migrations/`;
+  `ReviewStateStore.backfill_from_legacy`. Once no `unknown` reviews remain: the
+  `"unknown"` direction in `CurrentReview` and the `$in [direction, "unknown"]` match
+  in `record_graded`.
+- **Legacy writes:** `UserService.update_user_last_push`, `UserService.clear_pending`;
+  the `users` writes inside `ExpressionService.add_expression(_bulk)` and
+  `grade_expression` (`last_reviewed_at` moves to `ReviewStateStore`);
+  `pending_message_id` / `last_sent_at` in `update_expression_sent` and
+  `grade_expression` (`last_activity_at` stays: it drives the 12 h cooldown).
+  Already dead now: `ExpressionService.update_user_last_push` (no callers).
+- **Schema and query:** `UserDB.has_pending`, `UserDB.last_push_at`,
+  `ExpressionDB.pending_message_id`, `ExpressionDB.last_sent_at`; the `has_pending`
+  filter in `find_users_due_for_review`.
+- **Tests:** rewrite the `has_pending` assertions in `test_review_state_flow.py` and
+  `test_dispatcher_runtime.py` for the new rule.
+- **Data:** `$unset` the dropped fields, only after a backup.
 
 ## Deferred issues (do not forget)
 

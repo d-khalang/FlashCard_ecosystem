@@ -270,3 +270,45 @@ class TestSchedulerLoopTracing:
         span_names = {s["name"] for s in payload["spans"]}
         assert "scheduler.find_users_due_for_review" in span_names
         assert "scheduler.send_admin_metrics" in span_names
+
+
+# ===================================================================
+# compare_pause_rules (review-state shadow compare)
+# ===================================================================
+class TestComparePauseRules:
+
+    def _service(self, *users):
+        from tests.integration.helpers import make_cols
+        service = MagicMock()
+        service.cols = make_cols(users=list(users))
+        return service
+
+    def _review(self, sent_at):
+        return {"expression_id": "e1", "direction": "forward", "message_id": 1, "sent_at": sent_at}
+
+    async def test_counts_only_users_either_rule_could_pause(self):
+        from flashcard.scheduler.scheduler import compare_pause_rules
+        sent = iso_z(now_utc() - timedelta(hours=2))
+        service = self._service(
+            _make_user_doc(user_id="free"),
+            _make_user_doc(user_id="both", has_pending=True, current_review=self._review(sent)),
+            _make_user_doc(user_id="resumed", has_pending=True, current_review=self._review(sent),
+                           last_seen_at=iso_z(now_utc())),
+            _make_user_doc(user_id="gap", has_pending=True),
+            _make_user_doc(user_id="inactive", is_active=False, has_pending=True),
+        )
+
+        report = await compare_pause_rules(service)
+
+        assert report.counts == {"agree": 1, "resumed_by_interaction": 1, "missing_current_review": 1}
+        assert sorted(report.mismatches) == [("gap", "missing_current_review"), ("resumed", "resumed_by_interaction")]
+
+    async def test_compare_failure_never_breaks_the_cycle(self, caplog):
+        from flashcard.scheduler.scheduler import _log_pause_comparison
+        service = MagicMock()
+        service.cols = {"users": MagicMock()}
+        service.cols["users"].find.side_effect = RuntimeError("mongo down")
+
+        await _log_pause_comparison(service)
+
+        assert "shadow compare failed" in caplog.text
