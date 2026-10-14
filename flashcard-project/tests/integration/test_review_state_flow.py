@@ -101,31 +101,26 @@ class TestCandidateCooldown:
         assert candidate["doc"]["_id"] == expression_id
 
 
-async def _attempts(env):
-    return env["review_attempts"].cols["review_attempts"].docs
+class TestCurrentReviewShadow:
+    """users.current_review is written alongside the legacy fields during the migration."""
 
-
-class TestReviewAttemptsShadow:
-    """review_attempts is written alongside the legacy fields during the migration."""
-
-    async def test_get_opens_an_attempt_and_grade_closes_it(self, dispatcher_env):
+    async def test_get_sets_the_current_review_and_grade_clears_it(self, dispatcher_env):
         expression_id = await _insert_card(dispatcher_env)
         await _set_user(dispatcher_env, has_pending=False, last_reviewed_at=None)
 
         await _feed(dispatcher_env, make_message_update(text="/get"))
 
-        [attempt] = await _attempts(dispatcher_env)
-        assert attempt["state"] == "open"
-        assert attempt["expression_id"] == str(expression_id)
-        assert attempt["message_id"] is not None
+        current = (await _user_doc(dispatcher_env))["current_review"]
+        assert current["expression_id"] == str(expression_id)
+        assert current["direction"] == "forward"
+        assert current["message_id"] is not None
 
         callback = GradeCallback(expression_id=str(expression_id), grade=4, direction="fwd").pack()
         await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
 
-        [attempt] = await _attempts(dispatcher_env)
-        assert (attempt["state"], attempt["grade"], attempt["direction"]) == ("graded", 4, "forward")
+        assert "current_review" not in await _user_doc(dispatcher_env)
 
-    async def test_removing_the_card_closes_its_attempt(self, dispatcher_env):
+    async def test_removing_the_card_clears_the_current_review(self, dispatcher_env):
         expression_id = await _insert_card(dispatcher_env)
         await _set_user(dispatcher_env, has_pending=False, last_reviewed_at=None)
         await _feed(dispatcher_env, make_message_update(text="/get"))
@@ -133,18 +128,18 @@ class TestReviewAttemptsShadow:
         callback = InlineRemoveCallback(action="confirm", expression_id=str(expression_id)).pack()
         await _feed(dispatcher_env, make_callback_update(data=callback, text="andare", message_id=88))
 
-        [attempt] = await _attempts(dispatcher_env)
-        assert attempt["state"] == "removed"
+        assert "current_review" not in await _user_doc(dispatcher_env)
 
-    async def test_grading_a_card_sent_before_attempts_still_works(self, dispatcher_env):
+    async def test_grading_a_card_sent_before_the_migration_still_works(self, dispatcher_env):
         expression_id = await _insert_card(dispatcher_env, pending_message_id=555)
         await _set_user(dispatcher_env, has_pending=True)
 
         callback = GradeCallback(expression_id=str(expression_id), grade=3, direction="rev").pack()
         await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
 
-        assert (await _user_doc(dispatcher_env))["has_pending"] is False
-        assert await _attempts(dispatcher_env) == []
+        user = await _user_doc(dispatcher_env)
+        assert user["has_pending"] is False
+        assert "current_review" not in user
 
 
 class TestLastSeen:

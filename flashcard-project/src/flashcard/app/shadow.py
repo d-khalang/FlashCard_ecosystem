@@ -2,7 +2,7 @@
 Shadow writes for the review-state migration.
 
 While legacy fields (has_pending, pending_message_id) stay authoritative, the new
-review_attempts records are written alongside them. A failure there is logged and
+users.current_review is written alongside them. A failure there is logged and
 never breaks the user's send, grade or remove.
 """
 from typing import Awaitable

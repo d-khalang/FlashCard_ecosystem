@@ -54,28 +54,53 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 ## #3/#4 Review state: progress
 
 `has_pending` mixed two meanings: "a review is unanswered" and "the user showed up,
-so resume". It is replaced by two facts:
+so resume". It is replaced by two facts on the user document:
 
-- **Review attempt** (`review_attempts`, owned by `ReviewAttemptStore`): one per
-  delivered card; `open` → `graded` | `superseded` (still gradable) | `removed`.
-  At most one open attempt per user (unique partial index).
+- **`users.current_review`** (`expression_id`, `direction`, `message_id`, `sent_at`),
+  written only by `ReviewStateStore`: the delivered card still waiting for a grade.
+  A newer card replaces it; grading or removing that card clears it.
 - **`users.last_seen_at`**: any message or callback (`UserService.record_seen`).
 
-Scheduler rule after the switch: due if no open attempt, **or** seen after it was
+Scheduler rule after the switch: due if no current review, **or** seen after it was
 sent, plus the existing interval. Candidate selection keeps the 12 h cooldown; an
 ungraded card is not excluded beyond it.
+
+### Data-model rules
+
+- Data that must change together lives in one document (Mongo is atomic per document).
+- One writer per field group, `$set`/`$unset` on its own paths; never replace a whole doc.
+- Cross-document flows run in a use case in a fixed order; a failed second write must
+  self-heal (e.g. grade: expression stats first, then user review state).
+- Keep only the latest: no history collections until a feature needs them.
+
+Planned field groups:
+
+| Document | Field group | Only writer |
+|---|---|---|
+| expression | identity (`value`, `created_at`, `status`) | `ExpressionStore` |
+| expression | stats + `review_rev` | grading |
+| expression | `content` (prefs it was made for + sections) | `CardContentStore` |
+| user | profile, settings, onboarding, `last_seen_at` | `UserService` |
+| user | `consumption` | `ConsumptionService` |
+| user | `current_review`, `last_graded` (one-level undo snapshot), `last_reviewed_at` | `ReviewStateStore` |
+
+Decisions: one-level undo only (deeper undo corrupts grading); undo restores the
+snapshot only if `review_rev` still matches. Reviews generate fresh content; the stored
+card is a fallback when every provider call fails (not counted against quota).
+A separate `review_attempts` collection was tried and dropped: nothing needed history,
+and it split the scheduler's "due" query across two collections.
 
 Migration (each step deployable and reversible):
 
 - [x] Characterization tests (`tests/integration/test_review_state_flow.py`)
 - [x] Fix: removing a card clears `has_pending` (it used to pause the scheduler forever)
-- [x] Expand: attempts and `last_seen_at` written alongside legacy fields; reads
-  unchanged. Attempt writes are shadow writes (`app/shadow.py`): failures are logged,
-  never break a send, grade or remove
-- [ ] Backfill: open attempts from `has_pending` + `pending_message_id`
-  (direction `unknown`, filled on grade); idempotent, dry run first
+- [x] Expand: `current_review` and `last_seen_at` written alongside legacy fields;
+  reads unchanged. Review-state writes are shadow writes (`app/shadow.py`): failures
+  are logged, never break a send, grade or remove
+- [ ] Backfill: `current_review` from `has_pending` + `pending_message_id`
+  (direction unknown until graded); idempotent, dry run first
 - [ ] Shadow compare: scheduler computes "due" both ways and logs mismatches
-- [ ] Switch reads to attempts + `last_seen_at`; keep dual writes for rollback
+- [ ] Switch reads to `current_review` + `last_seen_at`; keep dual writes for rollback
 - [ ] Contract: stop legacy writes; drop `has_pending`, `pending_message_id`,
   `last_push_at`, `last_sent_at` after a backup
 

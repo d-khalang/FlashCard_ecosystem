@@ -38,11 +38,10 @@ from flashcard.services.expression import ExpressionService
 from flashcard.services.verb import VerbService
 from flashcard.services.user import UserService
 from flashcard.services.consumption import ConsumptionService
-from flashcard.services.review_attempt import ReviewAttemptStore
+from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.trace_logger import get_trace_logger
 from flashcard.services.language_validation import get_language_validator
 from flashcard.utils.asyncio_errors import install_asyncio_exception_handler
-from flashcard.utils.logger import get_logger
 
 def _build_ipv4_session() -> "AiohttpSession":
     """Build an aiogram session that forces IPv4.
@@ -111,16 +110,6 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     return bot, dp
 
 
-async def _init_review_attempts(cols) -> ReviewAttemptStore:
-    store = ReviewAttemptStore(cols=cols)
-    # Review attempts are shadow-written during the migration; a missing index must not stop the bot.
-    try:
-        await store.ensure_indexes()
-    except Exception:
-        get_logger(__name__).warning("Could not ensure review_attempts indexes", exc_info=True)
-    return store
-
-
 def get_allowed_updates(dp: Dispatcher) -> list[str]:
     """
     Resolve the concrete update types used by the registered routers.
@@ -141,7 +130,7 @@ def build_dispatcher_data(
     consumption_service,
     llm_service,
     language_validator,
-    review_attempts,
+    review_state,
 ) -> dict:
     return {
         "cols": cols,
@@ -158,7 +147,7 @@ def build_dispatcher_data(
             user_service=user_service,
             consumption_service=consumption_service,
             llm_service=llm_service,
-            review_attempts=review_attempts,
+            review_state=review_state,
         ),
         "creation_use_cases": CreationUseCases(
             expression_service=expression_service,
@@ -184,7 +173,7 @@ def build_dispatcher_data(
             user_service=user_service,
             consumption_service=consumption_service,
             llm_service=llm_service,
-            review_attempts=review_attempts,
+            review_state=review_state,
             language_validator=language_validator,
         ),
     }
@@ -223,7 +212,7 @@ async def init_telegram_bot(app: FastAPI, settings):
     user_service = UserService(cols=app.state.cols, consumption_service=consumption_service)
     llm_service = LLMService()
     language_validator = get_language_validator(settings)
-    review_attempts = await _init_review_attempts(cols)
+    review_state = ReviewStateStore(cols=cols)
     app.state.expression_service = expression_service
     app.state.user_service = user_service
     app.state.consumption_service = consumption_service
@@ -239,7 +228,7 @@ async def init_telegram_bot(app: FastAPI, settings):
         consumption_service=consumption_service,
         llm_service=llm_service,
         language_validator=language_validator,
-        review_attempts=review_attempts,
+        review_state=review_state,
     )
     app.state.dispatcher_data = dispatcher_data
 
@@ -330,7 +319,7 @@ async def init_telegram_without_fastapi(settings):
     user_service = UserService(cols=cols, consumption_service=consumption_service)
     llm_service = LLMService()
     language_validator = get_language_validator(settings)
-    review_attempts = await _init_review_attempts(cols)
+    review_state = ReviewStateStore(cols=cols)
 
     # Polling cannot run while a webhook is active.
     await bot.delete_webhook(drop_pending_updates=False)
@@ -345,7 +334,7 @@ async def init_telegram_without_fastapi(settings):
         consumption_service=consumption_service,
         llm_service=llm_service,
         language_validator=language_validator,
-        review_attempts=review_attempts,
+        review_state=review_state,
     )
 
     # Run polling in background

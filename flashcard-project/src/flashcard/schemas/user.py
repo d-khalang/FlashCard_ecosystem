@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from enum import Enum
 from pydantic import BaseModel, Field
 from flashcard.schemas.languages import LanguageCode, LanguageLevel
@@ -24,6 +24,14 @@ class UserConsumption(BaseModel):
     user_api: LLMUsage = Field(LLMUsage(), description="Usage on user's own API keys")
     verb_lookups: int = Field(0, description="Third-party verb API lookups")
 
+class CurrentReview(BaseModel):
+    """The delivered card still waiting for a grade; replaced by the next one."""
+    expression_id: str = Field(..., description="Reviewed expression ObjectId as string")
+    direction: Literal["forward", "reverse"]
+    message_id: int = Field(..., description="Telegram message that carries the card")
+    sent_at: str = Field(..., description="ISO timestamp of delivery")
+
+
 class UserTier(str, Enum):
     admin = "admin"
     digi = "digi"
@@ -39,6 +47,7 @@ class UserDB(BaseModel):
     last_reviewed_at: Optional[str] = Field(None, description="ISO timestamp of last review interaction")
     last_seen_at: Optional[str] = Field(None, description="ISO timestamp of the user's last interaction with the bot")
     has_pending: bool = Field(False, description="If user has pending reviews")
+    current_review: Optional[CurrentReview] = Field(None, description="Ungraded delivered card, if any")
     is_active: bool = Field(True, description="If user is active for scheduler")
     
     # Settings

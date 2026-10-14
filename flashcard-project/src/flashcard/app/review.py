@@ -17,7 +17,7 @@ from flashcard.schemas.user import UserDB
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
-from flashcard.services.review_attempt import ReviewAttemptStore
+from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.user import UserService
 
 Direction = Literal["forward", "reverse"]
@@ -63,13 +63,13 @@ class ReviewUseCases:
         user_service: UserService,
         consumption_service: ConsumptionService,
         llm_service: LLMService,
-        review_attempts: ReviewAttemptStore,
+        review_state: ReviewStateStore,
     ):
         self.expressions = expression_service
         self.users = user_service
         self.consumption = consumption_service
         self.llm = llm_service
-        self.attempts = review_attempts
+        self.review_state = review_state
 
     async def prepare_next(self, user_id: UserId, user: Optional[UserDB] = None) -> PrepareResult:
         """
@@ -112,7 +112,7 @@ class ReviewUseCases:
         await self.users.update_user_last_push(user_id)
         await self.consumption.increment(user_id, "cards_generated", uses_own_key=ready.uses_own_key)
         await shadow_write(
-            self.attempts.record_sent(user_id, ready.expression_id, ready.direction, message_id),
+            self.review_state.record_sent(user_id, ready.expression_id, ready.direction, message_id),
             f"record_sent user={user_id} expression={ready.expression_id}",
         )
 
@@ -130,7 +130,7 @@ class ReviewUseCases:
         if not updated:
             return CardNotFound()
         await shadow_write(
-            self.attempts.record_graded(user_id, expression_id, direction, grade),
+            self.review_state.record_graded(user_id, expression_id, direction),
             f"record_graded user={user_id} expression={expression_id}",
         )
         return Graded()

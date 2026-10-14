@@ -14,7 +14,6 @@ def _collection_name_map(settings):
         "users": settings.COLLECTION_USERS,
         "expression": settings.COLLECTION_EXPRESSION,
         "conjugation": settings.COLLECTION_CONJUGATION,
-        "review_attempts": settings.COLLECTION_REVIEW_ATTEMPTS,
     }
 
 

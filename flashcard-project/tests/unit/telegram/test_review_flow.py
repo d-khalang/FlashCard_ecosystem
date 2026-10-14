@@ -58,7 +58,7 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
 
 
 def _use_cases(d) -> ReviewUseCases:
-    return ReviewUseCases(review_attempts=AsyncMock(), expression_service=d.expression_service, user_service=d.user_service,
+    return ReviewUseCases(review_state=AsyncMock(), expression_service=d.expression_service, user_service=d.user_service,
                           consumption_service=d.consumption_service, llm_service=d.llm_service)
 
 
