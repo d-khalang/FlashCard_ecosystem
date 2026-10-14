@@ -4,6 +4,19 @@ from flashcard.settings import settings
 
 APP_LOGGER_NAME = "flashcard"
 
+
+def _use_utf8(stream) -> None:
+    """Switch a text stream to UTF-8; unencodable characters are replaced, never raised."""
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is None:
+        return
+    try:
+        reconfigure(encoding="utf-8", errors="replace")
+    except (ValueError, OSError):
+        # e.g. a stream that already has buffered output; keep its encoding.
+        pass
+
+
 class FlashCardLogger:
     """
     Centralized logger configuration for the application.
@@ -29,6 +42,9 @@ class FlashCardLogger:
         app_logger = logging.getLogger(APP_LOGGER_NAME)
         app_logger.setLevel(log_level)
         app_logger.propagate = False  # Isolate from Root Logger
+
+        # Windows consoles default to cp1252, which cannot encode the ⚡ in our format.
+        _use_utf8(sys.stdout)
 
         # Add Handler if not present
         if not app_logger.handlers:
