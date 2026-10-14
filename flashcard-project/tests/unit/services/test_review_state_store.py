@@ -85,3 +85,24 @@ class TestRecordRemoved:
         await store.record_removed(42, "e2")
 
         assert _current(users)["expression_id"] == "e1"
+
+
+class TestBackfilledReview:
+
+    def _backfilled(self):
+        review = {"expression_id": "e1", "direction": "unknown", "message_id": 555, "sent_at": "2026-10-01T10:00:00Z"}
+        return _store({"user_id": "42", "current_review": review})
+
+    async def test_grade_in_either_direction_clears_an_unknown_direction(self):
+        for direction in ("forward", "reverse"):
+            store, users = self._backfilled()
+
+            await store.record_graded(42, "e1", direction)
+
+            assert _current(users) is None
+
+    async def test_backfill_never_overwrites(self):
+        store, users = self._backfilled()
+
+        assert await store.backfill_from_legacy(42, "e2", 1, "2026-10-02T00:00:00Z") is False
+        assert _current(users)["expression_id"] == "e1"

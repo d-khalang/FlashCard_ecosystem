@@ -79,6 +79,9 @@ def _match_condition(field_value: Any, condition: Any) -> bool:
             if op == "$lt":
                 if field_value is None or field_value >= expected:
                     return False
+            elif op == "$ne":
+                if field_value == expected:
+                    return False
             elif op == "$exists":
                 exists = field_value is not None
                 if bool(expected) != exists:

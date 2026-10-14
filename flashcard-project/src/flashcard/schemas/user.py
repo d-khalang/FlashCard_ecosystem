@@ -27,7 +27,8 @@ class UserConsumption(BaseModel):
 class CurrentReview(BaseModel):
     """The delivered card still waiting for a grade; replaced by the next one."""
     expression_id: str = Field(..., description="Reviewed expression ObjectId as string")
-    direction: Literal["forward", "reverse"]
+    # "unknown" only for reviews backfilled from legacy fields; either direction's grade clears it.
+    direction: Literal["forward", "reverse", "unknown"]
     message_id: int = Field(..., description="Telegram message that carries the card")
     sent_at: str = Field(..., description="ISO timestamp of delivery")
 

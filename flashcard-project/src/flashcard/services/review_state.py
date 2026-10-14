@@ -40,10 +40,34 @@ class ReviewStateStore:
             {
                 "user_id": str(user_id),
                 "current_review.expression_id": expression_id,
-                "current_review.direction": direction,
+                "current_review.direction": {"$in": [direction, "unknown"]},
             },
             {"$unset": {"current_review": ""}},
         )
+
+    async def backfill_from_legacy(
+        self,
+        user_id: Union[str, int],
+        expression_id: str,
+        message_id: int,
+        sent_at: str,
+    ) -> bool:
+        """
+        Migration only: set the current review from legacy pending fields.
+        Never overwrites one the bot has already written. True when it wrote.
+        """
+        review = CurrentReview(
+            expression_id=expression_id,
+            direction="unknown",
+            message_id=message_id,
+            sent_at=sent_at,
+        )
+        result = await self.cols["users"].update_one(
+            # Matches a missing field and an explicit null alike.
+            {"user_id": str(user_id), "current_review": None},
+            {"$set": {"current_review": review.model_dump()}},
+        )
+        return bool(getattr(result, "modified_count", 0))
 
     async def record_removed(self, user_id: Union[str, int], expression_id: str) -> None:
         await self.cols["users"].update_one(

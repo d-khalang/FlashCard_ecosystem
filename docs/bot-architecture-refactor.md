@@ -97,8 +97,11 @@ Migration (each step deployable and reversible):
 - [x] Expand: `current_review` and `last_seen_at` written alongside legacy fields;
   reads unchanged. Review-state writes are shadow writes (`app/shadow.py`): failures
   are logged, never break a send, grade or remove
-- [ ] Backfill: `current_review` from `has_pending` + `pending_message_id`
-  (direction unknown until graded); idempotent, dry run first
+- [x] Backfill code: `python -m flashcard.migrations.backfill_current_review` (dry run by default,
+  `--apply` to write; counts only). Sets `current_review` from `has_pending` +
+  the latest card with a non-null `pending_message_id`, direction `unknown` (either
+  direction's grade clears it); never overwrites one the bot wrote
+- [ ] Backfill run: after the expand step is deployed; dry run per language DB first
 - [ ] Shadow compare: scheduler computes "due" both ways and logs mismatches
 - [ ] Switch reads to `current_review` + `last_seen_at`; keep dual writes for rollback
 - [ ] Contract: stop legacy writes; drop `has_pending`, `pending_message_id`,
