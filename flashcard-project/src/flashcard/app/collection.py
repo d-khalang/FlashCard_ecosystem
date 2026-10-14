@@ -179,4 +179,8 @@ class CollectionUseCases:
 
     async def remove(self, user_id: UserId, expression_id: str) -> RemoveResult:
         removed = await self.expressions.remove_expression(user_id, expression_id)
-        return Removed() if removed else NotFound()
+        if not removed:
+            return NotFound()
+        # The removed card may be the unanswered one, which would pause the scheduler forever.
+        await self.users.clear_pending(user_id)
+        return Removed()

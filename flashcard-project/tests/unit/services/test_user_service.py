@@ -49,6 +49,20 @@ class TestUpdateUserLastPush:
 
 
 # ===================================================================
+# clear_pending
+# ===================================================================
+class TestClearPending:
+
+    async def test_clears_has_pending_without_creating_a_user(self):
+        service, cols = _make_service()
+
+        await service.clear_pending(123)
+
+        cols["users"].update_one.assert_called_once_with(
+            {"user_id": "123"}, {"$set": {"has_pending": False}})
+
+
+# ===================================================================
 # toggle_active_status
 # ===================================================================
 class TestToggleActiveStatus:

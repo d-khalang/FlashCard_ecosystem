@@ -210,8 +210,11 @@ def _saved(*, values=None, found=None, removed=True):
     expressions.get_all_expressions = AsyncMock(return_value=list(values or []))
     expressions.search_expressions = AsyncMock(return_value=list(found or []))
     expressions.remove_expression = AsyncMock(return_value=removed)
-    use_cases = CollectionUseCases(expression_service=expressions, user_service=MagicMock(),
+    users = MagicMock()
+    users.clear_pending = AsyncMock()
+    use_cases = CollectionUseCases(expression_service=expressions, user_service=users,
                                    consumption_service=MagicMock(), llm_service=MagicMock())
+    use_cases.users_mock = users
     return use_cases, expressions
 
 
@@ -274,8 +277,10 @@ class TestRemove:
 
         assert await use_cases.remove(333, "abc") == Removed()
         expressions.remove_expression.assert_awaited_once_with(333, "abc")
+        use_cases.users_mock.clear_pending.assert_awaited_once_with(333)
 
     async def test_not_found(self):
         use_cases, _ = _saved(removed=False)
 
         assert await use_cases.remove(333, "abc") == NotFound()
+        use_cases.users_mock.clear_pending.assert_not_awaited()

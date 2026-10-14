@@ -55,6 +55,15 @@ class UserService:
             upsert=True
         )
 
+    async def clear_pending(self, user_id: Union[str, int]):
+        """
+        Lets the scheduler send the next review; the user has interacted.
+        """
+        await self.cols['users'].update_one(
+            {"user_id": str(user_id)},
+            {"$set": {"has_pending": False}},
+        )
+
     async def toggle_active_status(self, user_id: Union[str, int]) -> bool:
         """
         Toggles the user's active status.
