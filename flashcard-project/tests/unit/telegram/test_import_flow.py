@@ -49,7 +49,7 @@ def _deps(*, parsed=None, inserted=None, validation=None, can_generate=True):
 
 
 def _use_cases(d) -> CollectionUseCases:
-    return CollectionUseCases(expression_service=d.expression_service, user_service=d.user_service,
+    return CollectionUseCases(review_attempts=AsyncMock(), expression_service=d.expression_service, user_service=d.user_service,
                               consumption_service=d.consumption_service, llm_service=d.llm_service,
                               language_validator=d.validator)
 

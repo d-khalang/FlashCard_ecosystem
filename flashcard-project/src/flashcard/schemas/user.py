@@ -37,6 +37,7 @@ class UserDB(BaseModel):
     tier: UserTier = Field(UserTier.normal, description="User subscription tier")
     last_push_at: Optional[str] = Field(None, description="ISO timestamp of last push")
     last_reviewed_at: Optional[str] = Field(None, description="ISO timestamp of last review interaction")
+    last_seen_at: Optional[str] = Field(None, description="ISO timestamp of the user's last interaction with the bot")
     has_pending: bool = Field(False, description="If user has pending reviews")
     is_active: bool = Field(True, description="If user is active for scheduler")
     

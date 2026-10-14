@@ -117,6 +117,7 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
         consumption_service=services["consumption_service"],
         llm_service=llm_service,
         language_validator=BaseLanguageValidityChecker(),
+        review_attempts=services["review_attempts"],
     )
     yield {
         "bot": bot,

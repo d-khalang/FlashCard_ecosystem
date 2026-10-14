@@ -8,11 +8,13 @@ from dataclasses import dataclass
 from typing import Literal, Optional, Union, get_args
 
 from flashcard.app.quota import QuotaExceeded
+from flashcard.app.shadow import shadow_write
 from flashcard.app.types import UserId
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.language_validation import LanguageValidityChecker
 from flashcard.services.llm.llm import LLMService
+from flashcard.services.review_attempt import ReviewAttemptStore
 from flashcard.services.user import UserService
 from flashcard.utils.logger import get_logger
 
@@ -110,12 +112,14 @@ class CollectionUseCases:
         user_service: UserService,
         consumption_service: ConsumptionService,
         llm_service: LLMService,
+        review_attempts: ReviewAttemptStore,
         language_validator: Optional[LanguageValidityChecker] = None,
     ):
         self.expressions = expression_service
         self.users = user_service
         self.consumption = consumption_service
         self.llm = llm_service
+        self.attempts = review_attempts
         self.validator = language_validator
 
     async def import_items(self, user_id: UserId, text: str) -> ImportResult:
@@ -183,4 +187,8 @@ class CollectionUseCases:
             return NotFound()
         # The removed card may be the unanswered one, which would pause the scheduler forever.
         await self.users.clear_pending(user_id)
+        await shadow_write(
+            self.attempts.record_removed(user_id, expression_id),
+            f"record_removed user={user_id} expression={expression_id}",
+        )
         return Removed()

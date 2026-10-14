@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     COLLECTION_USERS: str
     COLLECTION_EXPRESSION: str
     COLLECTION_CONJUGATION: str
+    COLLECTION_REVIEW_ATTEMPTS: str = "review_attempts"
     PORT: int = 8000
     IN_DOCKER: int = 0
     SCRAPER_API_KEY: Optional[str] = None

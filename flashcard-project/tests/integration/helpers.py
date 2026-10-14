@@ -25,6 +25,7 @@ from flashcard.schemas.import_model import ImportResponse
 from flashcard.schemas.story import StoryParagraph, StoryResponse
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
+from flashcard.services.review_attempt import ReviewAttemptStore
 from flashcard.services.user import UserService
 from flashcard.services.verb import VerbService
 
@@ -123,6 +124,10 @@ class AsyncCursorMock:
         self._docs.sort(key=lambda doc: _get_nested(doc, field), reverse=reverse)
         return self
 
+    def limit(self, count: int) -> "AsyncCursorMock":
+        self._docs = self._docs[:count]
+        return self
+
     def __aiter__(self) -> "AsyncCursorMock":
         self._index = 0
         return self
@@ -217,6 +222,20 @@ class InMemoryCollection:
         new_doc.setdefault("_id", ObjectId())
         self.docs.append(new_doc)
         return SimpleNamespace(modified_count=0, upserted_id=new_doc["_id"], deleted_count=0)
+
+    async def update_many(self, query: dict[str, Any], update: dict[str, Any]) -> SimpleNamespace:
+        matched = [doc for doc in self.docs if _matches(doc, query)]
+        for doc in matched:
+            for key, values in update.items():
+                if key != "$set":
+                    raise NotImplementedError(f"Unsupported update_many operator: {key}")
+                for field, value in values.items():
+                    _set_nested(doc, field, value)
+        return SimpleNamespace(matched_count=len(matched), modified_count=len(matched))
+
+    async def create_index(self, keys: Any, **kwargs: Any) -> str:
+        """Indexes are not enforced in memory; the name is returned like Mongo does."""
+        return kwargs.get("name", str(keys))
 
     async def delete_one(self, query: dict[str, Any]) -> SimpleNamespace:
         for index, doc in enumerate(self.docs):
@@ -498,6 +517,7 @@ def make_cols(*, users: list[dict[str, Any]] | None = None, expressions: list[di
         "users": InMemoryCollection(users),
         "expression": InMemoryCollection(expressions),
         "conjugation": InMemoryCollection(conjugations),
+        "review_attempts": InMemoryCollection(),
     }
 
 
@@ -506,9 +526,11 @@ def make_services(cols: dict[str, InMemoryCollection], http_client: FakeHTTPClie
     consumption_service = ConsumptionService(cols=cols)
     user_service = UserService(cols=cols, consumption_service=consumption_service)
     verb_service = VerbService(cols=cols, http_client=http_client)
+    review_attempts = ReviewAttemptStore(cols=cols)
     return {
         "expression_service": expression_service,
         "user_service": user_service,
         "consumption_service": consumption_service,
         "verb_service": verb_service,
+        "review_attempts": review_attempts,
     }

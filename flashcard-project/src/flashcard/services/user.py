@@ -134,16 +134,17 @@ class UserService:
         )
         return result.modified_count > 0
 
-    async def update_username(self, user_id: Union[str, int], username: Optional[str]):
+    async def record_seen(self, user_id: Union[str, int], username: Optional[str]):
         """
-        Updates the user's Telegram username.
+        Records that the user interacted with the bot, and syncs their Telegram username.
         """
+        current_iso = iso_z(now_utc())
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {
-                "$set": {"username": username},
+                "$set": {"username": username, "last_seen_at": current_iso},
                 # Ensure created_at is initialized on first insert for this user.
-                "$setOnInsert": {"created_at": iso_z(now_utc())},
+                "$setOnInsert": {"created_at": current_iso},
             },
             upsert=True
         )

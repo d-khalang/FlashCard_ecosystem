@@ -6,11 +6,13 @@ moves to its own model, so the migration can prove it preserves it.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 
 from bson import ObjectId
 
 from flashcard.scheduler.scheduler import find_users_due_for_review
+from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.telegram.ui.factories.inline_remove_callback import InlineRemoveCallback
 from flashcard.utils.time import iso_z, now_utc
 
@@ -97,3 +99,60 @@ class TestCandidateCooldown:
 
         assert candidate is not None
         assert candidate["doc"]["_id"] == expression_id
+
+
+async def _attempts(env):
+    return env["review_attempts"].cols["review_attempts"].docs
+
+
+class TestReviewAttemptsShadow:
+    """review_attempts is written alongside the legacy fields during the migration."""
+
+    async def test_get_opens_an_attempt_and_grade_closes_it(self, dispatcher_env):
+        expression_id = await _insert_card(dispatcher_env)
+        await _set_user(dispatcher_env, has_pending=False, last_reviewed_at=None)
+
+        await _feed(dispatcher_env, make_message_update(text="/get"))
+
+        [attempt] = await _attempts(dispatcher_env)
+        assert attempt["state"] == "open"
+        assert attempt["expression_id"] == str(expression_id)
+        assert attempt["message_id"] is not None
+
+        callback = GradeCallback(expression_id=str(expression_id), grade=4, direction="fwd").pack()
+        await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
+
+        [attempt] = await _attempts(dispatcher_env)
+        assert (attempt["state"], attempt["grade"], attempt["direction"]) == ("graded", 4, "forward")
+
+    async def test_removing_the_card_closes_its_attempt(self, dispatcher_env):
+        expression_id = await _insert_card(dispatcher_env)
+        await _set_user(dispatcher_env, has_pending=False, last_reviewed_at=None)
+        await _feed(dispatcher_env, make_message_update(text="/get"))
+
+        callback = InlineRemoveCallback(action="confirm", expression_id=str(expression_id)).pack()
+        await _feed(dispatcher_env, make_callback_update(data=callback, text="andare", message_id=88))
+
+        [attempt] = await _attempts(dispatcher_env)
+        assert attempt["state"] == "removed"
+
+    async def test_grading_a_card_sent_before_attempts_still_works(self, dispatcher_env):
+        expression_id = await _insert_card(dispatcher_env, pending_message_id=555)
+        await _set_user(dispatcher_env, has_pending=True)
+
+        callback = GradeCallback(expression_id=str(expression_id), grade=3, direction="rev").pack()
+        await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
+
+        assert (await _user_doc(dispatcher_env))["has_pending"] is False
+        assert await _attempts(dispatcher_env) == []
+
+
+class TestLastSeen:
+
+    async def test_any_interaction_records_last_seen(self, dispatcher_env):
+        await _feed(dispatcher_env, make_message_update(text="/start"))
+        # The middleware records presence in a background task.
+        for _ in range(5):
+            await asyncio.sleep(0)
+
+        assert (await _user_doc(dispatcher_env))["last_seen_at"] is not None

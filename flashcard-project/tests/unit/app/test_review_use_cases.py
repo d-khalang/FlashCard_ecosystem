@@ -41,7 +41,7 @@ def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
     llm = MagicMock()
     llm.generate_expression_card = AsyncMock(return_value="CARD")
 
-    use_cases = ReviewUseCases(expression_service=expressions, user_service=users,
+    use_cases = ReviewUseCases(review_attempts=AsyncMock(), expression_service=expressions, user_service=users,
                                consumption_service=consumption, llm_service=llm)
     return use_cases, expressions, users, consumption, llm
 
@@ -223,3 +223,47 @@ class TestClaimFirstReviewTip:
         users.advance_onboarding.return_value = False
 
         assert await use_cases.claim_first_review_tip(111) is False
+
+
+class TestReviewAttemptShadow:
+    """Attempts are written alongside the legacy fields; their failure never breaks a review."""
+
+    def _ready(self):
+        return ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="reverse",
+                           card="CARD", uses_own_key=False)
+
+    async def test_mark_sent_records_the_attempt(self):
+        use_cases, _, _, _, _ = _use_cases()
+
+        await use_cases.mark_sent(111, self._ready(), 777)
+
+        use_cases.attempts.record_sent.assert_awaited_once_with(111, EXPRESSION_ID, "reverse", 777)
+
+    async def test_mark_sent_survives_an_attempt_failure(self):
+        use_cases, expressions, users, consumption, _ = _use_cases()
+        use_cases.attempts.record_sent.side_effect = RuntimeError("mongo down")
+
+        await use_cases.mark_sent(111, self._ready(), 777)
+
+        expressions.update_expression_sent.assert_awaited_once()
+        users.update_user_last_push.assert_awaited_once()
+        consumption.increment.assert_awaited_once()
+
+    async def test_grade_records_the_attempt(self):
+        use_cases, _, _, _, _ = _use_cases()
+
+        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward") == Graded()
+        use_cases.attempts.record_graded.assert_awaited_once_with(111, EXPRESSION_ID, "forward", 4)
+
+    async def test_grade_survives_an_attempt_failure(self):
+        use_cases, _, _, _, _ = _use_cases()
+        use_cases.attempts.record_graded.side_effect = RuntimeError("mongo down")
+
+        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward") == Graded()
+
+    async def test_missing_card_records_no_attempt(self):
+        use_cases, expressions, _, _, _ = _use_cases()
+        expressions.grade_expression.return_value = None
+
+        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward") == CardNotFound()
+        use_cases.attempts.record_graded.assert_not_awaited()

@@ -147,12 +147,12 @@ class TestUserServiceQuota:
         assert service.can_generate_story(user) is True
 
     @pytest.mark.asyncio
-    async def test_update_username(self):
+    async def test_record_seen(self):
         service, cols = _make_service()
-        await service.update_username("123", "new_handle")
+        await service.record_seen("123", "new_handle")
         
         cols["users"].update_one.assert_called_once_with(
             {"user_id": "123"},
-            {"$set": {"username": "new_handle"}, "$setOnInsert": {"created_at": ANY}},
+            {"$set": {"username": "new_handle", "last_seen_at": ANY}, "$setOnInsert": {"created_at": ANY}},
             upsert=True
         )

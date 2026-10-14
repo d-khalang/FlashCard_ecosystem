@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Literal, Optional, Union, get_args
 
 from flashcard.app.quota import QuotaExceeded
+from flashcard.app.shadow import shadow_write
 from flashcard.app.types import UserId
 from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
 from flashcard.schemas.expression import ExpressionCard
@@ -16,6 +17,7 @@ from flashcard.schemas.user import UserDB
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
+from flashcard.services.review_attempt import ReviewAttemptStore
 from flashcard.services.user import UserService
 
 Direction = Literal["forward", "reverse"]
@@ -61,11 +63,13 @@ class ReviewUseCases:
         user_service: UserService,
         consumption_service: ConsumptionService,
         llm_service: LLMService,
+        review_attempts: ReviewAttemptStore,
     ):
         self.expressions = expression_service
         self.users = user_service
         self.consumption = consumption_service
         self.llm = llm_service
+        self.attempts = review_attempts
 
     async def prepare_next(self, user_id: UserId, user: Optional[UserDB] = None) -> PrepareResult:
         """
@@ -107,6 +111,10 @@ class ReviewUseCases:
         await self.expressions.update_expression_sent(ready.expression_id, message_id)
         await self.users.update_user_last_push(user_id)
         await self.consumption.increment(user_id, "cards_generated", uses_own_key=ready.uses_own_key)
+        await shadow_write(
+            self.attempts.record_sent(user_id, ready.expression_id, ready.direction, message_id),
+            f"record_sent user={user_id} expression={ready.expression_id}",
+        )
 
     async def grade(self, user_id: UserId, expression_id: str, grade: int, direction: Direction) -> GradeResult:
         """
@@ -119,7 +127,13 @@ class ReviewUseCases:
             raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
 
         updated = await self.expressions.grade_expression(user_id, expression_id, grade, direction)
-        return Graded() if updated else CardNotFound()
+        if not updated:
+            return CardNotFound()
+        await shadow_write(
+            self.attempts.record_graded(user_id, expression_id, direction, grade),
+            f"record_graded user={user_id} expression={expression_id}",
+        )
+        return Graded()
 
     async def claim_first_review_tip(self, user_id: UserId) -> bool:
         """

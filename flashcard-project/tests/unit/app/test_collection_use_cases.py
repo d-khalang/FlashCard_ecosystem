@@ -48,7 +48,7 @@ def _use_cases(*, parsed=None, inserted=None, validation=None, user=None, can_ge
         validator = MagicMock()
         validator.validate_import_items = AsyncMock(return_value=validation)
 
-    use_cases = CollectionUseCases(expression_service=expressions, user_service=users,
+    use_cases = CollectionUseCases(review_attempts=AsyncMock(), expression_service=expressions, user_service=users,
                                    consumption_service=consumption, llm_service=llm,
                                    language_validator=validator)
     return use_cases, expressions, users, consumption, llm
@@ -212,7 +212,7 @@ def _saved(*, values=None, found=None, removed=True):
     expressions.remove_expression = AsyncMock(return_value=removed)
     users = MagicMock()
     users.clear_pending = AsyncMock()
-    use_cases = CollectionUseCases(expression_service=expressions, user_service=users,
+    use_cases = CollectionUseCases(review_attempts=AsyncMock(), expression_service=expressions, user_service=users,
                                    consumption_service=MagicMock(), llm_service=MagicMock())
     use_cases.users_mock = users
     return use_cases, expressions
@@ -284,3 +284,18 @@ class TestRemove:
 
         assert await use_cases.remove(333, "abc") == NotFound()
         use_cases.users_mock.clear_pending.assert_not_awaited()
+        use_cases.attempts.record_removed.assert_not_awaited()
+
+    async def test_removed_closes_the_card_attempts(self):
+        use_cases, _ = _saved(removed=True)
+
+        await use_cases.remove(333, "abc")
+
+        use_cases.attempts.record_removed.assert_awaited_once_with(333, "abc")
+
+    async def test_removed_survives_an_attempt_failure(self):
+        use_cases, _ = _saved(removed=True)
+        use_cases.attempts.record_removed.side_effect = RuntimeError("mongo down")
+
+        assert await use_cases.remove(333, "abc") == Removed()
+        use_cases.users_mock.clear_pending.assert_awaited_once_with(333)

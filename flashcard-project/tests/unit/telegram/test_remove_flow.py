@@ -28,7 +28,7 @@ def _deps(*, found=None, removed=True):
 
 
 def _use_cases(d) -> CollectionUseCases:
-    return CollectionUseCases(expression_service=d.expression_service, user_service=AsyncMock(),
+    return CollectionUseCases(review_attempts=AsyncMock(), expression_service=d.expression_service, user_service=AsyncMock(),
                               consumption_service=MagicMock(), llm_service=MagicMock())
 
 
