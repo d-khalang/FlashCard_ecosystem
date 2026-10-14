@@ -151,3 +151,34 @@ class TestLastSeen:
             await asyncio.sleep(0)
 
         assert (await _user_doc(dispatcher_env))["last_seen_at"] is not None
+
+
+class TestCurrentReviewPauseRule:
+    """The same flows under REVIEW_PAUSE_RULE=current_review."""
+
+    async def _due(self, env):
+        return [user.user_id for user in await find_users_due_for_review(env["user_service"], "current_review")]
+
+    async def test_sent_card_pauses_and_grade_resumes(self, dispatcher_env):
+        expression_id = await _insert_card(dispatcher_env)
+        await _set_user(dispatcher_env, last_reviewed_at=None)
+
+        await _feed(dispatcher_env, make_message_update(text="/get"))
+        assert USER_ID not in await self._due(dispatcher_env)
+
+        callback = GradeCallback(expression_id=str(expression_id), grade=4, direction="fwd").pack()
+        await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
+        # Grading also starts the user's interval; only the pause is checked here.
+        await _set_user(dispatcher_env, last_reviewed_at=None)
+
+        assert USER_ID in await self._due(dispatcher_env)
+
+    async def test_interaction_after_the_card_resumes(self, dispatcher_env):
+        await _insert_card(dispatcher_env)
+        await _set_user(dispatcher_env, last_reviewed_at=None)
+        await _feed(dispatcher_env, make_message_update(text="/get"))
+
+        later = iso_z(now_utc() + timedelta(seconds=5))
+        await _set_user(dispatcher_env, last_seen_at=later)
+
+        assert USER_ID in await self._due(dispatcher_env)

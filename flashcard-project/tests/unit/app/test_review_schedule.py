@@ -5,7 +5,7 @@ from datetime import timedelta
 
 import pytest
 
-from flashcard.app.review_schedule import PauseComparison, awaiting_answer, compare_pause, interval_elapsed
+from flashcard.app.review_schedule import PauseComparison, awaiting_answer, compare_pause, interval_elapsed, paused
 from flashcard.schemas.user import UserDB
 from flashcard.utils.time import iso_z, now_utc
 
@@ -52,6 +52,18 @@ class TestAwaitingAnswer:
 
     def test_seen_after_the_card(self):
         assert awaiting_answer(_user(sent_at=SENT, last_seen_at=_ago(hours=1))) is False
+
+
+class TestPaused:
+
+    def test_legacy_rule_follows_has_pending(self):
+        assert paused(_user(has_pending=True), "legacy") is True
+        assert paused(_user(sent_at=SENT), "legacy") is False
+
+    def test_current_review_rule_follows_awaiting_answer(self):
+        assert paused(_user(sent_at=SENT), "current_review") is True
+        assert paused(_user(has_pending=True), "current_review") is False
+        assert paused(_user(has_pending=True, sent_at=SENT, last_seen_at=_ago(hours=1)), "current_review") is False
 
 
 class TestComparePause:

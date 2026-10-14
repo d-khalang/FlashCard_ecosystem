@@ -258,7 +258,8 @@ async def init_telegram_bot(app: FastAPI, settings):
             logger_bot=logger_bot,
             user_service=user_service,
             review_use_cases=dispatcher_data["review_use_cases"],
-            admin_id=settings.ADMIN_ID
+            admin_id=settings.ADMIN_ID,
+            pause_rule=settings.REVIEW_PAUSE_RULE,
         )
     )
 
@@ -354,7 +355,8 @@ async def init_telegram_without_fastapi(settings):
             logger_bot=logger_bot,
             user_service=user_service,
             review_use_cases=dispatcher_data["review_use_cases"],
-            admin_id=settings.ADMIN_ID
+            admin_id=settings.ADMIN_ID,
+            pause_rule=settings.REVIEW_PAUSE_RULE,
         )
     )
 

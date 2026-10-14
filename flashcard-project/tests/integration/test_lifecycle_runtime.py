@@ -56,6 +56,7 @@ async def test_init_telegram_bot_webhook_mode_sets_webhook(monkeypatch):
             WEBHOOK_SECRET="secret",
             webhook_url="https://bot.example.com/webhook",
             ADMIN_ID=1,
+            REVIEW_PAUSE_RULE="legacy",
         ),
     )
     monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", fake_scheduler_loop)
@@ -110,6 +111,7 @@ async def test_init_telegram_bot_polling_mode_deletes_webhook_and_starts_polling
             WEBHOOK_SECRET="secret",
             webhook_url="https://bot.example.com/webhook",
             ADMIN_ID=1,
+            REVIEW_PAUSE_RULE="legacy",
         ),
     )
 

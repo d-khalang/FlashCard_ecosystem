@@ -19,6 +19,23 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 | 9 | Loose types: `user_id` is `str` or `int`, dicts instead of models, ISO strings compared as text | BSON Int64 session bug | Open |
 | 10 | No shared composition root: dispatcher data dict; startup wiring duplicated in `bot.py` | `MiniappRuntime` built its own composition | Open |
 
+## Production rollout (one update after the full refactor)
+
+Nothing from this refactor is deployed yet. Everything ships in **one update** once the
+refactor is finished, then these production steps run in order:
+
+1. Back up each language database.
+2. Deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes (`current_review`,
+   `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
+3. Backfill each language DB: `python -m flashcard.migrations.backfill_current_review`
+   (dry run, check counts), then `--apply`.
+4. Observe the `Review-state shadow compare` log line for a few days:
+   `missing_current_review` ≈ 0, no unexplained `new_pauses`.
+5. Switch: set `REVIEW_PAUSE_RULE=current_review` and restart (no new image).
+   Rollback: set it back to `legacy` and restart.
+6. After the switch is validated: the **contract** step is a **separate, later update**
+   (it deletes the rollback path), see "Remove after the migration is validated".
+
 ## #2 Use-case layer: progress
 
 - [x] Characterization tests for `/get`, scheduled review, grading
@@ -101,21 +118,25 @@ Migration (each step deployable and reversible):
   `--apply` to write; counts only). Sets `current_review` from `has_pending` +
   the latest card with a non-null `pending_message_id`, direction `unknown` (either
   direction's grade clears it); never overwrites one the bot wrote
-- [ ] Backfill run: after the expand step is deployed; dry run per language DB first
+- [ ] (prod, rollout step 3) Backfill run; dry run per language DB first
 - [x] Shadow compare: rules in `app/review_schedule.py` (pure). Each scheduler tick logs
   one line, `Review-state shadow compare: agree=… resumed_by_interaction=…
   missing_current_review=… new_pauses=…`; per-user mismatches at DEBUG. Expected:
   `resumed_by_interaction` (intended change), `missing_current_review` before the
   backfill run. Investigate any `new_pauses`. Read-only; failures never break a tick
-- [ ] Observe in production for a few days after deploy + backfill
-- [ ] Switch reads to `current_review` + `last_seen_at`; keep dual writes for rollback
-- [ ] Contract: stop legacy writes; drop `has_pending`, `pending_message_id`,
+- [ ] (prod, rollout step 4) Observe for a few days after deploy + backfill
+- [x] Switch code: `REVIEW_PAUSE_RULE` setting (`legacy` default | `current_review`), read in
+  `bot.py` and passed to `scheduler_loop`; rule in `app/review_schedule.paused`. Dual writes stay
+- [ ] (prod, rollout step 5) Flip the setting
+- [ ] (separate later update) Contract: stop legacy writes; drop `has_pending`, `pending_message_id`,
   `last_push_at`, `last_sent_at` after a backup
 
 ### Remove after the migration is validated (contract step)
 
 Temporary code that becomes dead once the switch is proven in production:
 
+- **Switch:** the `REVIEW_PAUSE_RULE` setting, the `pause_rule` parameters and the
+  `legacy` branch of `paused` (the scheduler always uses `awaiting_answer`).
 - **Shadow compare:** `Comparison`, `compare_pause`, `PauseComparison` in
   `app/review_schedule.py` (keep `interval_elapsed`, `awaiting_answer`);
   `compare_pause_rules`, `_log_pause_comparison` and its call in `scheduler_loop`;

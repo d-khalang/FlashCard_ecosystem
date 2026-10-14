@@ -32,6 +32,17 @@ def awaiting_answer(user: UserDB) -> bool:
     return parse_iso(user.last_seen_at) <= parse_iso(review.sent_at)
 
 
+# Which pause rule the scheduler uses; "legacy" until the migration switch.
+PauseRule = Literal["legacy", "current_review"]
+
+
+def paused(user: UserDB, rule: PauseRule) -> bool:
+    """The scheduler must not send this user a new review yet."""
+    if rule == "current_review":
+        return awaiting_answer(user)
+    return user.has_pending
+
+
 # How the legacy and new pause decisions relate for one user.
 Comparison = Literal[
     "agree",                      # both paused or both free

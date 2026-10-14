@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Optional
 from aiogram import Bot
 
-from flashcard.app.review_schedule import PauseComparison, interval_elapsed
+from flashcard.app.review_schedule import PauseComparison, PauseRule, interval_elapsed, paused
 from flashcard.schemas.trace import TraceData
 from flashcard.schemas.user import UserDB
 from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
@@ -25,7 +25,7 @@ SCHEDULER_CHECK_INTERVAL_SECONDS = settings.SCHEDULER_CHECK_INTERVAL_SECONDS
 from flashcard.schemas.defaults import DEFAULT_SCHEDULER_INTERVAL_MINUTES
 
 
-async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
+async def find_users_due_for_review(user_service: UserService, pause_rule: PauseRule = "legacy") -> list[UserDB]:
     """
     Finds active users who are due for a review.
 
@@ -35,7 +35,8 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
     Returns:
         List of UserDB objects for users who meet all criteria:
         - is_active == True (scheduler not paused)
-        - has_pending == False (no ungraded flashcard)
+        - not paused by `pause_rule` (legacy: has_pending; current_review: a card
+          is waiting and the user has not been seen since it was sent)
         - last_reviewed_at + review_interval_minutes < now (or never reviewed)
     """
 
@@ -48,20 +49,23 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
     cutoff_time = iso_z(now - timedelta(minutes=min_interval_minutes))
 
     # Optimized MongoDB query: pre-filter by approximate timing
-    users_cursor = user_service.cols['users'].find({
+    query = {
         "is_active": True,
-        "has_pending": False,
         "$or": [
             {"last_reviewed_at": None},  # Never reviewed
             {"last_reviewed_at": {"$lt": cutoff_time}}  # Reviewed before cutoff
         ]
-    })
+    }
+    if pause_rule == "legacy":
+        query["has_pending"] = False
+    # The current_review rule compares two fields per user, so it is checked in Python.
+    users_cursor = user_service.cols['users'].find(query)
 
     users_due = []
     async for user_doc in users_cursor:
         # Parse to UserDB for type safety
         user = UserDB.model_validate(user_doc)
-        if interval_elapsed(user, now):
+        if not paused(user, pause_rule) and interval_elapsed(user, now):
             users_due.append(user)
 
     return users_due
@@ -201,8 +205,8 @@ async def send_admin_metrics(
 
 
 @observe(name="scheduler.find_users_due_for_review", include_output=False)
-async def _observed_find_users_due_for_review(user_service: UserService) -> list[UserDB]:
-    return await find_users_due_for_review(user_service)
+async def _observed_find_users_due_for_review(user_service: UserService, pause_rule: PauseRule) -> list[UserDB]:
+    return await find_users_due_for_review(user_service, pause_rule)
 
 
 @observe(name="scheduler.send_admin_metrics", include_output=False)
@@ -227,7 +231,8 @@ async def scheduler_loop(
     logger_bot: Bot,
     user_service: UserService,
     review_use_cases: ReviewUseCases,
-    admin_id: int
+    admin_id: int,
+    pause_rule: PauseRule = "legacy",
 ) -> None:
     """
     Main scheduler loop that runs indefinitely.
@@ -240,7 +245,7 @@ async def scheduler_loop(
     On consecutive failures: backs off exponentially (30s → 60s → 120s → 5min cap).
     On success: resets to normal interval.
     """
-    logger.info(f"Scheduler started. Check interval: {SCHEDULER_CHECK_INTERVAL_SECONDS}s")
+    logger.info(f"Scheduler started. Check interval: {SCHEDULER_CHECK_INTERVAL_SECONDS}s, pause rule: {pause_rule}")
 
     consecutive_failures = 0
     PER_USER_TIMEOUT = 20  # seconds — don't let one user block the cycle
@@ -262,7 +267,7 @@ async def scheduler_loop(
 
         try:
             # Find users who need reviews
-            users_to_push = await _observed_find_users_due_for_review(user_service)
+            users_to_push = await _observed_find_users_due_for_review(user_service, pause_rule)
             logger.info(f"Found {len(users_to_push)} users due for review")
             await _log_pause_comparison(user_service)
 

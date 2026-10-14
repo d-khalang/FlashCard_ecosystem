@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     ENABLE_CONJUGATION: bool = True
     LANGUAGE_VALIDATOR: str = "auto"
     SCHEDULER_CHECK_INTERVAL_SECONDS: int = 600  # 10 minutes
+    # Review-state migration switch; see docs/bot-architecture-refactor.md (rollout).
+    REVIEW_PAUSE_RULE: Literal["legacy", "current_review"] = "legacy"
     LLM_GOOGLE_MODEL: str = "gemini-2.5-flash-lite"
     LLM_GROQ_MODEL: str = "openai/gpt-oss-120b"
     LLM_GROQ_FALLBACK_DELAY_SECONDS: float = 4.0

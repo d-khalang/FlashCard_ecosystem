@@ -312,3 +312,44 @@ class TestComparePauseRules:
         await _log_pause_comparison(service)
 
         assert "shadow compare failed" in caplog.text
+
+
+# ===================================================================
+# find_users_due_for_review with the current_review pause rule
+# ===================================================================
+class TestFindUsersDueCurrentReviewRule:
+
+    def _service(self, *users):
+        from tests.integration.helpers import make_cols
+        service = MagicMock()
+        service.cols = make_cols(users=list(users))
+        return service
+
+    def _review(self, hours_ago):
+        return {"expression_id": "e1", "direction": "forward", "message_id": 1,
+                "sent_at": iso_z(now_utc() - timedelta(hours=hours_ago))}
+
+    async def _due(self, service, rule):
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        return sorted(user.user_id for user in await find_users_due_for_review(service, rule))
+
+    async def test_rules_differ_only_on_the_pause(self):
+        seen_after = iso_z(now_utc() - timedelta(hours=1))
+        service = self._service(
+            _make_user_doc(user_id="free"),
+            _make_user_doc(user_id="waiting", has_pending=True, current_review=self._review(2)),
+            _make_user_doc(user_id="resumed", has_pending=True, current_review=self._review(2),
+                           last_seen_at=seen_after),
+            _make_user_doc(user_id="stuck", has_pending=True),
+        )
+
+        assert await self._due(service, "legacy") == ["free"]
+        assert await self._due(service, "current_review") == ["free", "resumed", "stuck"]
+
+    async def test_interval_and_active_still_apply(self):
+        service = self._service(
+            _make_user_doc(user_id="recent", last_reviewed_at=iso_z(now_utc() - timedelta(minutes=5))),
+            _make_user_doc(user_id="inactive", is_active=False),
+        )
+
+        assert await self._due(service, "current_review") == []
