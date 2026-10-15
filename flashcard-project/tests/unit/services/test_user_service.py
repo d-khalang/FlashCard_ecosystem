@@ -39,13 +39,14 @@ class TestUpdateUserLastPush:
         assert "last_push_at" in set_dict
         assert set_dict["has_pending"] is True
 
-    async def test_upserts_for_new_user(self):
+    async def test_never_creates_a_user(self):
+        """Only record_seen creates users, so created_at is always set."""
         service, cols = _make_service()
 
         await service.update_user_last_push(999)
 
         call_kwargs = cols["users"].update_one.call_args[1]
-        assert call_kwargs.get("upsert") is True
+        assert not call_kwargs.get("upsert")
 
 
 # ===================================================================
@@ -183,13 +184,14 @@ class TestUpdateSetting:
         assert call_args[0] == {"user_id": "123"}
         assert call_args[1] == {"$set": {"primary_language": "de"}}
 
-    async def test_upserts_for_new_user(self):
+    async def test_never_creates_a_user(self):
+        """Only record_seen creates users, so created_at is always set."""
         service, cols = _make_service()
 
         await service.update_setting(999, "target_level", "C1")
 
         call_kwargs = cols["users"].update_one.call_args[1]
-        assert call_kwargs.get("upsert") is True
+        assert not call_kwargs.get("upsert")
 
     async def test_converts_int_user_id_to_string(self):
         """Integer user_id should be converted to string in the query."""

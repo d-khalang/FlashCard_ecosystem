@@ -6,7 +6,6 @@ moves to its own model, so the migration can prove it preserves it.
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import timedelta
 
 from bson import ObjectId
@@ -146,11 +145,31 @@ class TestLastSeen:
 
     async def test_any_interaction_records_last_seen(self, dispatcher_env):
         await _feed(dispatcher_env, make_message_update(text="/start"))
-        # The middleware records presence in a background task.
-        for _ in range(5):
-            await asyncio.sleep(0)
 
         assert (await _user_doc(dispatcher_env))["last_seen_at"] is not None
+
+
+class TestUserCreation:
+    """Only the middleware's record_seen creates users; created_at is the trial start."""
+
+    async def test_first_ever_update_creates_the_user_with_created_at(self, dispatcher_env):
+        # Ordering itself is pinned in test_trace_middleware.py; the fake DB cannot show the race.
+        await _feed(dispatcher_env, make_callback_update(data="save:andare", text="Preview card"))
+
+        user = await _user_doc(dispatcher_env)
+        assert user["created_at"] is not None
+        assert user["created_at"] == user["last_seen_at"]
+
+    async def test_a_seen_failure_does_not_block_the_handler(self, dispatcher_env, monkeypatch):
+        async def failing_record_seen(*_):
+            raise RuntimeError("mongo down")
+
+        monkeypatch.setattr(dispatcher_env["user_service"], "record_seen", failing_record_seen)
+        await _insert_card(dispatcher_env)
+
+        await _feed(dispatcher_env, make_message_update(text="/start"))
+
+        assert any(call.method == "SendMessage" for call in dispatcher_env["session"].calls)
 
 
 class TestCurrentReviewPauseRule:

@@ -1,5 +1,4 @@
 import uuid
-import asyncio
 from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
@@ -8,6 +7,9 @@ from aiogram.types import TelegramObject, Message, CallbackQuery, Update
 from flashcard.schemas.trace import TraceData
 from flashcard.utils.tracing import set_current_trace, finalize_trace
 from flashcard.utils.time import now_utc, iso_z
+from flashcard.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class TraceMiddleware(BaseMiddleware):
     """
@@ -49,12 +51,16 @@ class TraceMiddleware(BaseMiddleware):
                 user_name = actual_event.from_user.username or actual_event.from_user.full_name
             text = actual_event.data
 
-        # Record the interaction (and sync the username) if the service is available
+        # Record the interaction (and sync the username) if the service is available.
+        # Awaited, not fire-and-forget: it creates the user document, which every
+        # handler write relies on (they never create users themselves).
         user_service = data.get("user_service")
         if user_service and user_id and isinstance(actual_event, (Message, CallbackQuery)) and actual_event.from_user:
             username = actual_event.from_user.username
-            # We fire and forget the update to not block the request
-            asyncio.create_task(user_service.record_seen(user_id, username))
+            try:
+                await user_service.record_seen(user_id, username)
+            except Exception:
+                logger.warning("Could not record user %s as seen", user_id, exc_info=True)
 
         start_dt = now_utc()
         trace_id = str(uuid.uuid4())

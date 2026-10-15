@@ -40,19 +40,14 @@ class UserService:
         """
         Updates the user's last_push_at timestamp.
         """
-        current_iso = iso_z(now_utc())
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {
                 "$set": {
-                    "last_push_at": current_iso,
+                    "last_push_at": iso_z(now_utc()),
                     "has_pending": True 
                 },
-                "$setOnInsert": {
-                    "created_at": current_iso
-                }
             },
-            upsert=True
         )
 
     async def clear_pending(self, user_id: Union[str, int]):
@@ -80,7 +75,6 @@ class UserService:
         await self.cols['users'].update_one(
             {"user_id": user_id_str},
             {"$set": {"is_active": new_status}},
-            upsert=True
         )
         
         status_str = "Active" if new_status else "Inactive"
@@ -114,7 +108,6 @@ class UserService:
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {"$set": {field: value}},
-            upsert=True
         )
 
     async def advance_onboarding(self, user_id: Union[str, int], current_step: int) -> bool:
@@ -137,13 +130,15 @@ class UserService:
     async def record_seen(self, user_id: Union[str, int], username: Optional[str]):
         """
         Records that the user interacted with the bot, and syncs their Telegram username.
+
+        The only writer that creates user documents, so `created_at` (the trial start)
+        is always the first interaction. Every other writer updates existing users only.
         """
         current_iso = iso_z(now_utc())
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {
                 "$set": {"username": username, "last_seen_at": current_iso},
-                # Ensure created_at is initialized on first insert for this user.
                 "$setOnInsert": {"created_at": current_iso},
             },
             upsert=True

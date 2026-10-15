@@ -131,6 +131,19 @@ Migration (each step deployable and reversible):
 - [ ] (separate later update) Contract: stop legacy writes; drop `has_pending`, `pending_message_id`,
   `last_push_at`, `last_sent_at` after a backup
 
+### Ownership fixes
+
+- [x] **One creator of user documents.** `UserService.record_seen` (trace middleware,
+  now awaited before the handler) is the only upsert on `users`; every other writer
+  updates existing users only. Before, a user's first update could reach a handler
+  that upserted without `created_at` (save, settings, pause), and `$setOnInsert` never
+  filled it later: such users keep the trial (plus) limits forever.
+  Open decision: existing users already missing `created_at` keep that permanent
+  trial; filling it would change their limits. Dead `ExpressionService.update_user_last_push` removed.
+  Guarded by `tests/unit/test_user_creation_contract.py`: only `record_seen` may
+  upsert `users`, and the Telegram dispatcher must run `TraceMiddleware`.
+  **Mini App:** its auth/launch step must call `record_seen` too; add its test there.
+
 ### Remove after the migration is validated (contract step)
 
 Temporary code that becomes dead once the switch is proven in production:
@@ -152,7 +165,6 @@ Temporary code that becomes dead once the switch is proven in production:
   `grade_expression` (`last_reviewed_at` moves to `ReviewStateStore`);
   `pending_message_id` / `last_sent_at` in `update_expression_sent` and
   `grade_expression` (`last_activity_at` stays: it drives the 12 h cooldown).
-  Already dead now: `ExpressionService.update_user_last_push` (no callers).
 - **Schema and query:** `UserDB.has_pending`, `UserDB.last_push_at`,
   `ExpressionDB.pending_message_id`, `ExpressionDB.last_sent_at`; the `has_pending`
   filter in `find_users_due_for_review`.
@@ -211,8 +223,8 @@ Temporary code that becomes dead once the switch is proven in production:
   - Verb lookups are counted but not limited, by design: they use our own
     scraper and DB cache, no paid provider.
   - `VerbService.is_valid_verb` still strips `/verb` itself (harmless; clean up with #3).
-- **Trace middleware writes users.** It records `last_seen_at` and `username`
-  fire-and-forget via `user_service.record_seen` on every message/callback (#3).
+- **Trace middleware writes users.** It awaits `user_service.record_seen` on every
+  message/callback (creates the user, `last_seen_at`, `username`) (#3).
   Inline queries are not counted as "seen".
 - **Expression queries disagree (#3, #8).** `get_all_expressions` ignores
   `status`, while search and remove only touch `status: "active"`; its `-t`

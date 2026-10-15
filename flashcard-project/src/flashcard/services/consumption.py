@@ -2,7 +2,7 @@ from typing import Union
 
 from flashcard.schemas.user import UserConsumption
 from flashcard.utils.logger import get_logger
-from flashcard.utils.time import now_utc, iso_z
+from flashcard.utils.time import now_utc
 
 logger = get_logger(__name__)
 
@@ -60,7 +60,6 @@ class ConsumptionService:
 
         if stored_date != today:
             # Reset all daily counters and set today's date.
-            # Also ensure created_at is initialized on first insert for this user.
             await self.cols["users"].update_one(
                 {"user_id": user_id_str},
                 {
@@ -69,11 +68,7 @@ class ConsumptionService:
                             consumption_date=today
                         ).model_dump()
                     },
-                    "$setOnInsert": { # Can be ommited as it is handled by user service triggered by trace middleware
-                        "created_at": iso_z(now_utc()) # Let it stay for now as this manipulation on the middleware imposes complexity
-                    },
                 },
-                upsert=True,
             )
 
         # Build the $inc path
@@ -88,7 +83,6 @@ class ConsumptionService:
         await self.cols["users"].update_one(
             {"user_id": user_id_str},
             {"$inc": {inc_path: 1}},
-            upsert=True,
         )
 
         logger.debug(f"Consumption incremented: user={user_id_str} {inc_path}")

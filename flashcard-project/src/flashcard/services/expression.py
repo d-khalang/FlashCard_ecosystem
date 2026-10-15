@@ -70,7 +70,7 @@ class ExpressionService:
         if existing:
             return False
 
-        # 2. Update User Data (do not touch created_at here; handled by user/consumption services)
+        # 2. Update User Data (users are created only by UserService.record_seen)
         current_iso = iso_z(now_utc())
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
@@ -80,7 +80,6 @@ class ExpressionService:
                     "has_pending": False
                 }
             },
-            upsert=True
         )
 
         # 3. Insert Expression
@@ -139,7 +138,7 @@ class ExpressionService:
         # 3. Bulk Insert
         await self.cols['expression'].insert_many(to_insert)
         
-        # 4. Update User Data (once; created_at handled elsewhere)
+        # 4. Update User Data (once; users are created only by UserService.record_seen)
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {
@@ -148,7 +147,6 @@ class ExpressionService:
                     "has_pending": False
                 }
             },
-            upsert=True
         )
         
         logger.info(f"Bulk inserted {len(new_items)} expressions for user {user_id}")
@@ -286,22 +284,6 @@ class ExpressionService:
                     "pending_message_id": message_id
                 }
             }
-        )
-
-    async def update_user_last_push(self, user_id: Union[str, int]):
-        """
-        Updates the user's last_push_at timestamp.
-        TODO: Remove — This is redundant and should only exist in UserService.
-        """
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {
-                "$set": {
-                    "last_push_at": iso_z(now_utc()),
-                    "has_pending": True 
-                }
-            },
-            upsert=True
         )
 
     async def grade_expression(self, user_id: str, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
