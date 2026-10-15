@@ -4,9 +4,12 @@ Unit tests for SettingsUseCases: validation and persistence of user settings, in
 Runs against a real UserService on the in-memory Mongo fake, because the allowed
 values are enforced by UserService's setters.
 """
+from typing import get_args
+
 import pytest
 
-from flashcard.app.settings import LEVELS, SettingsUseCases
+from flashcard.app.settings import SettingsUseCases
+from flashcard.schemas.languages import LanguageLevel
 from flashcard.schemas.user import MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE
 from flashcard.services.user import UserService
 from tests.integration.helpers import make_cols
@@ -19,7 +22,7 @@ def _use_cases(**user_fields):
 
 class TestLevel:
 
-    @pytest.mark.parametrize("level", LEVELS)
+    @pytest.mark.parametrize("level", get_args(LanguageLevel))
     async def test_every_cefr_level_is_saved(self, level):
         use_cases, users = _use_cases()
 

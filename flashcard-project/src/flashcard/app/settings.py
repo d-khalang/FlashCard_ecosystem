@@ -2,18 +2,17 @@
 Settings use cases: read and change a user's learning preferences.
 
 Every setter raises ValueError for invalid input, because values can come from
-forged callback data. The allowed values are enforced by UserService's setters;
-these use cases parse user input (language names) first. Callers own presentation
-(labels, flags, keyboards).
+forged callback data. Inputs are typed `str` because they are untrusted; the
+allowed values are enforced by UserService's setters, and the return types are
+narrowed only after that check. These use cases parse user input (language names)
+first. Callers own presentation (labels, flags, keyboards).
 """
-from typing import get_args
+from typing import cast
 
 from flashcard.app.types import UserId
 from flashcard.schemas.languages import LanguageLevel, normalize_language_input
 from flashcard.schemas.user import ReviewMode, UserDB
 from flashcard.services.user import UserService
-
-LEVELS = get_args(LanguageLevel)
 
 
 class SettingsUseCases:
@@ -23,9 +22,9 @@ class SettingsUseCases:
     async def get(self, user_id: UserId) -> UserDB:
         return await self.users.get_user(user_id)
 
-    async def set_level(self, user_id: UserId, level: str) -> str:
+    async def set_level(self, user_id: UserId, level: str) -> LanguageLevel:
         await self.users.set_target_level(user_id, level)
-        return level
+        return cast(LanguageLevel, level)  # validated by the setter above
 
     async def set_interval(self, user_id: UserId, minutes: int) -> int:
         await self.users.set_review_interval(user_id, minutes)
@@ -46,7 +45,7 @@ class SettingsUseCases:
     async def set_review_mode(self, user_id: UserId, mode: str) -> ReviewMode:
         """Idempotent: the button names the mode to switch to, so a repeated tap changes nothing."""
         await self.users.set_review_mode(user_id, mode)
-        return mode
+        return cast(ReviewMode, mode)  # validated by the setter above
 
     async def toggle_review_mode(self, user_id: UserId) -> ReviewMode:
         """
