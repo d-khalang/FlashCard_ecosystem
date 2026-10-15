@@ -31,6 +31,10 @@ TIER_LIMITS: Dict[UserTier, Dict[str, int]] = {
     },  # Effectively unlimited
 }
 
+# Normal-tier users get plus limits for this many days after created_at.
+TRIAL_DAYS = 14
+
+
 class UserService:
     def __init__(self, cols: dict, consumption_service: ConsumptionService | None = None):
         self.cols = cols
@@ -121,9 +125,21 @@ class UserService:
             upsert=True
         )
 
+    async def backfill_created_at(self, user_id: Union[str, int], created_at: str) -> bool:
+        """
+        Migration only: set a missing `created_at`. Never overwrites one, so it can
+        never move a trial start. True when it wrote.
+        """
+        result = await self.cols['users'].update_one(
+            # Matches a missing field and an explicit null alike.
+            {"user_id": str(user_id), "created_at": None},
+            {"$set": {"created_at": created_at}},
+        )
+        return bool(getattr(result, "modified_count", 0))
+
     def _get_effective_limits(self, user: UserDB) -> Dict[str, int]:
         """
-        Returns the tier-based limits, accounting for the 14-day trial for 'normal' users.
+        Returns the tier-based limits, accounting for the trial for 'normal' users.
         """
         if user.tier == UserTier.admin:
             return TIER_LIMITS[UserTier.admin]
@@ -137,7 +153,7 @@ class UserService:
             created_at = parse_iso(user.created_at)
             # Ensure it's offset-aware if needed, but parse_iso usually handles it
             trial_delta = now_utc() - created_at
-            if trial_delta.days < 14:
+            if trial_delta.days < TRIAL_DAYS:
                 return TIER_LIMITS[UserTier.plus]
         
         return TIER_LIMITS.get(user.tier, TIER_LIMITS[UserTier.normal])

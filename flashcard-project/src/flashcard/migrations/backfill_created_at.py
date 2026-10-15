@@ -1,0 +1,79 @@
+"""
+Backfill users.created_at (the trial start) where it is missing.
+
+Users created by a writer other than record_seen could miss created_at, which
+gave them the trial limits forever. The trial start becomes their oldest saved
+expression, the earliest evidence of use; users without expressions start their
+trial at the run time. Never overwrites an existing created_at, so it is idempotent.
+
+Dry run by default; --apply writes. Prints counts only.
+    python -m flashcard.migrations.backfill_created_at [--apply]
+"""
+import argparse
+import asyncio
+from dataclasses import dataclass
+from datetime import timedelta
+
+from flashcard.services.user import TRIAL_DAYS, UserService
+from flashcard.utils.time import iso_z, now_utc, parse_iso
+
+
+@dataclass
+class BackfillReport:
+    missing: int = 0
+    from_oldest_expression: int = 0
+    from_run_time: int = 0
+    trial_ends_now: int = 0  # oldest expression is older than the trial: limits drop to their tier
+    non_string_user_id: int = 0
+    already_set: int = 0
+
+
+async def backfill_created_at(cols: dict, users: UserService, *, apply: bool) -> BackfillReport:
+    report = BackfillReport()
+    now = now_utc()
+    async for user in cols["users"].find({"created_at": None}):
+        report.missing += 1
+        if not isinstance(user["user_id"], str):
+            # Every writer stores str ids; report anything else instead of guessing.
+            report.non_string_user_id += 1
+            continue
+
+        oldest = await _oldest_expression_time(cols, user["user_id"])
+        created_at = oldest or iso_z(now)
+        if apply and not await users.backfill_created_at(user["user_id"], created_at):
+            report.already_set += 1
+            continue
+
+        if oldest is None:
+            report.from_run_time += 1
+        else:
+            report.from_oldest_expression += 1
+            if now - parse_iso(oldest) >= timedelta(days=TRIAL_DAYS):
+                report.trial_ends_now += 1
+    return report
+
+
+async def _oldest_expression_time(cols: dict, user_id: str):
+    times = [doc["created_at"] async for doc in cols["expression"].find({"user_id": user_id})
+             if doc.get("created_at")]
+    return min(times, key=parse_iso, default=None)
+
+
+async def _main(apply: bool) -> None:
+    from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
+    from flashcard.settings import settings
+
+    client, _, cols = await init_and_get_mongo(settings)
+    try:
+        report = await backfill_created_at(cols, UserService(cols=cols), apply=apply)
+    finally:
+        await close_mongo_on_client(client)
+    print(f"{'APPLIED' if apply else 'DRY RUN (nothing written)'} on database '{settings.MONGO_DB}'")
+    for field, value in vars(report).items():
+        print(f"  {field}: {value}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Backfill users.created_at where it is missing.")
+    parser.add_argument("--apply", action="store_true", help="write changes (default: dry run)")
+    asyncio.run(_main(parser.parse_args().apply))

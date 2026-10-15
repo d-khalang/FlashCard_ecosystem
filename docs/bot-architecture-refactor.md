@@ -27,8 +27,11 @@ refactor is finished, then these production steps run in order:
 1. Back up each language database.
 2. Deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes (`current_review`,
    `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
-3. Backfill each language DB: `python -m flashcard.migrations.backfill_current_review`
-   (dry run, check counts), then `--apply`.
+3. Backfill each language DB (dry run, check counts, then `--apply`):
+   - `python -m flashcard.migrations.backfill_current_review`
+   - `python -m flashcard.migrations.backfill_created_at`: missing trial starts become
+     the user's oldest expression (or the run time without expressions). Users counted
+     in `trial_ends_now` lose their permanent trial at once; that is intended.
 4. Observe the `Review-state shadow compare` log line for a few days:
    `missing_current_review` ≈ 0, no unexplained `new_pauses`.
 5. Switch: set `REVIEW_PAUSE_RULE=current_review` and restart (no new image).
@@ -138,8 +141,8 @@ Migration (each step deployable and reversible):
   updates existing users only. Before, a user's first update could reach a handler
   that upserted without `created_at` (save, settings, pause), and `$setOnInsert` never
   filled it later: such users keep the trial (plus) limits forever.
-  Open decision: existing users already missing `created_at` keep that permanent
-  trial; filling it would change their limits. Dead `ExpressionService.update_user_last_push` removed.
+  Existing users missing `created_at`: `flashcard.migrations.backfill_created_at`
+  (rollout step 3). Dead `ExpressionService.update_user_last_push` removed.
   Guarded by `tests/unit/test_user_creation_contract.py`: only `record_seen` may
   upsert `users`, and the Telegram dispatcher must run `TraceMiddleware`.
   **Mini App:** its auth/launch step must call `record_seen` too; add its test there.
@@ -148,7 +151,7 @@ Migration (each step deployable and reversible):
   `record_reviewed` (grade: `last_reviewed_at` + clear `has_pending`, one update).
   `last_push_at` is no longer written (never read). Guarded by
   `tests/unit/test_data_ownership.py`: only `UserService`, `ConsumptionService` and
-  `ReviewStateStore` write `users`.
+  `ReviewStateStore` write `users`. `TRIAL_DAYS` replaces the literal 14.
 - [ ] `ExpressionService.get_review_candidate` still reads `users.review_mode`;
   the use case should pass it in.
 
@@ -164,7 +167,8 @@ Temporary code that becomes dead once the switch is proven in production:
   tests `TestComparePause`, `TestComparePauseRules`.
 - **Shadow writes:** `app/shadow.py`; review-state writes become authoritative, so a
   failure must propagate. Drop the "survives a … failure" use-case tests.
-- **Backfill:** `flashcard/migrations/` and `tests/unit/migrations/`;
+- **Backfill:** `flashcard/migrations/` and `tests/unit/migrations/` (both backfills);
+  `UserService.backfill_created_at`;
   `ReviewStateStore.backfill_from_legacy`. Once no `unknown` reviews remain: the
   `"unknown"` direction in `CurrentReview` and the `$in [direction, "unknown"]` match
   in `record_graded`.
