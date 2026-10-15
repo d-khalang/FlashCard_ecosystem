@@ -51,12 +51,19 @@ def _candidate(direction="forward", **doc):
 
 class TestPrepareNext:
 
-    async def test_no_candidate_skips_user_lookup_and_generation(self):
-        use_cases, _, users, _, llm = _use_cases(candidate=None)
+    async def test_no_candidate_skips_generation(self):
+        use_cases, _, _, _, llm = _use_cases(candidate=None)
 
         assert await use_cases.prepare_next(111) == NoCandidate()
-        users.get_user.assert_not_awaited()
         llm.generate_expression_card.assert_not_awaited()
+
+    @pytest.mark.parametrize("mode", ["standard", "dual"])
+    async def test_candidate_uses_the_users_review_mode(self, mode):
+        use_cases, expressions, _, _, _ = _use_cases(candidate=_candidate(), user=_user(review_mode=mode))
+
+        await use_cases.prepare_next(111)
+
+        expressions.get_review_candidate.assert_awaited_once_with(111, mode)
 
     async def test_quota_exceeded_reports_tier_and_card_limit(self):
         user = _user(tier=UserTier.digi)

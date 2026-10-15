@@ -173,16 +173,13 @@ class ExpressionService:
         return deleted
 
     @observe(name="ExpressionService.get_review_candidate")
-    async def get_review_candidate(self, user_id: Union[str, int]) -> Optional[dict]:
+    async def get_review_candidate(self, user_id: Union[str, int], review_mode: str) -> Optional[dict]:
         """
         Selects the best expression for review based on priority algorithm.
-        Filters out expressions sent in the last 12 hours.
+        Filters out expressions sent in the last 12 hours. `review_mode` is the user's
+        setting ("dual" also scores the reverse direction); users are not this service's data.
         Returns dictionay with 'doc' (ExpressionDB) and 'direction' ('forward' or 'reverse')
         """
-        # 0. Get user review mode
-        user = await self.cols['users'].find_one({"user_id": str(user_id)})
-        review_mode = user.get("review_mode", "standard") if user else "standard"
-        
         # 1. Filter candidates
         # Active status (implicit if we only have active ones, but good to be explicit if we add status later)
         # Not sent in last 12 hours

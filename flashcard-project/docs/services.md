@@ -46,7 +46,7 @@ Manages flashcard CRUD and the review candidate selection algorithm.
 | `add_expression` | `(user_id, value) → bool` | Adds expression if not duplicate (case-insensitive). Returns `True` if inserted. Never writes `users`. |
 | `add_expressions_bulk` | `(user_id, expressions) → list[str]` | Bulk insert, skipping duplicates. Returns list of actually inserted values. |
 | `get_all_expressions` | `(user_id, sort_by_time=False) → list[str]` | Returns all user expressions. Optional chronological sort. |
-| `get_review_candidate` | `(user_id) → dict \| None` | Selects the highest-priority card for review using the SRS algorithm. Filters by 12-hour cooldown. Returns `{doc, direction}`. |
+| `get_review_candidate` | `(user_id, review_mode) → dict \| None` | Selects the highest-priority card for review using the SRS algorithm. Filters by 12-hour cooldown. The caller passes the user's `review_mode`. Returns `{doc, direction}`. |
 | `update_expression_sent` | `(expression_id, message_id)` | Marks expression as sent with the Telegram message ID. |
 | `grade_expression` | `(user_id, expression_id, grade, direction="forward")` | Processes a grade (0–5) using the SRS algorithm and updates the expression's stats only. |
 
@@ -72,13 +72,16 @@ Manages user profiles and settings. The only service that creates user documents
 |--------|-----------|-------------|
 | `record_seen` | `(user_id, username)` | Called by the trace middleware before every handler. Creates the user on first contact (`created_at`, the trial start) and updates `last_seen_at` and `username`. The only upsert on `users`. |
 | `get_user` | `(user_id) → UserDB` | Returns the user document, or unsaved defaults if not found. |
+| `active_users_reviewed_before` | `(cutoff, *, exclude_pending, on_unreadable) → list[UserDB]` | The scheduler's prefilter. Unreadable documents go to `on_unreadable` and are skipped. |
+| `active_users_possibly_paused` | `(on_unreadable) → list[UserDB]` | Migration only: users the shadow compare reads. |
 | `set_active` | `(user_id, active)` | Pauses (`False`) or resumes (`True`) scheduled reviews. Idempotent. |
 | `set_target_level` / `set_review_interval` / `set_primary_language` / `set_secondary_language` / `set_review_mode` | `(user_id, value)` | One setter per setting, all idempotent single `$set`s. Each enforces the allowed values (rules in `schemas/user.py`) and raises `ValueError`; there is no generic field writer. |
 | `advance_onboarding` | `(user_id, current_step) → bool` | Atomically advances user's onboarding step if it matches `current_step`. |
 | `backfill_created_at` | `(user_id, created_at) → bool` | Migration only: sets a missing `created_at`, never overwrites. |
 
-Only `UserService`, `ConsumptionService` and `ReviewStateStore` write `users`
-(guarded by `tests/unit/test_data_ownership.py`); other writers update existing users only.
+Only `UserService`, `ConsumptionService` and `ReviewStateStore` read or write `users`
+(guarded by `tests/unit/test_data_ownership.py`; the one-off migrations also read it).
+Other code asks an owner, e.g. the review use case passes `review_mode` to `ExpressionService`.
 
 ### UserDB Schema
 

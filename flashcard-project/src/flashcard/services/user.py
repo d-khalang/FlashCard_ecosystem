@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional, Union, Dict, TYPE_CHECKING, get_args
+from typing import Callable, Optional, Union, Dict, TYPE_CHECKING, get_args
 from flashcard.utils.logger import get_logger
 from flashcard.schemas.languages import LANGUAGE_DATA, LanguageLevel
 from flashcard.schemas.user import (
@@ -42,6 +42,40 @@ class UserService:
     def __init__(self, cols: dict, consumption_service: ConsumptionService | None = None):
         self.cols = cols
         self.consumption_service = consumption_service
+
+    async def active_users_reviewed_before(
+        self,
+        cutoff: str,
+        *,
+        exclude_pending: bool,
+        on_unreadable: Callable[[str, Exception], None],
+    ) -> list[UserDB]:
+        """
+        Active users never reviewed or last reviewed before `cutoff` (the scheduler's
+        prefilter). `exclude_pending` drops users with the legacy `has_pending` flag.
+        A document that cannot be read is passed to `on_unreadable` and skipped.
+        """
+        query = {
+            "is_active": True,
+            "$or": [{"last_reviewed_at": None}, {"last_reviewed_at": {"$lt": cutoff}}],
+        }
+        if exclude_pending:
+            query["has_pending"] = False
+        return await self._read_users(query, on_unreadable)
+
+    async def active_users_possibly_paused(self, on_unreadable: Callable[[str, Exception], None]) -> list[UserDB]:
+        """Migration only (shadow compare): active users either pause rule could pause."""
+        query = {"is_active": True, "$or": [{"has_pending": True}, {"current_review": {"$ne": None}}]}
+        return await self._read_users(query, on_unreadable)
+
+    async def _read_users(self, query: dict, on_unreadable: Callable[[str, Exception], None]) -> list[UserDB]:
+        users = []
+        async for doc in self.cols['users'].find(query):
+            try:
+                users.append(UserDB.model_validate(doc))
+            except ValueError as e:  # pydantic's ValidationError is a ValueError
+                on_unreadable(str(doc.get("user_id", "?")), e)
+        return users
 
     async def get_user(self, user_id: Union[str, int]) -> UserDB:
         """

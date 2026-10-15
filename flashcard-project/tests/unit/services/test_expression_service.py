@@ -150,7 +150,7 @@ class TestGetReviewCandidate:
         service, cols = _make_service()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([]))
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate("123", "standard")
         assert result is None
 
     async def test_returns_best_candidate_by_priority(self):
@@ -169,7 +169,7 @@ class TestGetReviewCandidate:
             return_value=_AsyncIterator([card_a, card_b])
         )
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate("123", "standard")
 
         assert result is not None
         assert result["doc"]["value"] == "difficile"
@@ -181,16 +181,14 @@ class TestGetReviewCandidate:
         doc = _make_expression_doc()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate("123", "standard")
 
         assert "doc" in result
         assert "direction" in result
 
     async def test_dual_mode_can_select_reverse(self):
         """In dual mode, reverse direction can win if its priority is higher."""
-        service, cols = _make_service(
-            users={"user_id": "123", "review_mode": "dual"}
-        )
+        service, cols = _make_service()
 
         # Card with strong forward stats but weak reverse stats
         doc = _make_expression_doc(
@@ -206,31 +204,27 @@ class TestGetReviewCandidate:
         )
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate("123", "dual")
 
         assert result is not None
         assert result["direction"] == "reverse"
 
     async def test_standard_mode_never_returns_reverse(self):
         """In standard mode, direction should always be 'forward'."""
-        service, cols = _make_service(
-            users={"user_id": "123", "review_mode": "standard"}
-        )
+        service, cols = _make_service()
 
         doc = _make_expression_doc(
             reverse_stats={"reps": 0, "ewma_grade": 0.0, "success_streak": 0, "lapses": 0}
         )
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate("123", "standard")
 
         assert result["direction"] == "forward"
 
     async def test_simulated_reverse_stats_inherits_created_at(self):
         """In dual mode, if reverse_stats is missing, its simulated stats use doc['created_at']."""
-        service, cols = _make_service(
-            users={"user_id": "123", "review_mode": "dual"}
-        )
+        service, cols = _make_service()
 
         created_time = "2026-06-26T12:00:00Z"
         doc = _make_expression_doc(
@@ -242,7 +236,7 @@ class TestGetReviewCandidate:
         from unittest.mock import patch
         with patch("flashcard.services.expression.calculate_priority") as mock_calc:
             mock_calc.return_value = 0.5
-            await service.get_review_candidate("123")
+            await service.get_review_candidate("123", "dual")
             
             assert mock_calc.call_count == 2
             mock_calc.assert_any_call(doc)

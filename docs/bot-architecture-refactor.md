@@ -38,6 +38,11 @@ refactor is finished, then these production steps run in order:
    Rollback: set it back to `legacy` and restart.
 6. After the switch is validated: the **contract** step is a **separate, later update**
    (it deletes the rollback path), see "Remove after the migration is validated".
+7. Also in a later update: remove the legacy settings-menu `"toggle"` callback
+   (`SettingsUseCases.toggle_review_mode` and its branch in `handle_settings_select`).
+   Menus sent before the deploy still carry it; after removal, pressing the review-mode
+   button on such an old menu shows the "invalid value" alert (`set_review_mode`
+   rejects `"toggle"`), and `/settings` gives a working menu. Wait a few weeks after the deploy.
 
 ## #2 Use-case layer: progress
 
@@ -161,8 +166,12 @@ Migration (each step deployable and reversible):
   name what the user wants, so they now call `set_active(active)` and
   `set_review_mode(mode)` (single `$set`, atomic). The review-mode button's callback
   names the other mode. `toggle_active_status` and the unused `get_user_status` removed.
-- [ ] `ExpressionService.get_review_candidate` still reads `users.review_mode`;
-  the use case should pass it in.
+- [x] **No reads of `users` outside its owners.** `ExpressionService.get_review_candidate`
+  takes `review_mode` from the use case (which loads the user first; same number of
+  reads, one fewer for the scheduler). The scheduler's queries moved into
+  `UserService.active_users_reviewed_before` / `active_users_possibly_paused`, which
+  read each document safely and report unreadable ones. Guarded by
+  `test_only_owners_read_users`.
 
 - [x] **Per-user isolation in the scheduler.** One unreadable user document (schema
   error, bad date) no longer stops a tick: `find_users_due_for_review` skips it, logs
@@ -183,7 +192,7 @@ Temporary code that becomes dead once the switch is proven in production:
 - **Shadow writes:** `app/shadow.py`; review-state writes become authoritative, so a
   failure must propagate. Drop the "survives a … failure" use-case tests.
 - **Backfill:** `flashcard/migrations/` and `tests/unit/migrations/` (both backfills);
-  `UserService.backfill_created_at`;
+  `UserService.backfill_created_at`, `UserService.active_users_possibly_paused`;
   `ReviewStateStore.backfill_from_legacy`. Once no `unknown` reviews remain: the
   `"unknown"` direction in `CurrentReview` and the `$in [direction, "unknown"]` match
   in `record_graded`.
@@ -242,7 +251,7 @@ Temporary code that becomes dead once the switch is proven in production:
   into one onboarding concept when a third tip appears or with #3.
 - **Settings leftovers:**
   - Legacy settings menus (callback value `"toggle"`) still use the read-then-write
-    `SettingsUseCases.toggle_review_mode`; remove it once old menus no longer matter.
+    `SettingsUseCases.toggle_review_mode`; removal is rollout step 7.
   - Pause/resume/close buttons match text from the deployment locale only (#1, #7).
   - "none" is stored as the string `"none"`, not `None`; readers check both.
 - **Story/verb leftovers:**

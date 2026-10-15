@@ -76,15 +76,15 @@ class ReviewUseCases:
         Pick the highest-priority card and generate its content.
         Pass `user` when already loaded; otherwise it is fetched.
         """
-        result = await self.expressions.get_review_candidate(user_id)
+        if user is None:
+            user = await self.users.get_user(user_id)
+
+        result = await self.expressions.get_review_candidate(user_id, user.review_mode)
         if not result:
             return NoCandidate()
 
         candidate = result["doc"]
         direction = result.get("direction", "forward")
-
-        if user is None:
-            user = await self.users.get_user(user_id)
 
         uses_own_key = user.api_config is not None
         if not self.users.can_generate_card(user, uses_own_key=uses_own_key):

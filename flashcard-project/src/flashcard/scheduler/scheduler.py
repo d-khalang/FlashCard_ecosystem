@@ -56,34 +56,26 @@ async def find_users_due_for_review(
     min_interval_minutes = DEFAULT_SCHEDULER_INTERVAL_MINUTES
     cutoff_time = iso_z(now - timedelta(minutes=min_interval_minutes))
 
-    # Optimized MongoDB query: pre-filter by approximate timing
-    query = {
-        "is_active": True,
-        "$or": [
-            {"last_reviewed_at": None},  # Never reviewed
-            {"last_reviewed_at": {"$lt": cutoff_time}}  # Reviewed before cutoff
-        ]
-    }
-    if pause_rule == "legacy":
-        query["has_pending"] = False
-    # The current_review rule compares two fields per user, so it is checked in Python.
-    users_cursor = user_service.cols['users'].find(query)
+    def skip(user_id: str, error: Exception) -> None:
+        _skip_unreadable_user(user_id, error, skipped)
+
+    # Pre-filter by approximate timing in the DB. The current_review rule compares two
+    # fields per user, so it is checked in Python.
+    candidates = await user_service.active_users_reviewed_before(
+        cutoff_time, exclude_pending=pause_rule == "legacy", on_unreadable=skip)
 
     users_due = []
-    async for user_doc in users_cursor:
+    for user in candidates:
         try:
-            # Parse to UserDB for type safety
-            user = UserDB.model_validate(user_doc)
             if not paused(user, pause_rule) and interval_elapsed(user, now):
                 users_due.append(user)
-        except (ValueError, TypeError) as e:  # ValidationError is a ValueError; bad dates raise either
-            _skip_unreadable_user(user_doc, e, skipped)
+        except (ValueError, TypeError) as e:  # unparseable or mixed-timezone dates
+            skip(user.user_id, e)
 
     return users_due
 
 
-def _skip_unreadable_user(user_doc: dict, error: Exception, skipped: Optional[list[dict]]) -> None:
-    user_id = str(user_doc.get("user_id", "?"))
+def _skip_unreadable_user(user_id: str, error: Exception, skipped: Optional[list[dict]]) -> None:
     logger.warning(f"Skipping user {user_id}: unreadable document ({type(error).__name__})", exc_info=True)
     if skipped is not None:
         skipped.append({"user_id": user_id,
@@ -98,15 +90,15 @@ async def compare_pause_rules(user_service: UserService) -> PauseComparison:
     Only active users where either rule could pause are read; everyone else agrees.
     """
     comparison = PauseComparison()
-    cursor = user_service.cols['users'].find({
-        "is_active": True,
-        "$or": [{"has_pending": True}, {"current_review": {"$ne": None}}],
-    })
-    async for user_doc in cursor:
+
+    def count_unreadable(_user_id: str, _error: Exception) -> None:
+        comparison.counts["unreadable"] = comparison.counts.get("unreadable", 0) + 1
+
+    for user in await user_service.active_users_possibly_paused(count_unreadable):
         try:
-            comparison.add(UserDB.model_validate(user_doc))
-        except (ValueError, TypeError):
-            comparison.counts["unreadable"] = comparison.counts.get("unreadable", 0) + 1
+            comparison.add(user)
+        except (ValueError, TypeError) as e:  # unparseable or mixed-timezone dates
+            count_unreadable(user.user_id, e)
     return comparison
 
 

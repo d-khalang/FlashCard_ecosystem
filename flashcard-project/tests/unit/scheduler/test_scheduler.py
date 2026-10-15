@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, AsyncMock, patch
 import pytest
 
 from flashcard.schemas.user import UserDB
+from flashcard.services.user import UserService
 from flashcard.utils.time import now_utc, iso_z
 from tests.helpers import AsyncCursorMock as _AsyncCursor
 
@@ -45,8 +46,7 @@ class TestFindUsersDueForReview:
     async def test_never_reviewed_user_is_due(self):
         from flashcard.scheduler.scheduler import find_users_due_for_review
 
-        mock_user_service = MagicMock()
-        mock_user_service.cols = {"users": MagicMock()}
+        mock_user_service = UserService(cols={"users": MagicMock()})
         mock_user_service.cols["users"].find = MagicMock(
             return_value=_AsyncCursor([
                 _make_user_doc(user_id="100", last_reviewed_at=None)
@@ -63,8 +63,7 @@ class TestFindUsersDueForReview:
 
         # Reviewed 5 minutes ago, interval is 30 min → NOT due
         recent = iso_z(now_utc() - timedelta(minutes=5))
-        mock_user_service = MagicMock()
-        mock_user_service.cols = {"users": MagicMock()}
+        mock_user_service = UserService(cols={"users": MagicMock()})
         mock_user_service.cols["users"].find = MagicMock(
             return_value=_AsyncCursor([
                 _make_user_doc(user_id="200", last_reviewed_at=recent,
@@ -81,8 +80,7 @@ class TestFindUsersDueForReview:
 
         # Reviewed 60 minutes ago, interval is 30 min → due
         old = iso_z(now_utc() - timedelta(minutes=60))
-        mock_user_service = MagicMock()
-        mock_user_service.cols = {"users": MagicMock()}
+        mock_user_service = UserService(cols={"users": MagicMock()})
         mock_user_service.cols["users"].find = MagicMock(
             return_value=_AsyncCursor([
                 _make_user_doc(user_id="300", last_reviewed_at=old,
@@ -100,8 +98,7 @@ class TestFindUsersDueForReview:
         recent = iso_z(now_utc() - timedelta(minutes=5))
         old = iso_z(now_utc() - timedelta(minutes=60))
 
-        mock_user_service = MagicMock()
-        mock_user_service.cols = {"users": MagicMock()}
+        mock_user_service = UserService(cols={"users": MagicMock()})
         mock_user_service.cols["users"].find = MagicMock(
             return_value=_AsyncCursor([
                 _make_user_doc(user_id="due", last_reviewed_at=old),
@@ -235,12 +232,11 @@ class TestSchedulerLoopTracing:
 
         mock_bot = MagicMock()
         mock_logger_bot = MagicMock()
-        mock_user_service = MagicMock()
+        mock_user_service = UserService(cols={"users": MagicMock()})
         mock_trace_logger = MagicMock()
 
         # One due user to trigger metrics path and observed wrappers.
         old = iso_z(now_utc() - timedelta(minutes=60))
-        mock_user_service.cols = {"users": MagicMock()}
         mock_user_service.cols["users"].find = MagicMock(
             return_value=_AsyncCursor([
                 _make_user_doc(user_id="u1", last_reviewed_at=old, review_interval_minutes=30)
@@ -281,9 +277,7 @@ class TestComparePauseRules:
 
     def _service(self, *users):
         from tests.integration.helpers import make_cols
-        service = MagicMock()
-        service.cols = make_cols(users=list(users))
-        return service
+        return UserService(cols=make_cols(users=list(users)))
 
     def _review(self, sent_at):
         return {"expression_id": "e1", "direction": "forward", "message_id": 1, "sent_at": sent_at}
@@ -323,9 +317,7 @@ class TestFindUsersDueCurrentReviewRule:
 
     def _service(self, *users):
         from tests.integration.helpers import make_cols
-        service = MagicMock()
-        service.cols = make_cols(users=list(users))
-        return service
+        return UserService(cols=make_cols(users=list(users)))
 
     def _review(self, hours_ago):
         return {"expression_id": "e1", "direction": "forward", "message_id": 1,
@@ -363,9 +355,8 @@ class TestBadStoredReviewMode:
         """One bad stored value must not stop reviews for every user."""
         from flashcard.scheduler.scheduler import find_users_due_for_review
         from tests.integration.helpers import make_cols
-        service = MagicMock()
-        service.cols = make_cols(users=[_make_user_doc(user_id="bad", review_mode="weird"),
-                                        _make_user_doc(user_id="ok")])
+        service = UserService(cols=make_cols(users=[_make_user_doc(user_id="bad", review_mode="weird"),
+                                                    _make_user_doc(user_id="ok")]))
 
         due = await find_users_due_for_review(service)
 
@@ -379,9 +370,7 @@ class TestPerUserIsolation:
 
     def _service(self, *users):
         from tests.integration.helpers import make_cols
-        service = MagicMock()
-        service.cols = make_cols(users=list(users))
-        return service
+        return UserService(cols=make_cols(users=list(users)))
 
     @pytest.mark.parametrize("bad_fields", [
         {"target_level": "Z9"},                       # schema validation error

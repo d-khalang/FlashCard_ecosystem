@@ -88,13 +88,13 @@ class TestCandidateCooldown:
         recent = iso_z(now_utc() - timedelta(hours=1))
         await _insert_card(dispatcher_env, last_activity_at=recent, pending_message_id=555)
 
-        assert await dispatcher_env["expression_service"].get_review_candidate(USER_ID) is None
+        assert await dispatcher_env["expression_service"].get_review_candidate(USER_ID, "standard") is None
 
     async def test_ungraded_card_is_a_candidate_again_after_12_hours(self, dispatcher_env):
         old = iso_z(now_utc() - timedelta(hours=13))
         expression_id = await _insert_card(dispatcher_env, last_activity_at=old, pending_message_id=555)
 
-        candidate = await dispatcher_env["expression_service"].get_review_candidate(USER_ID)
+        candidate = await dispatcher_env["expression_service"].get_review_candidate(USER_ID, "standard")
 
         assert candidate is not None
         assert candidate["doc"]["_id"] == expression_id
