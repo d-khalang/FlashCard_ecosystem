@@ -11,8 +11,9 @@ logger = get_logger(__name__)
 class VerbService:
     REGEX_VERB = r"^[A-Za-zÀ-ÖØ-öø-ÿ']+$"
 
-    def __init__(self, cols: dict, http_client=None):
-        self.cols = cols
+    def __init__(self, conjugations, http_client=None):
+        """`conjugations`: the conjugation cache collection."""
+        self.conjugations = conjugations
         self.http_client = http_client
 
     def is_valid_verb(self, verb: str) -> bool:
@@ -69,7 +70,7 @@ class VerbService:
         Gets the verb from the database. returns None if not found.
         """
         try:
-            return await self.cols['conjugation'].find_one({'verb': verb})
+            return await self.conjugations.find_one({'verb': verb})
         except Exception as e:
             logger.error(f"Failed to get verb from db: {e}")
             return None
@@ -116,7 +117,7 @@ class VerbService:
         try:
             db_entry = ConjugationDBResponse(verb=verb, data=data)
             # Use upsert to prevent duplicates if created in parallel
-            await self.cols['conjugation'].replace_one(
+            await self.conjugations.replace_one(
                 {'verb': verb}, 
                 db_entry.model_dump(), 
                 upsert=True

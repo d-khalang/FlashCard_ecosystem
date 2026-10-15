@@ -14,7 +14,7 @@ DATA = ConjugationResponse(queried="parlare", url="https://example.com/parlare",
 
 
 def _use_cases(data=DATA):
-    verbs = VerbService(cols=MagicMock())
+    verbs = VerbService(conjugations=MagicMock())
     verbs.get_verb_data = AsyncMock(return_value=data)
     consumption = MagicMock()
     consumption.increment = AsyncMock()

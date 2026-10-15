@@ -14,8 +14,9 @@ from bson import ObjectId
 logger = get_logger(__name__)
 
 class ExpressionService:
-    def __init__(self, cols: dict):
-        self.cols = cols
+    def __init__(self, expressions):
+        """`expressions`: the expression collection, the only data this service touches."""
+        self.expressions = expressions
 
     async def search_expressions(
         self,
@@ -32,7 +33,7 @@ class ExpressionService:
             return []
 
         escaped_query = re.escape(normalized_query)
-        cursor = self.cols["expression"].find(
+        cursor = self.expressions.find(
             {
                 "user_id": str(user_id),
                 "status": "active",
@@ -60,7 +61,7 @@ class ExpressionService:
         # 1. Check for duplicates
         # Escaping regex to prevent issues with special characters in 'value'
         escaped_value = re.escape(value)
-        existing = await self.cols['expression'].find_one({
+        existing = await self.expressions.find_one({
             "user_id": str(user_id),
             "value": {"$regex": f"^{escaped_value}$", "$options": "i"}
         })
@@ -76,7 +77,7 @@ class ExpressionService:
             created_at=current_iso
         )
 
-        await self.cols['expression'].insert_one(new_expression.model_dump())
+        await self.expressions.insert_one(new_expression.model_dump())
         logger.info(f"Inserted new expression for user {user_id}: {value}")
         return True
 
@@ -93,7 +94,7 @@ class ExpressionService:
         unique_inputs = list(set(expressions))
         regex_list = [re.compile(f"^{re.escape(v)}$", re.I) for v in unique_inputs]
         
-        existing_cursor = self.cols['expression'].find({
+        existing_cursor = self.expressions.find({
             "user_id": str(user_id),
             "value": {"$in": regex_list}
         })
@@ -123,7 +124,7 @@ class ExpressionService:
             return []
             
         # 3. Bulk Insert
-        await self.cols['expression'].insert_many(to_insert)
+        await self.expressions.insert_many(to_insert)
         
         logger.info(f"Bulk inserted {len(new_items)} expressions for user {user_id}")
         return new_items
@@ -136,7 +137,7 @@ class ExpressionService:
         """
         if sort_by_time:
             # Use find() and sort by created_at. 1 = Ascending (Oldest first)
-            cursor = self.cols['expression'].find({"user_id": str(user_id)}).sort("created_at", 1)
+            cursor = self.expressions.find({"user_id": str(user_id)}).sort("created_at", 1)
             expressions = []
             async for doc in cursor:
                 if 'value' in doc:
@@ -145,7 +146,7 @@ class ExpressionService:
         else:
             # Default: use distinct which is likely faster for uniqueness, 
             # though it doesn't guarantee specific order (UI handles alphabetical sort)
-            expressions = await self.cols['expression'].distinct("value", {"user_id": str(user_id)})
+            expressions = await self.expressions.distinct("value", {"user_id": str(user_id)})
             return expressions
 
     async def remove_expression(self, user_id: Union[str, int], expression_id: str) -> bool:
@@ -156,7 +157,7 @@ class ExpressionService:
             logger.warning(f"Invalid expression id received for removal: {expression_id}")
             return False
 
-        result = await self.cols["expression"].delete_one(
+        result = await self.expressions.delete_one(
             {
                 "_id": ObjectId(expression_id),
                 "user_id": str(user_id),
@@ -197,7 +198,7 @@ class ExpressionService:
             ]
         }
         
-        cursor = self.cols['expression'].find(query)
+        cursor = self.expressions.find(query)
         candidates = []
         async for doc in cursor:
             candidates.append(doc)
@@ -248,7 +249,7 @@ class ExpressionService:
         """
         Updates the expression after it has been sent to the user.
         """
-        await self.cols['expression'].update_one(
+        await self.expressions.update_one(
             {"_id": ObjectId(expression_id)},
             {
                 "$set": {
@@ -269,7 +270,7 @@ class ExpressionService:
             return None
 
         # 1. Get current document
-        doc = await self.cols['expression'].find_one(
+        doc = await self.expressions.find_one(
             {"_id": ObjectId(expression_id), "user_id": str(user_id)}
         )
         
@@ -301,7 +302,7 @@ class ExpressionService:
         mongo_updates["last_activity_at"] = iso_z(now_utc())
         mongo_updates["pending_message_id"] = None
             
-        await self.cols['expression'].update_one(
+        await self.expressions.update_one(
             {"_id": ObjectId(expression_id)},
             {"$set": mongo_updates}
         )

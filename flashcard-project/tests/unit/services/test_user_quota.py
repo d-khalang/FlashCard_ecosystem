@@ -14,8 +14,8 @@ def _make_service():
     mock_cols = {"users": MagicMock(), "consumption": MagicMock()}
     # update_one is often awaited
     mock_cols["users"].update_one = AsyncMock()
-    consumption_service = ConsumptionService(cols=mock_cols)
-    return UserService(mock_cols, consumption_service=consumption_service), mock_cols
+    consumption_service = ConsumptionService(users=mock_cols["users"])
+    return UserService(users=mock_cols["users"], consumption_service=consumption_service), mock_cols
 
 class TestUserServiceQuota:
 

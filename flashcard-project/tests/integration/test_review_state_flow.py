@@ -26,7 +26,7 @@ async def _feed(env, update):
 
 async def _insert_card(env, value="andare", **fields):
     expression_id = ObjectId()
-    await env["expression_service"].cols["expression"].insert_one({
+    await env["cols"]["expression"].insert_one({
         "_id": expression_id,
         "user_id": USER_ID,
         "value": value,
@@ -38,12 +38,12 @@ async def _insert_card(env, value="andare", **fields):
 
 
 async def _set_user(env, **fields):
-    await env["user_service"].cols["users"].update_one(
+    await env["cols"]["users"].update_one(
         {"user_id": USER_ID}, {"$set": {"is_active": True, **fields}}, upsert=True)
 
 
 async def _user_doc(env):
-    return await env["user_service"].cols["users"].find_one({"user_id": USER_ID})
+    return await env["cols"]["users"].find_one({"user_id": USER_ID})
 
 
 async def _due_ids(env):

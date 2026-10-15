@@ -16,8 +16,9 @@ VALID_METRICS = LLM_METRICS | TOP_LEVEL_METRICS
 
 
 class ConsumptionService:
-    def __init__(self, cols: dict):
-        self.cols = cols
+    def __init__(self, users):
+        """`users`: the users collection; this service owns only `consumption`."""
+        self.users = users
 
     def _today(self) -> str:
         """Returns today's UTC date as ISO string (e.g. '2026-02-19')."""
@@ -49,7 +50,7 @@ class ConsumptionService:
         today = self._today()
 
         # Check if we need a daily reset
-        user_doc = await self.cols["users"].find_one(
+        user_doc = await self.users.find_one(
             {"user_id": user_id_str},
             {"consumption.consumption_date": 1},
         )
@@ -60,7 +61,7 @@ class ConsumptionService:
 
         if stored_date != today:
             # Reset all daily counters and set today's date.
-            await self.cols["users"].update_one(
+            await self.users.update_one(
                 {"user_id": user_id_str},
                 {
                     "$set": {
@@ -80,7 +81,7 @@ class ConsumptionService:
             # Top-level metric (verb_lookups)
             inc_path = f"consumption.{metric}"
 
-        await self.cols["users"].update_one(
+        await self.users.update_one(
             {"user_id": user_id_str},
             {"$inc": {inc_path: 1}},
         )
@@ -105,7 +106,7 @@ class ConsumptionService:
         Auto-resets if the stored date is stale.
         """
         user_id_str = str(user_id)
-        doc = await self.cols["users"].find_one(
+        doc = await self.users.find_one(
             {"user_id": user_id_str},
             {"consumption": 1},
         )

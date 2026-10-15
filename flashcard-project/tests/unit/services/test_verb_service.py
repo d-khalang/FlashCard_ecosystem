@@ -21,7 +21,7 @@ def _make_service():
     mock_cols["conjugation"].replace_one = AsyncMock()
     mock_http = MagicMock()
     mock_http.get = AsyncMock()
-    return VerbService(mock_cols, http_client=mock_http), mock_cols, mock_http
+    return VerbService(conjugations=mock_cols["conjugation"], http_client=mock_http), mock_cols, mock_http
 
 
 # ===================================================================

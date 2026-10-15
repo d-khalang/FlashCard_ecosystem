@@ -36,7 +36,7 @@ def _deps(user=None, *, state_name=None):
     # A real UserService on the in-memory Mongo fake, so its setters' rules apply.
     doc = (user or _user()).model_dump()
     cols = make_cols(users=[doc])
-    user_service = UserService(cols=cols)
+    user_service = UserService(users=cols["users"])
 
     state = MagicMock()
     state.get_state = AsyncMock(return_value=state_name)

@@ -11,7 +11,7 @@ def _cols(users, expressions=()):
 
 
 async def _run(cols, *, apply=True):
-    return await backfill_current_review(cols, ReviewStateStore(cols=cols), apply=apply)
+    return await backfill_current_review(cols, ReviewStateStore(users=cols["users"]), apply=apply)
 
 
 def _user(cols, user_id="42"):

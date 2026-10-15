@@ -29,7 +29,9 @@ graph TD
     ALG --> GRD[grading.py]
 ```
 
-All services are instantiated in [`bot.py`](../src/flashcard/telegram/bot.py) and injected into handlers via aiogram's DI system. See [Architecture — Dependency Injection](./architecture.md#dependency-injection).
+All services are built by `build_services` in [`bot.py`](../src/flashcard/telegram/bot.py), the only
+place that hands out collections: each service receives only its own collection, never the
+whole `cols` dict (guarded by `tests/unit/test_data_ownership.py`). They are injected into handlers via aiogram's DI system. See [Architecture — Dependency Injection](./architecture.md#dependency-injection).
 
 ---
 
@@ -37,7 +39,7 @@ All services are instantiated in [`bot.py`](../src/flashcard/telegram/bot.py) an
 
 **File:** [`services/expression.py`](../src/flashcard/services/expression.py)  
 **Collection:** `expressions`  
-**Dependencies:** `cols` (MongoDB collections dict)
+**Dependencies:** `expressions` (the expression collection only)
 
 Manages flashcard CRUD and the review candidate selection algorithm.
 
@@ -64,7 +66,7 @@ The `get_review_candidate` method implements the core spaced repetition logic:
 
 **File:** [`services/user.py`](../src/flashcard/services/user.py)  
 **Collection:** `users`  
-**Dependencies:** `cols`, `consumption_service` ([`ConsumptionService`](../src/flashcard/services/consumption.py))
+**Dependencies:** `users` (the users collection), `consumption_service` ([`ConsumptionService`](../src/flashcard/services/consumption.py))
 
 Manages user profiles and settings. The only service that creates user documents.
 
@@ -112,7 +114,7 @@ Defined in [`schemas/user.py`](../src/flashcard/schemas/user.py):
 
 **File:** [`services/review_state.py`](../src/flashcard/services/review_state.py)
 **Collection:** `users` (review-state fields)
-**Dependencies:** `cols`
+**Dependencies:** `users` (the users collection)
 
 Sole writer of the user's review state. Never creates users. See the migration plan in
 [bot-architecture-refactor.md](../../docs/bot-architecture-refactor.md).
@@ -132,7 +134,7 @@ Sole writer of the user's review state. Never creates users. See the migration p
 
 **File:** [`services/consumption.py`](../src/flashcard/services/consumption.py)
 **Collection:** `users` (subdocument `consumption`)
-**Dependencies:** `cols`
+**Dependencies:** `users` (the users collection)
 
 Tracks resource usage (LLM tokens, API calls) with lazy daily resets.
 
@@ -208,7 +210,7 @@ Trace lifecycle finalization is centralized in [`utils/tracing.py`](../src/flash
 
 **File:** [`services/verb.py`](../src/flashcard/services/verb.py)  
 **Collections:** `conjugation`  
-**Dependencies:** `cols`, `http_client` (httpx)
+**Dependencies:** `conjugations` (the conjugation cache collection), `http_client` (httpx)
 
 Handles verb conjugation lookup with DB caching.
 

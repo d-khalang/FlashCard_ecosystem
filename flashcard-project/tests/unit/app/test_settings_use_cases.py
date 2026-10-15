@@ -17,7 +17,7 @@ from tests.integration.helpers import make_cols
 
 def _use_cases(**user_fields):
     cols = make_cols(users=[{"user_id": "777", **user_fields}])
-    return SettingsUseCases(user_service=UserService(cols=cols)), cols["users"].docs[0]
+    return SettingsUseCases(user_service=UserService(users=cols["users"])), cols["users"].docs[0]
 
 
 class TestLevel:

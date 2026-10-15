@@ -7,7 +7,7 @@ from tests.integration.helpers import make_cols
 
 def _store(*users):
     cols = make_cols(users=list(users))
-    return ReviewStateStore(cols=cols), cols["users"]
+    return ReviewStateStore(users=cols["users"]), cols["users"]
 
 
 def _current(users, user_id="42"):

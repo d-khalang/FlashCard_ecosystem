@@ -1,5 +1,7 @@
 import asyncio
 import contextlib
+from dataclasses import dataclass, fields
+from typing import Optional
 import socket
 import aiohttp
 from aiogram import Bot, Dispatcher
@@ -120,8 +122,42 @@ def get_allowed_updates(dp: Dispatcher) -> list[str]:
     return dp.resolve_used_update_types()
 
 
+@dataclass(frozen=True)
+class Services:
+    expression_service: ExpressionService
+    user_service: UserService
+    consumption_service: ConsumptionService
+    review_state: ReviewStateStore
+    verb_service: Optional[VerbService]
+    llm_service: LLMService
+    language_validator: object
+
+    def as_kwargs(self) -> dict:
+        return {field.name: getattr(self, field.name) for field in fields(self)}
+
+
+def build_services(cols: dict, http_client, settings) -> Services:
+    """
+    The only place that hands out collections: each service gets just its own,
+    so no service can reach another's data.
+    """
+    consumption_service = ConsumptionService(users=cols["users"])
+    return Services(
+        expression_service=ExpressionService(expressions=cols["expression"]),
+        user_service=UserService(users=cols["users"], consumption_service=consumption_service),
+        consumption_service=consumption_service,
+        review_state=ReviewStateStore(users=cols["users"]),
+        verb_service=(
+            VerbService(conjugations=cols["conjugation"], http_client=http_client)
+            if getattr(settings, "ENABLE_CONJUGATION", True)
+            else None
+        ),
+        llm_service=LLMService(),
+        language_validator=get_language_validator(settings),
+    )
+
+
 def build_dispatcher_data(
-    cols,
     http_client,
     logger_bot,
     verb_service,
@@ -133,7 +169,6 @@ def build_dispatcher_data(
     review_state,
 ) -> dict:
     return {
-        "cols": cols,
         "http_client": http_client,
         "logger_bot": logger_bot,
         "verb_service": verb_service,
@@ -203,34 +238,14 @@ async def init_telegram_bot(app: FastAPI, settings):
     http_client = await init_and_get_http_client()
     app.state.http_client = http_client
 
-    verb_service = (
-        VerbService(cols=app.state.cols, http_client=app.state.http_client)
-        if getattr(settings, "ENABLE_CONJUGATION", True)
-        else None
-    )
-    expression_service = ExpressionService(cols=app.state.cols)
-    consumption_service = ConsumptionService(cols=app.state.cols)
-    user_service = UserService(cols=app.state.cols, consumption_service=consumption_service)
-    llm_service = LLMService()
-    language_validator = get_language_validator(settings)
-    review_state = ReviewStateStore(cols=cols)
-    app.state.expression_service = expression_service
-    app.state.user_service = user_service
-    app.state.consumption_service = consumption_service
-    app.state.llm_service = llm_service
+    services = build_services(cols, http_client, settings)
+    app.state.expression_service = services.expression_service
+    app.state.user_service = services.user_service
+    app.state.consumption_service = services.consumption_service
+    app.state.llm_service = services.llm_service
 
     dispatcher_data = build_dispatcher_data(
-        cols=cols,
-        http_client=http_client,
-        logger_bot=logger_bot,
-        verb_service=verb_service,
-        expression_service=expression_service,
-        user_service=user_service,
-        consumption_service=consumption_service,
-        llm_service=llm_service,
-        language_validator=language_validator,
-        review_state=review_state,
-    )
+        http_client=http_client, logger_bot=logger_bot, **services.as_kwargs())
     app.state.dispatcher_data = dispatcher_data
 
     # Run either webhook or polling, based on explicit mode.
@@ -257,7 +272,7 @@ async def init_telegram_bot(app: FastAPI, settings):
         scheduler_loop(
             bot=bot,
             logger_bot=logger_bot,
-            user_service=user_service,
+            user_service=services.user_service,
             review_use_cases=dispatcher_data["review_use_cases"],
             admin_id=settings.ADMIN_ID,
             pause_rule=settings.REVIEW_PAUSE_RULE,
@@ -311,33 +326,13 @@ async def init_telegram_without_fastapi(settings):
 
     http_client = await init_and_get_http_client()
 
-    verb_service = (
-        VerbService(cols=cols, http_client=http_client)
-        if getattr(settings, "ENABLE_CONJUGATION", True)
-        else None
-    )
-    expression_service = ExpressionService(cols=cols)
-    consumption_service = ConsumptionService(cols=cols)
-    user_service = UserService(cols=cols, consumption_service=consumption_service)
-    llm_service = LLMService()
-    language_validator = get_language_validator(settings)
-    review_state = ReviewStateStore(cols=cols)
+    services = build_services(cols, http_client, settings)
 
     # Polling cannot run while a webhook is active.
     await bot.delete_webhook(drop_pending_updates=False)
 
     dispatcher_data = build_dispatcher_data(
-        cols=cols,
-        http_client=http_client,
-        logger_bot=logger_bot,
-        verb_service=verb_service,
-        expression_service=expression_service,
-        user_service=user_service,
-        consumption_service=consumption_service,
-        llm_service=llm_service,
-        language_validator=language_validator,
-        review_state=review_state,
-    )
+        http_client=http_client, logger_bot=logger_bot, **services.as_kwargs())
 
     # Run polling in background
     polling_task = asyncio.create_task(
@@ -354,7 +349,7 @@ async def init_telegram_without_fastapi(settings):
         scheduler_loop(
             bot=bot,
             logger_bot=logger_bot,
-            user_service=user_service,
+            user_service=services.user_service,
             review_use_cases=dispatcher_data["review_use_cases"],
             admin_id=settings.ADMIN_ID,
             pause_rule=settings.REVIEW_PAUSE_RULE,

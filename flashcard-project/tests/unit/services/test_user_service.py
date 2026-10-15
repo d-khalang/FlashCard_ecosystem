@@ -20,7 +20,7 @@ def _make_service(user_doc=None):
     mock_cols = {"users": MagicMock()}
     mock_cols["users"].find_one = AsyncMock(return_value=user_doc)
     mock_cols["users"].update_one = AsyncMock()
-    return UserService(mock_cols), mock_cols
+    return UserService(users=mock_cols["users"]), mock_cols
 
 
 # ===================================================================

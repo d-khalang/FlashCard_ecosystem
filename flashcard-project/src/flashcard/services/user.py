@@ -39,8 +39,9 @@ TRIAL_DAYS = 14
 
 
 class UserService:
-    def __init__(self, cols: dict, consumption_service: ConsumptionService | None = None):
-        self.cols = cols
+    def __init__(self, users, consumption_service: ConsumptionService | None = None):
+        """`users`: the users collection (profile, settings and onboarding fields)."""
+        self.users = users
         self.consumption_service = consumption_service
 
     async def active_users_reviewed_before(
@@ -70,7 +71,7 @@ class UserService:
 
     async def _read_users(self, query: dict, on_unreadable: Callable[[str, Exception], None]) -> list[UserDB]:
         users = []
-        async for doc in self.cols['users'].find(query):
+        async for doc in self.users.find(query):
             try:
                 users.append(UserDB.model_validate(doc))
             except ValueError as e:  # pydantic's ValidationError is a ValueError
@@ -81,7 +82,7 @@ class UserService:
         """
         Retrieves the full user document.
         """
-        doc = await self.cols['users'].find_one({"user_id": str(user_id)}) or {}
+        doc = await self.users.find_one({"user_id": str(user_id)}) or {}
         if not doc:
             return UserDB(user_id=str(user_id))
             
@@ -122,7 +123,7 @@ class UserService:
 
     async def _set(self, user_id: Union[str, int], field: str, value) -> None:
         """Only for the validated setters above; never creates a user."""
-        await self.cols['users'].update_one(
+        await self.users.update_one(
             {"user_id": str(user_id)},
             {"$set": {field: value}},
         )
@@ -138,7 +139,7 @@ class UserService:
         else:
             query["onboarding_step"] = current_step
 
-        result = await self.cols['users'].update_one(
+        result = await self.users.update_one(
             query,
             {"$set": {"onboarding_step": current_step + 1}}
         )
@@ -152,7 +153,7 @@ class UserService:
         is always the first interaction. Every other writer updates existing users only.
         """
         current_iso = iso_z(now_utc())
-        await self.cols['users'].update_one(
+        await self.users.update_one(
             {"user_id": str(user_id)},
             {
                 "$set": {"username": username, "last_seen_at": current_iso},
@@ -166,7 +167,7 @@ class UserService:
         Migration only: set a missing `created_at`. Never overwrites one, so it can
         never move a trial start. True when it wrote.
         """
-        result = await self.cols['users'].update_one(
+        result = await self.users.update_one(
             # Matches a missing field and an explicit null alike.
             {"user_id": str(user_id), "created_at": None},
             {"$set": {"created_at": created_at}},

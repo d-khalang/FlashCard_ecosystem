@@ -87,7 +87,7 @@ def services(cols, fake_http_client):
 
 
 @pytest.fixture
-def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service, services, trace_logger):
+def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service, cols, services, trace_logger):
     for module in [
         user_settings,
         feedback,
@@ -108,7 +108,6 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
     _, dp = build_bot_dispatcher()
     logger_bot, _ = make_bot()
     dispatcher_data = build_dispatcher_data(
-        cols=services["expression_service"].cols,
         http_client=services["verb_service"].http_client,
         logger_bot=logger_bot,
         verb_service=services["verb_service"],
@@ -126,5 +125,6 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
         "logger_bot": logger_bot,
         "dispatcher_data": dispatcher_data,
         "llm_service": llm_service,
+        "cols": cols,  # for tests that seed or inspect the in-memory DB directly
         **services,
     }

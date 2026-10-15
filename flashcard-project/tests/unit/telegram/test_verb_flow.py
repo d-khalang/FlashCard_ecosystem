@@ -34,7 +34,7 @@ DATA = ConjugationResponse(
 
 def _deps(*, data=DATA):
     # Real parsing and validation; only the lookup (DB cache, then scraper) is faked.
-    verb_service = VerbService(cols=MagicMock())
+    verb_service = VerbService(conjugations=MagicMock())
     verb_service.get_verb_data = (
         AsyncMock(side_effect=data) if isinstance(data, Exception) else AsyncMock(return_value=data))
 

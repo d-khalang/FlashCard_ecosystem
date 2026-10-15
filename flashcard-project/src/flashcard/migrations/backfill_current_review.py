@@ -76,7 +76,7 @@ async def _main(apply: bool) -> None:
 
     client, _, cols = await init_and_get_mongo(settings)
     try:
-        report = await backfill_current_review(cols, ReviewStateStore(cols=cols), apply=apply)
+        report = await backfill_current_review(cols, ReviewStateStore(users=cols["users"]), apply=apply)
     finally:
         await close_mongo_on_client(client)
     print(f"{'APPLIED' if apply else 'DRY RUN (nothing written)'} on database '{settings.MONGO_DB}'")

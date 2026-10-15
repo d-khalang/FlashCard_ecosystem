@@ -32,7 +32,7 @@ def _make_service(expressions=None, users=None):
     mock_cols["expression"].delete_one = AsyncMock()
     mock_cols["users"].find_one = AsyncMock(return_value=users)
     mock_cols["users"].update_one = AsyncMock()
-    return ExpressionService(mock_cols), mock_cols
+    return ExpressionService(expressions=mock_cols["expression"]), mock_cols
 
 
 # ===================================================================

@@ -166,6 +166,13 @@ Migration (each step deployable and reversible):
   name what the user wants, so they now call `set_active(active)` and
   `set_review_mode(mode)` (single `$set`, atomic). The review-mode button's callback
   names the other mode. `toggle_active_status` and the unused `get_user_status` removed.
+- [x] **Each service gets only its own collection.** Services took the whole `cols`
+  dict, so any service could reach any collection. Now `ExpressionService(expressions)`,
+  `UserService(users)`, `ConsumptionService(users)`, `ReviewStateStore(users)`,
+  `VerbService(conjugations)`. `build_services` in `bot.py` is the only place that
+  hands collections out (both startup paths use it); `cols` is no longer injected into
+  handlers. Guarded by `tests/unit/test_data_ownership.py` (only the composition root,
+  `db/mongo.py` and the migrations index `cols`; no `self.cols`; `build_services` wiring).
 - [x] **No reads of `users` outside its owners.** `ExpressionService.get_review_candidate`
   takes `review_mode` from the use case (which loads the user first; same number of
   reads, one fewer for the scheduler). The scheduler's queries moved into
@@ -268,5 +275,9 @@ Temporary code that becomes dead once the switch is proven in production:
 - **Dates stored as text hide bad values (#9).** A `last_reviewed_at` that is not an
   ISO date can sort after real dates, so the scheduler's DB prefilter never returns
   that user: they silently never get reviews. Real dates would fix it.
-- **Duplicated startup** in `bot.py`: `init_telegram_bot` and
-  `init_telegram_without_fastapi` build the same services twice (#10).
+- **Duplicated startup** in `bot.py` (#10): both startup paths now share
+  `build_services`, but still duplicate the bot/logger-bot/Mongo/HTTP setup.
+- **Two Mongo clients under FastAPI (#10).** `lifespan` calls `init_mongo(app)`, then
+  `init_telegram_bot` opens a second client and overwrites `app.state.mongo_client`:
+  the first is never closed (pool leak) and the second is closed twice on shutdown.
+  The HTTP client has the same pattern (`init_http_client` + `init_and_get_http_client`).

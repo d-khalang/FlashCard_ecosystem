@@ -16,26 +16,27 @@ class ReviewStateStore:
     - `has_pending`: legacy pause flag, removed in the contract step.
     """
 
-    def __init__(self, cols: dict):
-        self.cols = cols
+    def __init__(self, users):
+        """`users`: the users collection; this store owns only the review-state fields."""
+        self.users = users
 
     async def mark_pending(self, user_id: Union[str, int]) -> None:
         """Legacy: a card was delivered; pause the scheduler until the user acts."""
-        await self.cols["users"].update_one(
+        await self.users.update_one(
             {"user_id": str(user_id)},
             {"$set": {"has_pending": True}},
         )
 
     async def clear_pending(self, user_id: Union[str, int]) -> None:
         """Legacy: the user interacted; let the scheduler send the next review."""
-        await self.cols["users"].update_one(
+        await self.users.update_one(
             {"user_id": str(user_id)},
             {"$set": {"has_pending": False}},
         )
 
     async def record_reviewed(self, user_id: Union[str, int]) -> None:
         """The user graded a card: start the review interval and clear the legacy pause."""
-        await self.cols["users"].update_one(
+        await self.users.update_one(
             {"user_id": str(user_id)},
             {"$set": {"has_pending": False, "last_reviewed_at": iso_z(now_utc())}},
         )
@@ -53,14 +54,14 @@ class ReviewStateStore:
             message_id=message_id,
             sent_at=iso_z(now_utc()),
         )
-        await self.cols["users"].update_one(
+        await self.users.update_one(
             {"user_id": str(user_id)},
             {"$set": {"current_review": review.model_dump()}},
         )
 
     async def record_graded(self, user_id: Union[str, int], expression_id: str, direction: str) -> None:
         """Clears the current review only if this grade is for it; late grades of older cards leave it."""
-        await self.cols["users"].update_one(
+        await self.users.update_one(
             {
                 "user_id": str(user_id),
                 "current_review.expression_id": expression_id,
@@ -86,7 +87,7 @@ class ReviewStateStore:
             message_id=message_id,
             sent_at=sent_at,
         )
-        result = await self.cols["users"].update_one(
+        result = await self.users.update_one(
             # Matches a missing field and an explicit null alike.
             {"user_id": str(user_id), "current_review": None},
             {"$set": {"current_review": review.model_dump()}},
@@ -94,7 +95,7 @@ class ReviewStateStore:
         return bool(getattr(result, "modified_count", 0))
 
     async def record_removed(self, user_id: Union[str, int], expression_id: str) -> None:
-        await self.cols["users"].update_one(
+        await self.users.update_one(
             {"user_id": str(user_id), "current_review.expression_id": expression_id},
             {"$unset": {"current_review": ""}},
         )

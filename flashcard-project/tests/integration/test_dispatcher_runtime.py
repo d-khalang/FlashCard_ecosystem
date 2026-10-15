@@ -54,7 +54,7 @@ async def test_plain_text_creation_generates_card_and_tracks_consumption(dispatc
     assert len(edit_calls) == 1
     assert "to go" in edit_calls[0].payload["text"].lower()
 
-    user_doc = await dispatcher_env["user_service"].cols["users"].find_one({"user_id": "42"})
+    user_doc = await dispatcher_env["cols"]["users"].find_one({"user_id": "42"})
     assert user_doc["consumption"]["system_api"]["cards_generated"] == 1
 
 
@@ -67,7 +67,7 @@ async def test_save_callback_persists_expression(dispatcher_env):
         **dispatcher_env["dispatcher_data"],
     )
 
-    saved = await dispatcher_env["expression_service"].cols["expression"].find_one({"user_id": "42", "value": "andare"})
+    saved = await dispatcher_env["cols"]["expression"].find_one({"user_id": "42", "value": "andare"})
     assert saved is not None
     answer_calls = [call for call in dispatcher_env["session"].calls if call.method == "AnswerCallbackQuery"]
     assert answer_calls
@@ -114,7 +114,7 @@ async def test_feedback_fsm_collects_feedback_without_falling_into_creation(disp
 
 async def test_get_review_command_sends_card_and_updates_pending_state(dispatcher_env):
     expression_id = ObjectId()
-    await dispatcher_env["expression_service"].cols["expression"].insert_one(
+    await dispatcher_env["cols"]["expression"].insert_one(
         {
             "_id": expression_id,
             "user_id": "42",
@@ -123,7 +123,7 @@ async def test_get_review_command_sends_card_and_updates_pending_state(dispatche
             "status": "active",
         }
     )
-    await dispatcher_env["user_service"].cols["users"].update_one(
+    await dispatcher_env["cols"]["users"].update_one(
         {"user_id": "42"},
         {"$set": {"primary_language": "en", "target_level": "A2", "has_pending": False}},
         upsert=True,
@@ -137,15 +137,15 @@ async def test_get_review_command_sends_card_and_updates_pending_state(dispatche
 
     send_calls = [call for call in dispatcher_env["session"].calls if call.method == "SendMessage"]
     assert any("andare" in call.payload["text"].lower() for call in send_calls)
-    expression = await dispatcher_env["expression_service"].cols["expression"].find_one({"_id": expression_id})
+    expression = await dispatcher_env["cols"]["expression"].find_one({"_id": expression_id})
     assert expression["pending_message_id"] is not None
-    user_doc = await dispatcher_env["user_service"].cols["users"].find_one({"user_id": "42"})
+    user_doc = await dispatcher_env["cols"]["users"].find_one({"user_id": "42"})
     assert user_doc["has_pending"] is True
 
 
 async def test_grade_callback_updates_expression_and_user(dispatcher_env):
     expression_id = ObjectId()
-    await dispatcher_env["expression_service"].cols["expression"].insert_one(
+    await dispatcher_env["cols"]["expression"].insert_one(
         {
             "_id": expression_id,
             "user_id": "42",
@@ -154,7 +154,7 @@ async def test_grade_callback_updates_expression_and_user(dispatcher_env):
             "pending_message_id": 555,
         }
     )
-    await dispatcher_env["user_service"].cols["users"].update_one(
+    await dispatcher_env["cols"]["users"].update_one(
         {"user_id": "42"},
         {"$set": {"has_pending": True}},
         upsert=True,
@@ -167,8 +167,8 @@ async def test_grade_callback_updates_expression_and_user(dispatcher_env):
         **dispatcher_env["dispatcher_data"],
     )
 
-    expression = await dispatcher_env["expression_service"].cols["expression"].find_one({"_id": expression_id})
-    user_doc = await dispatcher_env["user_service"].cols["users"].find_one({"user_id": "42"})
+    expression = await dispatcher_env["cols"]["expression"].find_one({"_id": expression_id})
+    user_doc = await dispatcher_env["cols"]["users"].find_one({"user_id": "42"})
     assert expression["last_grade"] == 4
     assert expression["pending_message_id"] is None
     assert user_doc["has_pending"] is False
@@ -181,15 +181,15 @@ async def test_verb_command_uses_scraper_response_and_caches_result(dispatcher_e
         **dispatcher_env["dispatcher_data"],
     )
 
-    conjugation = await dispatcher_env["verb_service"].cols["conjugation"].find_one({"verb": "andare"})
-    user_doc = await dispatcher_env["user_service"].cols["users"].find_one({"user_id": "42"})
+    conjugation = await dispatcher_env["cols"]["conjugation"].find_one({"verb": "andare"})
+    user_doc = await dispatcher_env["cols"]["users"].find_one({"user_id": "42"})
     assert conjugation is not None
     assert user_doc["consumption"]["verb_lookups"] == 1
 
 
 async def test_inline_remove_confirm_deletes_expression(dispatcher_env):
     expression_id = ObjectId()
-    await dispatcher_env["expression_service"].cols["expression"].insert_one(
+    await dispatcher_env["cols"]["expression"].insert_one(
         {
             "_id": expression_id,
             "user_id": "42",
@@ -211,7 +211,7 @@ async def test_inline_remove_confirm_deletes_expression(dispatcher_env):
         **dispatcher_env["dispatcher_data"],
     )
 
-    deleted = await dispatcher_env["expression_service"].cols["expression"].find_one({"_id": expression_id})
+    deleted = await dispatcher_env["cols"]["expression"].find_one({"_id": expression_id})
     assert deleted is None
 
 
