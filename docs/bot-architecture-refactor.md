@@ -250,5 +250,9 @@ Temporary code that becomes dead once the switch is proven in production:
   `status`, while search and remove only touch `status: "active"`; its `-t`
   path uses `find` (keeps duplicates), the default uses `distinct`. `/story`
   still calls `get_all_expressions` directly (story step).
+- **One bad user document breaks a scheduler tick.** `find_users_due_for_review`
+  validates each user inside its loop; a validation error stops the tick for every
+  user. `review_mode` now reads unknown values as `"standard"` (logged), but any other
+  bad field still would. Skip and log the bad user instead.
 - **Duplicated startup** in `bot.py`: `init_telegram_bot` and
   `init_telegram_without_fastapi` build the same services twice (#10).

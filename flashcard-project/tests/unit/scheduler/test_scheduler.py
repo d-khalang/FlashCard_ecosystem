@@ -353,3 +353,18 @@ class TestFindUsersDueCurrentReviewRule:
         )
 
         assert await self._due(service, "current_review") == []
+
+
+class TestBadStoredReviewMode:
+
+    async def test_unknown_review_mode_does_not_break_the_tick(self):
+        """One bad stored value must not stop reviews for every user."""
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        from tests.integration.helpers import make_cols
+        service = MagicMock()
+        service.cols = make_cols(users=[_make_user_doc(user_id="bad", review_mode="weird"),
+                                        _make_user_doc(user_id="ok")])
+
+        due = await find_users_due_for_review(service)
+
+        assert sorted(user.user_id for user in due) == ["bad", "ok"]

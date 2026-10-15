@@ -1,10 +1,13 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, get_args
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from flashcard.schemas.languages import LanguageCode, LanguageLevel
 from flashcard.settings import settings
+from flashcard.utils.logger import get_logger
 from flashcard.utils.time import iso_z, now_utc
+
+logger = get_logger(__name__)
 
 class UserAPIConfig(BaseModel):
     provider: str = Field("gemini", description="LLM Provider e.g. openai, gemini")
@@ -81,3 +84,15 @@ class UserDB(BaseModel):
     
     # Consumption Tracking
     consumption: UserConsumption = Field(UserConsumption(), description="User Consumption per day")
+
+    @field_validator("review_mode", mode="before")
+    @classmethod
+    def _unknown_review_mode_reads_as_standard(cls, value):
+        """
+        Reading is forgiving so one bad stored value cannot break the scheduler;
+        writing stays strict (UserService.set_review_mode). "standard" is the safe default.
+        """
+        if value in get_args(ReviewMode):
+            return value
+        logger.warning("Unknown stored review_mode %r read as 'standard'", value)
+        return "standard"
