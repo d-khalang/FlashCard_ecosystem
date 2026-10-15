@@ -1,8 +1,8 @@
 """
 Unit tests for flashcard.services.user.UserService
 
-Tests all 5 methods: update_user_last_push, toggle_active_status,
-get_user_status, get_user, update_setting.
+Tests toggle_active_status, get_user_status, get_user, update_setting,
+advance_onboarding. Review-state writes live in ReviewStateStore.
 All use mocked MongoDB.
 """
 from unittest.mock import MagicMock, AsyncMock
@@ -20,47 +20,6 @@ def _make_service(user_doc=None):
     mock_cols["users"].find_one = AsyncMock(return_value=user_doc)
     mock_cols["users"].update_one = AsyncMock()
     return UserService(mock_cols), mock_cols
-
-
-# ===================================================================
-# update_user_last_push
-# ===================================================================
-class TestUpdateUserLastPush:
-
-    async def test_sets_last_push_and_has_pending(self):
-        service, cols = _make_service()
-
-        await service.update_user_last_push(123)
-
-        cols["users"].update_one.assert_called_once()
-        call_args = cols["users"].update_one.call_args
-        assert call_args[0][0] == {"user_id": "123"}
-        set_dict = call_args[0][1]["$set"]
-        assert "last_push_at" in set_dict
-        assert set_dict["has_pending"] is True
-
-    async def test_never_creates_a_user(self):
-        """Only record_seen creates users, so created_at is always set."""
-        service, cols = _make_service()
-
-        await service.update_user_last_push(999)
-
-        call_kwargs = cols["users"].update_one.call_args[1]
-        assert not call_kwargs.get("upsert")
-
-
-# ===================================================================
-# clear_pending
-# ===================================================================
-class TestClearPending:
-
-    async def test_clears_has_pending_without_creating_a_user(self):
-        service, cols = _make_service()
-
-        await service.clear_pending(123)
-
-        cols["users"].update_one.assert_called_once_with(
-            {"user_id": "123"}, {"$set": {"has_pending": False}})
 
 
 # ===================================================================

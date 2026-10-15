@@ -14,6 +14,7 @@ from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.language_validation import LanguageValidityChecker
 from flashcard.services.llm.llm import LLMService
+from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.user import UserService
 
 FallbackNotifier = Callable[[], Awaitable[None]]
@@ -59,12 +60,14 @@ class CreationUseCases:
         user_service: UserService,
         consumption_service: ConsumptionService,
         llm_service: LLMService,
+        review_state: ReviewStateStore,
         language_validator: Optional[LanguageValidityChecker] = None,
     ):
         self.expressions = expression_service
         self.users = user_service
         self.consumption = consumption_service
         self.llm = llm_service
+        self.review_state = review_state
         self.validator = language_validator
 
     async def generate(
@@ -111,7 +114,11 @@ class CreationUseCases:
     async def save(self, user_id: UserId, norm: str) -> SaveResult:
         """Add an expression to the user's collection unless it already exists."""
         saved = await self.expressions.add_expression(user_id, norm)
-        return Saved() if saved else AlreadySaved()
+        if not saved:
+            return AlreadySaved()
+        # An active user should not be left without scheduled reviews.
+        await self.review_state.clear_pending(user_id)
+        return Saved()
 
     async def claim_first_save_tip(self, user_id: UserId) -> bool:
         """

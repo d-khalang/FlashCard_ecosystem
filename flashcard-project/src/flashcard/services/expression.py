@@ -52,9 +52,7 @@ class ExpressionService:
         """
         Adds a new expression if it doesn't already exist.
         1. Check for duplicates (case-insensitive)
-        2. If not exists:
-           - Update user stats (last_push_at, has_pending=False)
-           - Insert new expression document
+        2. If not exists, insert the new expression document.
         
         Returns:
             bool: True if inserted, False if duplicate
@@ -70,19 +68,8 @@ class ExpressionService:
         if existing:
             return False
 
-        # 2. Update User Data (users are created only by UserService.record_seen)
+        # 2. Insert Expression
         current_iso = iso_z(now_utc())
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {
-                "$set": {
-                    "last_push_at": current_iso,
-                    "has_pending": False
-                }
-            },
-        )
-
-        # 3. Insert Expression
         new_expression = ExpressionDB(
             user_id=str(user_id),
             value=value,
@@ -137,17 +124,6 @@ class ExpressionService:
             
         # 3. Bulk Insert
         await self.cols['expression'].insert_many(to_insert)
-        
-        # 4. Update User Data (once; users are created only by UserService.record_seen)
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {
-                "$set": {
-                    "last_push_at": current_iso,
-                    "has_pending": False
-                }
-            },
-        )
         
         logger.info(f"Bulk inserted {len(new_items)} expressions for user {user_id}")
         return new_items
@@ -331,17 +307,6 @@ class ExpressionService:
         await self.cols['expression'].update_one(
             {"_id": ObjectId(expression_id)},
             {"$set": mongo_updates}
-        )
-        
-        # 4. Update User (has_pending = False, last_reviewed_at)
-        # Track when user last interacted with a review for scheduler timing
-        # TODO: Refactor — Delegate this to UserService.update_user_last_review(user_id)
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {"$set": {
-                "has_pending": False,
-                "last_reviewed_at": iso_z(now_utc())
-            }}
         )
         
         # Return updated document (merged) for UI - approximate sync

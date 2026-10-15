@@ -107,9 +107,9 @@ class ReviewUseCases:
         )
 
     async def mark_sent(self, user_id: UserId, ready: ReviewReady, message_id: int) -> None:
-        """Record a delivered review: pending message, last push and usage."""
+        """Record a delivered review: pending message, review state and usage."""
         await self.expressions.update_expression_sent(ready.expression_id, message_id)
-        await self.users.update_user_last_push(user_id)
+        await self.review_state.mark_pending(user_id)
         await self.consumption.increment(user_id, "cards_generated", uses_own_key=ready.uses_own_key)
         await shadow_write(
             self.review_state.record_sent(user_id, ready.expression_id, ready.direction, message_id),
@@ -129,6 +129,7 @@ class ReviewUseCases:
         updated = await self.expressions.grade_expression(user_id, expression_id, grade, direction)
         if not updated:
             return CardNotFound()
+        await self.review_state.record_reviewed(user_id)
         await shadow_write(
             self.review_state.record_graded(user_id, expression_id, direction),
             f"record_graded user={user_id} expression={expression_id}",

@@ -154,6 +154,7 @@ def build_dispatcher_data(
             user_service=user_service,
             consumption_service=consumption_service,
             llm_service=llm_service,
+            review_state=review_state,
             language_validator=language_validator,
         ),
         "settings_use_cases": SettingsUseCases(user_service=user_service),

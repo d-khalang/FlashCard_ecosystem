@@ -25,7 +25,7 @@ async def test_handle_text_message_too_long():
         mock_i18n_get.return_value = "Input too long error message"
 
         # Call handler
-        use_cases = CreationUseCases(MagicMock(), user_service, consumption_service, llm_service)
+        use_cases = CreationUseCases(MagicMock(), user_service, consumption_service, llm_service, review_state=AsyncMock())
         await handle_text_message(message, creation_use_cases=use_cases)
 
         # Assertions
@@ -61,7 +61,7 @@ async def test_handle_text_message_invalid_language_skips_generation():
         )
     )
 
-    use_cases = CreationUseCases(MagicMock(), user_service, consumption_service, llm_service,
+    use_cases = CreationUseCases(MagicMock(), user_service, consumption_service, llm_service, review_state=AsyncMock(),
                                  language_validator=language_validator)
     await handle_text_message(message, creation_use_cases=use_cases)
 

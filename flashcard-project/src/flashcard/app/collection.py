@@ -153,7 +153,11 @@ class CollectionUseCases:
             items = validation.normalized_items
 
         inserted = await self.expressions.add_expressions_bulk(user_id, items)
-        return Imported(items=list(inserted)) if inserted else AllDuplicates()
+        if not inserted:
+            return AllDuplicates()
+        # An active user should not be left without scheduled reviews.
+        await self.review_state.clear_pending(user_id)
+        return Imported(items=list(inserted))
 
     async def list_items(self, user_id: UserId, order: ListOrder = "alphabetical") -> list[str]:
         """All saved values: alphabetical (case-insensitive) or oldest first."""
@@ -186,7 +190,7 @@ class CollectionUseCases:
         if not removed:
             return NotFound()
         # The removed card may be the unanswered one, which would pause the scheduler forever.
-        await self.users.clear_pending(user_id)
+        await self.review_state.clear_pending(user_id)
         await shadow_write(
             self.review_state.record_removed(user_id, expression_id),
             f"record_removed user={user_id} expression={expression_id}",

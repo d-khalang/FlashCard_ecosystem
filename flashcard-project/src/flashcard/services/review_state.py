@@ -9,12 +9,36 @@ logger = get_logger(__name__)
 
 class ReviewStateStore:
     """
-    Sole writer of the user's review state: `users.current_review`, the delivered
-    card still waiting for a grade. A newer card replaces it.
+    Sole writer of the user's review state:
+
+    - `current_review`: the delivered card still waiting for a grade; a newer card replaces it.
+    - `last_reviewed_at`: when the user last graded a card (starts the review interval).
+    - `has_pending`: legacy pause flag, removed in the contract step.
     """
 
     def __init__(self, cols: dict):
         self.cols = cols
+
+    async def mark_pending(self, user_id: Union[str, int]) -> None:
+        """Legacy: a card was delivered; pause the scheduler until the user acts."""
+        await self.cols["users"].update_one(
+            {"user_id": str(user_id)},
+            {"$set": {"has_pending": True}},
+        )
+
+    async def clear_pending(self, user_id: Union[str, int]) -> None:
+        """Legacy: the user interacted; let the scheduler send the next review."""
+        await self.cols["users"].update_one(
+            {"user_id": str(user_id)},
+            {"$set": {"has_pending": False}},
+        )
+
+    async def record_reviewed(self, user_id: Union[str, int]) -> None:
+        """The user graded a card: start the review interval and clear the legacy pause."""
+        await self.cols["users"].update_one(
+            {"user_id": str(user_id)},
+            {"$set": {"has_pending": False, "last_reviewed_at": iso_z(now_utc())}},
+        )
 
     async def record_sent(
         self,

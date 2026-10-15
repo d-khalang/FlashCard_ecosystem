@@ -42,7 +42,7 @@ class TestAddExpression:
     """Tests for adding a single expression."""
 
     async def test_add_new_expression(self):
-        """New expression → inserts doc, updates user, returns True."""
+        """New expression → inserts doc, returns True; users are not this service's data."""
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=None)
 
@@ -59,10 +59,7 @@ class TestAddExpression:
         assert inserted["reps"] == 0
         assert inserted["status"] == "active"
 
-        # Verify user update
-        cols["users"].update_one.assert_called_once()
-        user_set = cols["users"].update_one.call_args[0][1]["$set"]
-        assert user_set["has_pending"] is False
+        cols["users"].update_one.assert_not_called()
 
     async def test_add_duplicate_returns_false(self):
         """Duplicate expression → no insert, returns False."""
@@ -343,18 +340,15 @@ class TestGradeExpression:
         assert "reverse_stats" in set_dict
         assert isinstance(set_dict["reverse_stats"], dict)
 
-    async def test_grade_updates_user_has_pending(self):
-        """After grading, user's has_pending should be set to False."""
+    async def test_grade_does_not_write_users(self):
+        """Review state (has_pending, last_reviewed_at) is ReviewStateStore's to write."""
         doc = _make_expression_doc()
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         await service.grade_expression("123", str(doc["_id"]), grade=4)
 
-        cols["users"].update_one.assert_called_once()
-        user_update = cols["users"].update_one.call_args[0][1]["$set"]
-        assert user_update["has_pending"] is False
-        assert "last_reviewed_at" in user_update
+        cols["users"].update_one.assert_not_called()
 
 
 # ===================================================================
@@ -408,17 +402,13 @@ class TestAddExpressionsBulk:
         assert result == []
         cols["expression"].insert_many.assert_not_called()
 
-    async def test_updates_user_after_bulk_insert(self):
-        """User's last_push_at should be updated after successful bulk insert."""
+    async def test_bulk_insert_does_not_write_users(self):
         service, cols = _make_service()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([]))
 
         await service.add_expressions_bulk("123", ["nuova"])
 
-        cols["users"].update_one.assert_called_once()
-        user_update = cols["users"].update_one.call_args[0][1]["$set"]
-        assert "last_push_at" in user_update
-        assert user_update["has_pending"] is False
+        cols["users"].update_one.assert_not_called()
 
     async def test_case_insensitive_duplicate_detection(self):
         """'Casa' in DB should prevent 'casa' from being re-inserted."""

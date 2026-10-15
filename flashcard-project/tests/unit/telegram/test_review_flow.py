@@ -42,7 +42,6 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
     user_service.get_user = AsyncMock(return_value=user)
     user_service.can_generate_card = MagicMock(return_value=can_generate)
     user_service.card_limit = MagicMock(return_value=10)
-    user_service.update_user_last_push = AsyncMock()
     user_service.advance_onboarding = AsyncMock()
 
     llm_service = MagicMock()
@@ -54,11 +53,11 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
     sent = SimpleNamespace(message_id=sent_message_id)
     return SimpleNamespace(expression_service=expression_service, user_service=user_service,
                            llm_service=llm_service, consumption_service=consumption_service,
-                           user=user, sent=sent)
+                           review_state=AsyncMock(), user=user, sent=sent)
 
 
 def _use_cases(d) -> ReviewUseCases:
-    return ReviewUseCases(review_state=AsyncMock(), expression_service=d.expression_service, user_service=d.user_service,
+    return ReviewUseCases(review_state=d.review_state, expression_service=d.expression_service, user_service=d.user_service,
                           consumption_service=d.consumption_service, llm_service=d.llm_service)
 
 
@@ -129,7 +128,7 @@ class TestGetCommand:
         ui.kb_get.assert_called_once_with(EXPRESSION_ID, direction="forward")
         message.answer.assert_awaited_once_with("TEXT", reply_markup="KB")
         d.expression_service.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42)
-        d.user_service.update_user_last_push.assert_awaited_once_with(USER_ID)
+        d.review_state.mark_pending.assert_awaited_once_with(USER_ID)
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=False)
 
@@ -157,7 +156,7 @@ class TestGetCommand:
             await review.cmd_get(message, review_use_cases=_use_cases(d))
 
         d.expression_service.update_expression_sent.assert_not_awaited()
-        d.user_service.update_user_last_push.assert_not_awaited()
+        d.review_state.mark_pending.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
 
     async def test_missing_target_level_falls_back_to_default(self, ui):
@@ -206,7 +205,7 @@ class TestScheduledReview:
         ui.kb_sched.assert_called_once_with(EXPRESSION_ID, direction="reverse")
         bot.send_message.assert_awaited_once_with(chat_id=str(USER_ID), text="TEXT", reply_markup="KB")
         d.expression_service.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42)
-        d.user_service.update_user_last_push.assert_awaited_once_with(str(USER_ID))
+        d.review_state.mark_pending.assert_awaited_once_with(str(USER_ID))
         d.consumption_service.increment.assert_awaited_once_with(
             str(USER_ID), "cards_generated", uses_own_key=False)
 

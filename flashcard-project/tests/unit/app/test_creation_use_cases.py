@@ -50,7 +50,7 @@ def _use_cases(*, card=None, user=None, can_generate=True, card_limit=10, valida
         validator = MagicMock()
         validator.validate_expression = AsyncMock(return_value=validation)
 
-    use_cases = CreationUseCases(expression_service=expressions, user_service=users,
+    use_cases = CreationUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
                                  consumption_service=consumption, llm_service=llm,
                                  language_validator=validator)
     return use_cases, expressions, users, consumption, llm
@@ -142,11 +142,13 @@ class TestSave:
 
         assert await use_cases.save(222, "andare") == Saved()
         expressions.add_expression.assert_awaited_once_with(222, "andare")
+        use_cases.review_state.clear_pending.assert_awaited_once_with(222)
 
     async def test_already_saved(self):
         use_cases, *_ = _use_cases(saved=False)
 
         assert await use_cases.save(222, "andare") == AlreadySaved()
+        use_cases.review_state.clear_pending.assert_not_awaited()
 
 
 class TestClaimFirstSaveTip:

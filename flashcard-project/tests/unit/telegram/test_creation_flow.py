@@ -67,7 +67,7 @@ def _deps(*, card=None, user=None, can_generate=True, validation=None):
 
 
 def _use_cases(d) -> CreationUseCases:
-    return CreationUseCases(expression_service=d.expression_service, user_service=d.user_service,
+    return CreationUseCases(review_state=AsyncMock(), expression_service=d.expression_service, user_service=d.user_service,
                             consumption_service=d.consumption_service, llm_service=d.llm_service,
                             language_validator=d.validator)
 

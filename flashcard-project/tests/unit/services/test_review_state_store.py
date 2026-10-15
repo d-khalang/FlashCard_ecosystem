@@ -106,3 +106,37 @@ class TestBackfilledReview:
 
         assert await store.backfill_from_legacy(42, "e2", 1, "2026-10-02T00:00:00Z") is False
         assert _current(users)["expression_id"] == "e1"
+
+
+class TestLegacyPendingAndReviewed:
+
+    async def test_mark_pending_sets_the_flag(self):
+        store, users = _store({"user_id": "42", "has_pending": False})
+
+        await store.mark_pending(42)
+
+        assert users.docs[0]["has_pending"] is True
+
+    async def test_clear_pending_clears_the_flag(self):
+        store, users = _store({"user_id": "42", "has_pending": True})
+
+        await store.clear_pending(42)
+
+        assert users.docs[0]["has_pending"] is False
+
+    async def test_record_reviewed_starts_the_interval_and_clears_pending(self):
+        store, users = _store({"user_id": "42", "has_pending": True})
+
+        await store.record_reviewed(42)
+
+        assert users.docs[0]["has_pending"] is False
+        assert users.docs[0]["last_reviewed_at"]
+
+    async def test_no_writer_creates_a_user(self):
+        store, users = _store()
+
+        await store.mark_pending(42)
+        await store.clear_pending(42)
+        await store.record_reviewed(42)
+
+        assert users.docs == []

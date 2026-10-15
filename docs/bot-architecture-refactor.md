@@ -99,7 +99,7 @@ Planned field groups:
 | expression | `content` (prefs it was made for + sections) | `CardContentStore` |
 | user | profile, settings, onboarding, `last_seen_at` | `UserService` |
 | user | `consumption` | `ConsumptionService` |
-| user | `current_review`, `last_graded` (one-level undo snapshot), `last_reviewed_at` | `ReviewStateStore` |
+| user | `current_review`, `last_graded` (one-level undo snapshot), `last_reviewed_at`, legacy `has_pending` | `ReviewStateStore` |
 
 Decisions: one-level undo only (deeper undo corrupts grading); undo restores the
 snapshot only if `review_rev` still matches. Reviews generate fresh content; the stored
@@ -143,6 +143,14 @@ Migration (each step deployable and reversible):
   Guarded by `tests/unit/test_user_creation_contract.py`: only `record_seen` may
   upsert `users`, and the Telegram dispatcher must run `TraceMiddleware`.
   **Mini App:** its auth/launch step must call `record_seen` too; add its test there.
+- [x] **`ExpressionService` no longer writes `users`.** Review state moved to
+  `ReviewStateStore`: `mark_pending` (send), `clear_pending` (save, import, remove),
+  `record_reviewed` (grade: `last_reviewed_at` + clear `has_pending`, one update).
+  `last_push_at` is no longer written (never read). Guarded by
+  `tests/unit/test_data_ownership.py`: only `UserService`, `ConsumptionService` and
+  `ReviewStateStore` write `users`.
+- [ ] `ExpressionService.get_review_candidate` still reads `users.review_mode`;
+  the use case should pass it in.
 
 ### Remove after the migration is validated (contract step)
 
@@ -160,9 +168,8 @@ Temporary code that becomes dead once the switch is proven in production:
   `ReviewStateStore.backfill_from_legacy`. Once no `unknown` reviews remain: the
   `"unknown"` direction in `CurrentReview` and the `$in [direction, "unknown"]` match
   in `record_graded`.
-- **Legacy writes:** `UserService.update_user_last_push`, `UserService.clear_pending`;
-  the `users` writes inside `ExpressionService.add_expression(_bulk)` and
-  `grade_expression` (`last_reviewed_at` moves to `ReviewStateStore`);
+- **Legacy writes:** `ReviewStateStore.mark_pending` and `clear_pending` (and their
+  calls in the use cases); `has_pending` in `record_reviewed`;
   `pending_message_id` / `last_sent_at` in `update_expression_sent` and
   `grade_expression` (`last_activity_at` stays: it drives the 12 h cooldown).
 - **Schema and query:** `UserDB.has_pending`, `UserDB.last_push_at`,

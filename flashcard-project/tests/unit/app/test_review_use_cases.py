@@ -32,7 +32,6 @@ def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
     users.get_user = AsyncMock(return_value=user or _user())
     users.can_generate_card = MagicMock(return_value=can_generate)
     users.card_limit = MagicMock(return_value=card_limit)
-    users.update_user_last_push = AsyncMock()
     users.advance_onboarding = AsyncMock(return_value=True)
 
     consumption = MagicMock()
@@ -139,7 +138,7 @@ class TestPrepareNext:
 
         await use_cases.prepare_next(111)
         expressions.update_expression_sent.assert_not_awaited()
-        users.update_user_last_push.assert_not_awaited()
+        use_cases.review_state.mark_pending.assert_not_awaited()
         consumption.increment.assert_not_awaited()
 
 
@@ -154,7 +153,7 @@ class TestMarkSent:
         await use_cases.mark_sent(111, ready, 42)
 
         expressions.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42)
-        users.update_user_last_push.assert_awaited_once_with(111)
+        use_cases.review_state.mark_pending.assert_awaited_once_with(111)
         consumption.increment.assert_awaited_once_with(111, "cards_generated", uses_own_key=uses_own_key)
 
 
@@ -246,8 +245,23 @@ class TestReviewStateShadow:
         await use_cases.mark_sent(111, self._ready(), 777)
 
         expressions.update_expression_sent.assert_awaited_once()
-        users.update_user_last_push.assert_awaited_once()
+        use_cases.review_state.mark_pending.assert_awaited_once()
         consumption.increment.assert_awaited_once()
+
+    async def test_grade_records_the_review(self):
+        use_cases, _, _, _, _ = _use_cases()
+
+        await use_cases.grade(111, EXPRESSION_ID, 4, "forward")
+
+        use_cases.review_state.record_reviewed.assert_awaited_once_with(111)
+
+    async def test_missing_card_records_no_review(self):
+        use_cases, expressions, _, _, _ = _use_cases()
+        expressions.grade_expression.return_value = None
+
+        await use_cases.grade(111, EXPRESSION_ID, 4, "forward")
+
+        use_cases.review_state.record_reviewed.assert_not_awaited()
 
     async def test_grade_clears_the_current_review(self):
         use_cases, _, _, _, _ = _use_cases()

@@ -62,6 +62,7 @@ class TestImportItems:
         assert await use_cases.import_items(333, "andare, fare") == Imported(items=["andare", "fare"])
         llm.parse_import_list.assert_awaited_once_with("andare, fare")
         expressions.add_expressions_bulk.assert_awaited_once_with(333, ["andare", "fare"])
+        use_cases.review_state.clear_pending.assert_awaited_once_with(333)
 
     async def test_only_newly_inserted_items_are_returned(self):
         use_cases, *_ = _use_cases(inserted=["fare"])
@@ -72,6 +73,7 @@ class TestImportItems:
         use_cases, *_ = _use_cases(inserted=[])
 
         assert await use_cases.import_items(333, "andare") == AllDuplicates()
+        use_cases.review_state.clear_pending.assert_not_awaited()
 
     @pytest.mark.parametrize("log", ["not a list", None])
     async def test_parse_failure_keeps_llm_log(self, log):
@@ -210,11 +212,8 @@ def _saved(*, values=None, found=None, removed=True):
     expressions.get_all_expressions = AsyncMock(return_value=list(values or []))
     expressions.search_expressions = AsyncMock(return_value=list(found or []))
     expressions.remove_expression = AsyncMock(return_value=removed)
-    users = MagicMock()
-    users.clear_pending = AsyncMock()
-    use_cases = CollectionUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
+    use_cases = CollectionUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=MagicMock(),
                                    consumption_service=MagicMock(), llm_service=MagicMock())
-    use_cases.users_mock = users
     return use_cases, expressions
 
 
@@ -277,13 +276,13 @@ class TestRemove:
 
         assert await use_cases.remove(333, "abc") == Removed()
         expressions.remove_expression.assert_awaited_once_with(333, "abc")
-        use_cases.users_mock.clear_pending.assert_awaited_once_with(333)
+        use_cases.review_state.clear_pending.assert_awaited_once_with(333)
 
     async def test_not_found(self):
         use_cases, _ = _saved(removed=False)
 
         assert await use_cases.remove(333, "abc") == NotFound()
-        use_cases.users_mock.clear_pending.assert_not_awaited()
+        use_cases.review_state.clear_pending.assert_not_awaited()
         use_cases.review_state.record_removed.assert_not_awaited()
 
     async def test_removed_clears_the_current_review(self):
@@ -298,4 +297,4 @@ class TestRemove:
         use_cases.review_state.record_removed.side_effect = RuntimeError("mongo down")
 
         assert await use_cases.remove(333, "abc") == Removed()
-        use_cases.users_mock.clear_pending.assert_awaited_once_with(333)
+        use_cases.review_state.clear_pending.assert_awaited_once_with(333)
