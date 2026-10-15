@@ -1,22 +1,20 @@
 """
 Unit tests for SettingsUseCases: validation and persistence of user settings, independent of Telegram.
-"""
-from unittest.mock import AsyncMock, MagicMock
 
+Runs against a real UserService on the in-memory Mongo fake, because the allowed
+values are enforced by UserService's setters.
+"""
 import pytest
 
-from flashcard.app.settings import (
-    LEVELS, MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE, SettingsUseCases,
-)
-from flashcard.schemas.user import UserDB
+from flashcard.app.settings import LEVELS, SettingsUseCases
+from flashcard.schemas.user import MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE
+from flashcard.services.user import UserService
+from tests.integration.helpers import make_cols
 
 
-def _use_cases(user=None, *, new_status=True):
-    users = MagicMock()
-    users.get_user = AsyncMock(return_value=user or UserDB(user_id="777"))
-    users.update_setting = AsyncMock()
-    users.toggle_active_status = AsyncMock(return_value=new_status)
-    return SettingsUseCases(user_service=users), users
+def _use_cases(**user_fields):
+    cols = make_cols(users=[{"user_id": "777", **user_fields}])
+    return SettingsUseCases(user_service=UserService(cols=cols)), cols["users"].docs[0]
 
 
 class TestLevel:
@@ -26,7 +24,7 @@ class TestLevel:
         use_cases, users = _use_cases()
 
         assert await use_cases.set_level(777, level) == level
-        users.update_setting.assert_awaited_once_with(777, "target_level", level)
+        assert users["target_level"] == level
 
     @pytest.mark.parametrize("level", ["Z9", "a1", "", None])
     async def test_unknown_level_is_rejected(self, level):
@@ -34,7 +32,7 @@ class TestLevel:
 
         with pytest.raises(ValueError):
             await use_cases.set_level(777, level)
-        users.update_setting.assert_not_awaited()
+        assert set(users) == {"user_id"}  # nothing written
 
 
 class TestInterval:
@@ -44,7 +42,7 @@ class TestInterval:
         use_cases, users = _use_cases()
 
         assert await use_cases.set_interval(777, minutes) == minutes
-        users.update_setting.assert_awaited_once_with(777, "review_interval_minutes", minutes)
+        assert users["review_interval_minutes"] == minutes
 
     @pytest.mark.parametrize("minutes", [MIN_INTERVAL_MINUTES - 1, MAX_INTERVAL_MINUTES + 1, -5, 0, 30.0, "30",
                                          True, None])
@@ -53,7 +51,7 @@ class TestInterval:
 
         with pytest.raises(ValueError):
             await use_cases.set_interval(777, minutes)
-        users.update_setting.assert_not_awaited()
+        assert set(users) == {"user_id"}  # nothing written
 
 
 class TestLanguages:
@@ -63,7 +61,7 @@ class TestLanguages:
         use_cases, users = _use_cases()
 
         assert await use_cases.set_primary_language(777, text) == code
-        users.update_setting.assert_awaited_once_with(777, "primary_language", code)
+        assert users["primary_language"] == code
 
     @pytest.mark.parametrize("text", ["none", "klingon", "", None])
     async def test_primary_rejects_none_unknown_and_non_text(self, text):
@@ -71,14 +69,14 @@ class TestLanguages:
 
         with pytest.raises(ValueError):
             await use_cases.set_primary_language(777, text)
-        users.update_setting.assert_not_awaited()
+        assert set(users) == {"user_id"}  # nothing written
 
     @pytest.mark.parametrize("text, code", [("english", "en"), ("none", NO_LANGUAGE), ("No", NO_LANGUAGE)])
     async def test_secondary_accepts_languages_and_none(self, text, code):
         use_cases, users = _use_cases()
 
         assert await use_cases.set_secondary_language(777, text) == code
-        users.update_setting.assert_awaited_once_with(777, "secondary_language", code)
+        assert users["secondary_language"] == code
 
     @pytest.mark.parametrize("text", ["klingon", None])
     async def test_secondary_rejects_unknown_and_non_text(self, text):
@@ -86,27 +84,28 @@ class TestLanguages:
 
         with pytest.raises(ValueError):
             await use_cases.set_secondary_language(777, text)
-        users.update_setting.assert_not_awaited()
+        assert set(users) == {"user_id"}  # nothing written
 
 
 class TestToggles:
 
     @pytest.mark.parametrize("current, new", [("standard", "dual"), ("dual", "standard")])
     async def test_review_mode_flips(self, current, new):
-        use_cases, users = _use_cases(UserDB(user_id="777", review_mode=current))
+        use_cases, users = _use_cases(review_mode=current)
 
         assert await use_cases.toggle_review_mode(777) == new
-        users.update_setting.assert_awaited_once_with(777, "review_mode", new)
+        assert users["review_mode"] == new
 
-    @pytest.mark.parametrize("new_status", [True, False])
-    async def test_active_returns_new_status(self, new_status):
-        use_cases, users = _use_cases(new_status=new_status)
+    @pytest.mark.parametrize("current, new", [(True, False), (False, True)])
+    async def test_active_returns_new_status(self, current, new):
+        use_cases, users = _use_cases(is_active=current)
 
-        assert await use_cases.toggle_active(777) is new_status
-        users.toggle_active_status.assert_awaited_once_with(777)
+        assert await use_cases.toggle_active(777) is new
+        assert users["is_active"] is new
 
     async def test_get_returns_the_user(self):
-        user = UserDB(user_id="777", target_level="B2")
-        use_cases, _ = _use_cases(user)
+        use_cases, _ = _use_cases(target_level="B2")
 
-        assert await use_cases.get(777) == user
+        user = await use_cases.get(777)
+
+        assert (user.user_id, user.target_level) == ("777", "B2")

@@ -1,23 +1,19 @@
 """
 Settings use cases: read and change a user's learning preferences.
 
-Every setter validates its input and raises ValueError, because values can come
-from forged callback data. Callers own presentation (labels, flags, keyboards).
+Every setter raises ValueError for invalid input, because values can come from
+forged callback data. The allowed values are enforced by UserService's setters;
+these use cases parse user input (language names) first. Callers own presentation
+(labels, flags, keyboards).
 """
-from typing import Literal, get_args
+from typing import get_args
 
 from flashcard.app.types import UserId
 from flashcard.schemas.languages import LanguageLevel, normalize_language_input
-from flashcard.schemas.user import UserDB
+from flashcard.schemas.user import ReviewMode, UserDB
 from flashcard.services.user import UserService
 
 LEVELS = get_args(LanguageLevel)
-MIN_INTERVAL_MINUTES = 15
-MAX_INTERVAL_MINUTES = 240
-
-ReviewMode = Literal["standard", "dual"]
-# Stored when the user turns the secondary language off.
-NO_LANGUAGE = "none"
 
 
 class SettingsUseCases:
@@ -28,33 +24,29 @@ class SettingsUseCases:
         return await self.users.get_user(user_id)
 
     async def set_level(self, user_id: UserId, level: str) -> str:
-        if level not in LEVELS:
-            raise ValueError(f"Unknown level: {level!r}")
-        await self.users.update_setting(user_id, "target_level", level)
+        await self.users.set_target_level(user_id, level)
         return level
 
     async def set_interval(self, user_id: UserId, minutes: int) -> int:
-        if type(minutes) is not int or not MIN_INTERVAL_MINUTES <= minutes <= MAX_INTERVAL_MINUTES:
-            raise ValueError(f"Interval must be {MIN_INTERVAL_MINUTES}-{MAX_INTERVAL_MINUTES} minutes: {minutes!r}")
-        await self.users.update_setting(user_id, "review_interval_minutes", minutes)
+        await self.users.set_review_interval(user_id, minutes)
         return minutes
 
     async def set_primary_language(self, user_id: UserId, text: str) -> str:
         """Accepts a language name, alias or code; returns the saved code."""
         code = _language_code(text, none_allowed=False)
-        await self.users.update_setting(user_id, "primary_language", code)
+        await self.users.set_primary_language(user_id, code)
         return code
 
     async def set_secondary_language(self, user_id: UserId, text: str) -> str:
         """Like set_primary_language, but "none" turns it off (returns NO_LANGUAGE)."""
         code = _language_code(text, none_allowed=True)
-        await self.users.update_setting(user_id, "secondary_language", code)
+        await self.users.set_secondary_language(user_id, code)
         return code
 
     async def toggle_review_mode(self, user_id: UserId) -> ReviewMode:
         user = await self.users.get_user(user_id)
         new_mode: ReviewMode = "dual" if user.review_mode == "standard" else "standard"
-        await self.users.update_setting(user_id, "review_mode", new_mode)
+        await self.users.set_review_mode(user_id, new_mode)
         return new_mode
 
     async def toggle_active(self, user_id: UserId) -> bool:

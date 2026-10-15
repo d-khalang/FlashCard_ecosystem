@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional, Union, Dict, TYPE_CHECKING
+from typing import Optional, Union, Dict, TYPE_CHECKING, get_args
 from flashcard.utils.logger import get_logger
-from flashcard.schemas.user import UserDB, UserTier
+from flashcard.schemas.languages import LANGUAGE_DATA, LanguageLevel
+from flashcard.schemas.user import (
+    MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE, ReviewMode, UserDB, UserTier,
+)
 from flashcard.settings import settings
 from flashcard.utils.time import iso_z, now_utc, parse_iso
 
@@ -82,10 +85,34 @@ class UserService:
             
         return UserDB.model_validate(doc)
 
-    async def update_setting(self, user_id: Union[str, int], field: str, value: any):
-        """
-        Updates a specific field in the user document.
-        """
+    async def set_target_level(self, user_id: Union[str, int], level: LanguageLevel) -> None:
+        if level not in get_args(LanguageLevel):
+            raise ValueError(f"Unknown level: {level!r}")
+        await self._set(user_id, "target_level", level)
+
+    async def set_review_interval(self, user_id: Union[str, int], minutes: int) -> None:
+        if type(minutes) is not int or not MIN_INTERVAL_MINUTES <= minutes <= MAX_INTERVAL_MINUTES:
+            raise ValueError(f"Interval must be {MIN_INTERVAL_MINUTES}-{MAX_INTERVAL_MINUTES} minutes: {minutes!r}")
+        await self._set(user_id, "review_interval_minutes", minutes)
+
+    async def set_primary_language(self, user_id: Union[str, int], code: str) -> None:
+        if code not in LANGUAGE_DATA:
+            raise ValueError(f"Unsupported language code: {code!r}")
+        await self._set(user_id, "primary_language", code)
+
+    async def set_secondary_language(self, user_id: Union[str, int], code: str) -> None:
+        """A language code, or NO_LANGUAGE to turn it off."""
+        if code != NO_LANGUAGE and code not in LANGUAGE_DATA:
+            raise ValueError(f"Unsupported language code: {code!r}")
+        await self._set(user_id, "secondary_language", code)
+
+    async def set_review_mode(self, user_id: Union[str, int], mode: ReviewMode) -> None:
+        if mode not in get_args(ReviewMode):
+            raise ValueError(f"Unknown review mode: {mode!r}")
+        await self._set(user_id, "review_mode", mode)
+
+    async def _set(self, user_id: Union[str, int], field: str, value) -> None:
+        """Only for the validated setters above; never creates a user."""
         await self.cols['users'].update_one(
             {"user_id": str(user_id)},
             {"$set": {field: value}},

@@ -1,11 +1,13 @@
 """
 Unit tests for flashcard.services.user.UserService
 
-Tests toggle_active_status, get_user_status, get_user, update_setting,
+Tests toggle_active_status, get_user_status, get_user, the settings setters,
 advance_onboarding. Review-state writes live in ReviewStateStore.
 All use mocked MongoDB.
 """
 from unittest.mock import MagicMock, AsyncMock
+
+import pytest
 
 from flashcard.services.user import UserService
 from flashcard.schemas.user import UserDB
@@ -130,36 +132,48 @@ class TestGetUser:
 
 
 # ===================================================================
-# update_setting
+# setters: the owner enforces which fields and values can be written
 # ===================================================================
-class TestUpdateSetting:
+class TestSetters:
 
-    async def test_updates_arbitrary_field(self):
+    @pytest.mark.parametrize("method, value, field", [
+        ("set_target_level", "C1", "target_level"),
+        ("set_review_interval", 60, "review_interval_minutes"),
+        ("set_primary_language", "de", "primary_language"),
+        ("set_secondary_language", "fa", "secondary_language"),
+        ("set_secondary_language", "none", "secondary_language"),
+        ("set_review_mode", "dual", "review_mode"),
+    ])
+    async def test_valid_value_is_written_without_creating_a_user(self, method, value, field):
         service, cols = _make_service()
 
-        await service.update_setting(123, "primary_language", "de")
+        await getattr(service, method)(42, value)
 
-        call_args = cols["users"].update_one.call_args[0]
-        assert call_args[0] == {"user_id": "123"}
-        assert call_args[1] == {"$set": {"primary_language": "de"}}
+        args, kwargs = cols["users"].update_one.call_args
+        assert args == ({"user_id": "42"}, {"$set": {field: value}})
+        assert not kwargs.get("upsert")
 
-    async def test_never_creates_a_user(self):
-        """Only record_seen creates users, so created_at is always set."""
+    @pytest.mark.parametrize("method, value", [
+        ("set_target_level", "Z9"),
+        ("set_target_level", "c1"),
+        ("set_review_interval", 14),
+        ("set_review_interval", 241),
+        ("set_review_interval", 30.0),
+        ("set_review_interval", True),
+        ("set_primary_language", "none"),
+        ("set_primary_language", "English"),
+        ("set_secondary_language", "klingon"),
+        ("set_review_mode", "triple"),
+    ])
+    async def test_invalid_value_is_rejected_without_writing(self, method, value):
         service, cols = _make_service()
 
-        await service.update_setting(999, "target_level", "C1")
+        with pytest.raises(ValueError):
+            await getattr(service, method)(42, value)
+        cols["users"].update_one.assert_not_called()
 
-        call_kwargs = cols["users"].update_one.call_args[1]
-        assert not call_kwargs.get("upsert")
-
-    async def test_converts_int_user_id_to_string(self):
-        """Integer user_id should be converted to string in the query."""
-        service, cols = _make_service()
-
-        await service.update_setting(42, "target_level", "B2")
-
-        call_args = cols["users"].update_one.call_args[0]
-        assert call_args[0]["user_id"] == "42"  # string, not int
+    def test_there_is_no_generic_field_writer(self):
+        assert not hasattr(UserService, "update_setting")
 
 
 # ===================================================================

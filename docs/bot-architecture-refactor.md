@@ -152,6 +152,10 @@ Migration (each step deployable and reversible):
   `last_push_at` is no longer written (never read). Guarded by
   `tests/unit/test_data_ownership.py`: only `UserService`, `ConsumptionService` and
   `ReviewStateStore` write `users`. `TRIAL_DAYS` replaces the literal 14.
+- [x] **Typed settings setters.** `UserService.update_setting(field, value)` wrote any
+  field. Replaced by `set_target_level`, `set_review_interval`, `set_primary_language`,
+  `set_secondary_language`, `set_review_mode`; each enforces its rules (now in
+  `schemas/user.py`, next to the fields). `SettingsUseCases` only parses input.
 - [ ] `ExpressionService.get_review_candidate` still reads `users.review_mode`;
   the use case should pass it in.
 
@@ -226,8 +230,8 @@ Temporary code that becomes dead once the switch is proven in production:
   `claim_first_save_tip` are the same pattern on different steps. Move them
   into one onboarding concept when a third tip appears or with #3.
 - **Settings leftovers:**
-  - `UserService.update_setting(field, value)` writes any field, and
-    `toggle_active_status` reads then writes, so it is not atomic (#3, #8).
+  - `toggle_active_status` and `toggle_review_mode` read then write, so they are
+    not atomic (#3, #8).
   - Pause/resume/close buttons match text from the deployment locale only (#1, #7).
   - "none" is stored as the string `"none"`, not `None`; readers check both.
 - **Story/verb leftovers:**

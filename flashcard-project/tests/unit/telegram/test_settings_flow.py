@@ -9,6 +9,8 @@ import pytest
 from aiogram.types import ForceReply, ReplyKeyboardRemove
 
 from flashcard.app.settings import SettingsUseCases
+from flashcard.services.user import UserService
+from tests.integration.helpers import make_cols
 from flashcard.schemas.languages import get_language_flag, get_language_name
 from flashcard.schemas.user import UserDB
 from flashcard.services.i18n import i18n
@@ -31,26 +33,17 @@ def _user(**overrides) -> UserDB:
 
 
 def _deps(user=None, *, state_name=None):
-    # Stored user: reads return a copy, writes update it.
-    stored = {"user": user or _user()}
-
-    async def update_setting(user_id, field, value):
-        stored["user"] = stored["user"].model_copy(update={field: value})
-
-    async def toggle_active_status(user_id):
-        await update_setting(user_id, "is_active", not stored["user"].is_active)
-        return stored["user"].is_active
-
-    user_service = MagicMock()
-    user_service.get_user = AsyncMock(side_effect=lambda user_id: stored["user"].model_copy())
-    user_service.update_setting = AsyncMock(side_effect=update_setting)
-    user_service.toggle_active_status = AsyncMock(side_effect=toggle_active_status)
+    # A real UserService on the in-memory Mongo fake, so its setters' rules apply.
+    doc = (user or _user()).model_dump()
+    cols = make_cols(users=[doc])
+    user_service = UserService(cols=cols)
 
     state = MagicMock()
     state.get_state = AsyncMock(return_value=state_name)
     state.set_state = AsyncMock()
     state.clear = AsyncMock()
-    return SimpleNamespace(user_service=user_service, state=state, stored=stored,
+    return SimpleNamespace(user_service=user_service, state=state, initial=dict(doc),
+                           saved=lambda: cols["users"].docs[0],
                            settings_use_cases=SettingsUseCases(user_service=user_service))
 
 
@@ -191,7 +184,7 @@ class TestSettingsNavigation:
         call = callback.message.answer.await_args
         assert call.args == (i18n.get(key),)
         assert isinstance(call.kwargs["reply_markup"], ForceReply)
-        d.user_service.update_setting.assert_not_awaited()
+        assert d.saved() == d.initial  # nothing written
 
     async def test_api_shows_pending_feature_alert(self):
         d = _deps()
@@ -214,7 +207,7 @@ class TestSettingsSelect:
         d = _deps()
         callback = await _select(d, "target_level", "C1")
 
-        d.user_service.update_setting.assert_awaited_once_with(USER_ID, "target_level", "C1")
+        assert d.saved()["target_level"] == "C1"
         callback.message.edit_reply_markup.assert_awaited_once_with(reply_markup=get_level_selection_keyboard("C1"))
         callback.answer.assert_awaited_once_with(i18n.get("commands.settings.saved"), show_alert=False)
 
@@ -222,7 +215,7 @@ class TestSettingsSelect:
         d = _deps()
         callback = await _select(d, "interval", "120")
 
-        d.user_service.update_setting.assert_awaited_once_with(USER_ID, "review_interval_minutes", 120)
+        assert d.saved()["review_interval_minutes"] == 120
         callback.message.edit_reply_markup.assert_awaited_once_with(reply_markup=get_interval_settings_keyboard(120))
         callback.answer.assert_awaited_once_with(i18n.get("commands.settings.saved"), show_alert=False)
 
@@ -231,7 +224,7 @@ class TestSettingsSelect:
         d = _deps(_user(review_mode=current))
         callback = await _select(d, "review_mode", "toggle")
 
-        d.user_service.update_setting.assert_awaited_once_with(USER_ID, "review_mode", new)
+        assert d.saved()["review_mode"] == new
         updated = _user(review_mode=new)
         callback.message.edit_text.assert_awaited_once_with(
             text=_menu_text(updated), reply_markup=get_main_settings_keyboard(updated))
@@ -243,7 +236,7 @@ class TestSettingsSelect:
         d = _deps()
         callback = await _select(d, "interval", minutes)
 
-        d.user_service.update_setting.assert_awaited_once_with(USER_ID, "review_interval_minutes", int(minutes))
+        assert d.saved()["review_interval_minutes"] == int(minutes)
         callback.answer.assert_awaited_once_with(i18n.get("commands.settings.saved"), show_alert=False)
 
     @pytest.mark.parametrize("section, value", [
@@ -262,7 +255,7 @@ class TestSettingsSelect:
         d = _deps()
         callback = await _select(d, section, value)
 
-        d.user_service.update_setting.assert_not_awaited()
+        assert d.saved() == d.initial  # nothing written
         callback.message.edit_reply_markup.assert_not_awaited()
         callback.answer.assert_awaited_once_with(i18n.get("commands.settings.invalid_value"), show_alert=True)
 
@@ -279,7 +272,7 @@ class TestLanguagePrompt:
         d = _deps(user, state_name=prompt.state)
         message = await _answer_prompt(d, text)
 
-        d.user_service.update_setting.assert_awaited_once_with(USER_ID, field, code)
+        assert d.saved()[field] == code
         label = "primary_label" if field == "primary_language" else "secondary_label"
         message.reply.assert_awaited_once_with(i18n.get(
             "commands.settings.prompts.success_lang", type=i18n.get(f"commands.settings.prompts.{label}"),
@@ -294,7 +287,7 @@ class TestLanguagePrompt:
         d = _deps(state_name=SettingsPrompts.waiting_secondary_lang.state)
         message = await _answer_prompt(d, "none")
 
-        d.user_service.update_setting.assert_awaited_once_with(USER_ID, "secondary_language", "none")
+        assert d.saved()["secondary_language"] == "none"
         message.reply.assert_awaited_once_with(i18n.get(
             "commands.settings.prompts.success_lang", type=i18n.get("commands.settings.prompts.secondary_label"),
             lang=i18n.get("commands.settings.no_language"), flag="⚪"))
@@ -312,7 +305,7 @@ class TestLanguagePrompt:
         d = _deps(user, state_name=prompt.state)
         message = await _answer_prompt(d, text)
 
-        d.user_service.update_setting.assert_not_awaited()
+        assert d.saved() == d.initial  # nothing written
         message.reply.assert_awaited_once_with(
             i18n.get("commands.settings.prompts.invalid_lang"), reply_markup=get_language_settings_keyboard(user))
         d.state.clear.assert_awaited_once()
@@ -329,8 +322,7 @@ class TestReplyButtons:
         message = _message(i18n.get(button))
         await reply_commands.handle_status_change(message, settings_use_cases=d.settings_use_cases)
 
-        d.user_service.toggle_active_status.assert_awaited_once_with(USER_ID)
-        assert d.stored["user"].is_active is not was_active
+        assert d.saved()["is_active"] is not was_active
         message.answer.assert_awaited_once_with(
             i18n.get(key), reply_markup=get_reply_settings_keyboard(not was_active))
 

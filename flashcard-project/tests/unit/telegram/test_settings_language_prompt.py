@@ -26,7 +26,8 @@ def _deps(state_name):
     state.get_state = AsyncMock(return_value=state_name)
     state.clear = AsyncMock()
     user_service = MagicMock()
-    user_service.update_setting = AsyncMock()
+    user_service.set_primary_language = AsyncMock()
+    user_service.set_secondary_language = AsyncMock()
     user_service.get_user = AsyncMock(return_value=UserDB(user_id="444"))
     return state, user_service
 
@@ -48,4 +49,4 @@ async def test_confirmation_uses_localized_language_label(locale, prompt, label)
 
     message.reply.assert_awaited_once_with(expected)
     setting = "primary_language" if prompt == SettingsPrompts.waiting_primary_lang else "secondary_language"
-    user_service.update_setting.assert_awaited_once_with(444, setting, "en")
+    getattr(user_service, f"set_{setting}").assert_awaited_once_with(444, "en")

@@ -7,7 +7,8 @@ from contextlib import suppress
 
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 
-from flashcard.app.settings import NO_LANGUAGE, SettingsUseCases
+from flashcard.app.settings import SettingsUseCases
+from flashcard.schemas.user import NO_LANGUAGE
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
 from flashcard.telegram.keyboards import (

@@ -24,6 +24,14 @@ class UserConsumption(BaseModel):
     user_api: LLMUsage = Field(LLMUsage(), description="Usage on user's own API keys")
     verb_lookups: int = Field(0, description="Third-party verb API lookups")
 
+# Rules for the user's settings, enforced by UserService's setters.
+MIN_INTERVAL_MINUTES = 15
+MAX_INTERVAL_MINUTES = 240
+ReviewMode = Literal["standard", "dual"]
+# Stored as the secondary language when the user turns it off.
+NO_LANGUAGE = "none"
+
+
 class CurrentReview(BaseModel):
     """The delivered card still waiting for a grade; replaced by the next one."""
     expression_id: str = Field(..., description="Reviewed expression ObjectId as string")
