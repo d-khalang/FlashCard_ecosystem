@@ -126,7 +126,7 @@ Migration (each step deployable and reversible):
   one line, `Review-state shadow compare: agree=… resumed_by_interaction=…
   missing_current_review=… new_pauses=…`; per-user mismatches at DEBUG. Expected:
   `resumed_by_interaction` (intended change), `missing_current_review` before the
-  backfill run. Investigate any `new_pauses`. Read-only; failures never break a tick
+  backfill run. Investigate any `new_pauses` or `unreadable`. Read-only; failures never break a tick
 - [ ] (prod, rollout step 4) Observe for a few days after deploy + backfill
 - [x] Switch code: `REVIEW_PAUSE_RULE` setting (`legacy` default | `current_review`), read in
   `bot.py` and passed to `scheduler_loop`; rule in `app/review_schedule.paused`. Dual writes stay
@@ -163,6 +163,12 @@ Migration (each step deployable and reversible):
   names the other mode. `toggle_active_status` and the unused `get_user_status` removed.
 - [ ] `ExpressionService.get_review_candidate` still reads `users.review_mode`;
   the use case should pass it in.
+
+- [x] **Per-user isolation in the scheduler.** One unreadable user document (schema
+  error, bad date) no longer stops a tick: `find_users_due_for_review` skips it, logs
+  it and reports it to the admin with the send failures (`Unreadable user document`).
+  The shadow compare counts such users as `unreadable`. A bad document is reported
+  every tick until fixed.
 
 ### Remove after the migration is validated (contract step)
 
@@ -250,9 +256,8 @@ Temporary code that becomes dead once the switch is proven in production:
   `status`, while search and remove only touch `status: "active"`; its `-t`
   path uses `find` (keeps duplicates), the default uses `distinct`. `/story`
   still calls `get_all_expressions` directly (story step).
-- **One bad user document breaks a scheduler tick.** `find_users_due_for_review`
-  validates each user inside its loop; a validation error stops the tick for every
-  user. `review_mode` now reads unknown values as `"standard"` (logged), but any other
-  bad field still would. Skip and log the bad user instead.
+- **Dates stored as text hide bad values (#9).** A `last_reviewed_at` that is not an
+  ISO date can sort after real dates, so the scheduler's DB prefilter never returns
+  that user: they silently never get reviews. Real dates would fix it.
 - **Duplicated startup** in `bot.py`: `init_telegram_bot` and
   `init_telegram_without_fastapi` build the same services twice (#10).

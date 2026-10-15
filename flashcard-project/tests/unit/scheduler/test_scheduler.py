@@ -10,6 +10,8 @@ import json
 from datetime import timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 
+import pytest
+
 from flashcard.schemas.user import UserDB
 from flashcard.utils.time import now_utc, iso_z
 from tests.helpers import AsyncCursorMock as _AsyncCursor
@@ -368,3 +370,90 @@ class TestBadStoredReviewMode:
         due = await find_users_due_for_review(service)
 
         assert sorted(user.user_id for user in due) == ["bad", "ok"]
+
+
+# ===================================================================
+# Per-user isolation: one unreadable user document never stops a tick
+# ===================================================================
+class TestPerUserIsolation:
+
+    def _service(self, *users):
+        from tests.integration.helpers import make_cols
+        service = MagicMock()
+        service.cols = make_cols(users=list(users))
+        return service
+
+    @pytest.mark.parametrize("bad_fields", [
+        {"target_level": "Z9"},                       # schema validation error
+        {"review_interval_minutes": "often"},          # wrong type
+        {"last_reviewed_at": "2000-13-45T00:00:00Z"},  # passes the DB prefilter, fails parsing
+        {"current_review": {"expression_id": "e1"}},   # incomplete embedded review
+    ])
+    async def test_bad_user_is_skipped_and_reported(self, bad_fields):
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        service = self._service(_make_user_doc(user_id="bad", **bad_fields), _make_user_doc(user_id="ok"))
+        skipped = []
+
+        due = await find_users_due_for_review(service, skipped=skipped)
+
+        assert [user.user_id for user in due] == ["ok"]
+        assert [entry["user_id"] for entry in skipped] == ["bad"]
+        assert skipped[0]["error"].startswith("Unreadable user document")
+
+    async def test_naive_date_under_the_new_rule_is_skipped_not_fatal(self):
+        """A naive sent_at minus an aware last_seen_at raises TypeError."""
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        review = {"expression_id": "e1", "direction": "forward", "message_id": 1, "sent_at": "2026-10-01T10:00:00"}
+        service = self._service(
+            _make_user_doc(user_id="bad", current_review=review, last_seen_at="2026-10-02T10:00:00Z"),
+            _make_user_doc(user_id="ok"),
+        )
+        skipped = []
+
+        due = await find_users_due_for_review(service, "current_review", skipped)
+
+        assert [user.user_id for user in due] == ["ok"]
+        assert [entry["user_id"] for entry in skipped] == ["bad"]
+
+    async def test_without_a_collector_bad_users_are_only_logged(self, caplog):
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        service = self._service(_make_user_doc(user_id="bad", target_level="Z9"), _make_user_doc(user_id="ok"))
+
+        due = await find_users_due_for_review(service)
+
+        assert [user.user_id for user in due] == ["ok"]
+        assert "Skipping user bad" in caplog.text
+
+    async def test_shadow_compare_counts_unreadable_users(self):
+        from flashcard.scheduler.scheduler import compare_pause_rules
+        service = self._service(_make_user_doc(user_id="bad", has_pending=True, target_level="Z9"),
+                                _make_user_doc(user_id="ok", has_pending=True))
+
+        report = await compare_pause_rules(service)
+
+        assert report.counts == {"unreadable": 1, "missing_current_review": 1}
+
+    async def test_skipped_users_reach_the_admin_report(self):
+        from flashcard.scheduler.scheduler import scheduler_loop
+
+        async def find_users(user_service, pause_rule, skipped):
+            skipped.append({"user_id": "bad", "error": "Unreadable user document: ValidationError"})
+            return []
+
+        async def _break_sleep(_seconds):
+            raise _BreakLoop()
+
+        with (
+            patch("flashcard.scheduler.scheduler._observed_find_users_due_for_review", side_effect=find_users),
+            patch("flashcard.scheduler.scheduler._log_pause_comparison", new_callable=AsyncMock),
+            patch("flashcard.scheduler.scheduler._observed_send_admin_metrics", new_callable=AsyncMock) as metrics,
+            patch("flashcard.scheduler.scheduler.asyncio.sleep", side_effect=_break_sleep),
+        ):
+            try:
+                await scheduler_loop(bot=MagicMock(), logger_bot=MagicMock(), user_service=MagicMock(),
+                                     review_use_cases=MagicMock(), admin_id=12345)
+            except _BreakLoop:
+                pass
+
+        assert metrics.call_args.kwargs["failed_details"] == [
+            {"user_id": "bad", "error": "Unreadable user document: ValidationError"}]

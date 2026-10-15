@@ -25,7 +25,11 @@ SCHEDULER_CHECK_INTERVAL_SECONDS = settings.SCHEDULER_CHECK_INTERVAL_SECONDS
 from flashcard.schemas.defaults import DEFAULT_SCHEDULER_INTERVAL_MINUTES
 
 
-async def find_users_due_for_review(user_service: UserService, pause_rule: PauseRule = "legacy") -> list[UserDB]:
+async def find_users_due_for_review(
+    user_service: UserService,
+    pause_rule: PauseRule = "legacy",
+    skipped: Optional[list[dict]] = None,
+) -> list[UserDB]:
     """
     Finds active users who are due for a review.
 
@@ -38,6 +42,10 @@ async def find_users_due_for_review(user_service: UserService, pause_rule: Pause
         - not paused by `pause_rule` (legacy: has_pending; current_review: a card
           is waiting and the user has not been seen since it was sent)
         - last_reviewed_at + review_interval_minutes < now (or never reviewed)
+
+    A user whose document cannot be read is skipped, logged and, when `skipped` is
+    given, appended to it as {"user_id", "error"}, so one bad document never stops
+    reviews for everyone.
     """
 
     now = now_utc()
@@ -63,12 +71,23 @@ async def find_users_due_for_review(user_service: UserService, pause_rule: Pause
 
     users_due = []
     async for user_doc in users_cursor:
-        # Parse to UserDB for type safety
-        user = UserDB.model_validate(user_doc)
-        if not paused(user, pause_rule) and interval_elapsed(user, now):
-            users_due.append(user)
+        try:
+            # Parse to UserDB for type safety
+            user = UserDB.model_validate(user_doc)
+            if not paused(user, pause_rule) and interval_elapsed(user, now):
+                users_due.append(user)
+        except (ValueError, TypeError) as e:  # ValidationError is a ValueError; bad dates raise either
+            _skip_unreadable_user(user_doc, e, skipped)
 
     return users_due
+
+
+def _skip_unreadable_user(user_doc: dict, error: Exception, skipped: Optional[list[dict]]) -> None:
+    user_id = str(user_doc.get("user_id", "?"))
+    logger.warning(f"Skipping user {user_id}: unreadable document ({type(error).__name__})", exc_info=True)
+    if skipped is not None:
+        skipped.append({"user_id": user_id,
+                        "error": f"Unreadable user document: {type(error).__name__}"})
 
 
 async def compare_pause_rules(user_service: UserService) -> PauseComparison:
@@ -84,7 +103,10 @@ async def compare_pause_rules(user_service: UserService) -> PauseComparison:
         "$or": [{"has_pending": True}, {"current_review": {"$ne": None}}],
     })
     async for user_doc in cursor:
-        comparison.add(UserDB.model_validate(user_doc))
+        try:
+            comparison.add(UserDB.model_validate(user_doc))
+        except (ValueError, TypeError):
+            comparison.counts["unreadable"] = comparison.counts.get("unreadable", 0) + 1
     return comparison
 
 
@@ -205,8 +227,10 @@ async def send_admin_metrics(
 
 
 @observe(name="scheduler.find_users_due_for_review", include_output=False)
-async def _observed_find_users_due_for_review(user_service: UserService, pause_rule: PauseRule) -> list[UserDB]:
-    return await find_users_due_for_review(user_service, pause_rule)
+async def _observed_find_users_due_for_review(
+    user_service: UserService, pause_rule: PauseRule, skipped: list[dict]
+) -> list[UserDB]:
+    return await find_users_due_for_review(user_service, pause_rule, skipped)
 
 
 @observe(name="scheduler.send_admin_metrics", include_output=False)
@@ -267,7 +291,8 @@ async def scheduler_loop(
 
         try:
             # Find users who need reviews
-            users_to_push = await _observed_find_users_due_for_review(user_service, pause_rule)
+            # Unreadable users are reported to the admin with the send failures.
+            users_to_push = await _observed_find_users_due_for_review(user_service, pause_rule, failed_details)
             logger.info(f"Found {len(users_to_push)} users due for review")
             await _log_pause_comparison(user_service)
 
