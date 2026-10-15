@@ -72,9 +72,8 @@ Manages user profiles and settings. The only service that creates user documents
 |--------|-----------|-------------|
 | `record_seen` | `(user_id, username)` | Called by the trace middleware before every handler. Creates the user on first contact (`created_at`, the trial start) and updates `last_seen_at` and `username`. The only upsert on `users`. |
 | `get_user` | `(user_id) → UserDB` | Returns the user document, or unsaved defaults if not found. |
-| `get_user_status` | `(user_id) → bool` | Returns `True` if user is active. |
-| `toggle_active_status` | `(user_id) → bool` | Toggles active/inactive. Returns new status. |
-| `set_target_level` / `set_review_interval` / `set_primary_language` / `set_secondary_language` / `set_review_mode` | `(user_id, value)` | One setter per setting. Each enforces the allowed values (rules in `schemas/user.py`) and raises `ValueError`; there is no generic field writer. |
+| `set_active` | `(user_id, active)` | Pauses (`False`) or resumes (`True`) scheduled reviews. Idempotent. |
+| `set_target_level` / `set_review_interval` / `set_primary_language` / `set_secondary_language` / `set_review_mode` | `(user_id, value)` | One setter per setting, all idempotent single `$set`s. Each enforces the allowed values (rules in `schemas/user.py`) and raises `ValueError`; there is no generic field writer. |
 | `advance_onboarding` | `(user_id, current_step) → bool` | Atomically advances user's onboarding step if it matches `current_step`. |
 | `backfill_created_at` | `(user_id, created_at) → bool` | Migration only: sets a missing `created_at`, never overwrites. |
 

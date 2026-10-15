@@ -43,15 +43,23 @@ class SettingsUseCases:
         await self.users.set_secondary_language(user_id, code)
         return code
 
-    async def toggle_review_mode(self, user_id: UserId) -> ReviewMode:
-        user = await self.users.get_user(user_id)
-        new_mode: ReviewMode = "dual" if user.review_mode == "standard" else "standard"
-        await self.users.set_review_mode(user_id, new_mode)
-        return new_mode
+    async def set_review_mode(self, user_id: UserId, mode: str) -> ReviewMode:
+        """Idempotent: the button names the mode to switch to, so a repeated tap changes nothing."""
+        await self.users.set_review_mode(user_id, mode)
+        return mode
 
-    async def toggle_active(self, user_id: UserId) -> bool:
-        """Pause or resume scheduled reviews; returns True when now active."""
-        return await self.users.toggle_active_status(user_id)
+    async def toggle_review_mode(self, user_id: UserId) -> ReviewMode:
+        """
+        Only for settings menus sent before buttons named their target mode
+        (callback value "toggle"). Reads then writes, so it is not atomic.
+        """
+        user = await self.users.get_user(user_id)
+        return await self.set_review_mode(user_id, "dual" if user.review_mode == "standard" else "standard")
+
+    async def set_active(self, user_id: UserId, active: bool) -> bool:
+        """Pause (False) or resume (True) scheduled reviews; idempotent."""
+        await self.users.set_active(user_id, active)
+        return active
 
 
 def _language_code(text: str, *, none_allowed: bool) -> str:

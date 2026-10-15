@@ -43,38 +43,6 @@ class UserService:
         self.cols = cols
         self.consumption_service = consumption_service
 
-    async def toggle_active_status(self, user_id: Union[str, int]) -> bool:
-        """
-        Toggles the user's active status.
-        Returns the new status (True=Active, False=Inactive).
-        """
-        user_id_str = str(user_id)
-        user = await self.cols['users'].find_one({"user_id": user_id_str})
-        
-        # Default to True if not present, so we toggle to False. 
-        # If present, toggle existing.
-        current_status = user.get("is_active", True) if user else True
-        new_status = not current_status
-        
-        await self.cols['users'].update_one(
-            {"user_id": user_id_str},
-            {"$set": {"is_active": new_status}},
-        )
-        
-        status_str = "Active" if new_status else "Inactive"
-        logger.info(f"User {user_id} status toggled to {status_str}")
-        return new_status
-
-    async def get_user_status(self, user_id: Union[str, int]) -> bool:
-        """
-        Returns True if user is active, False otherwise.
-        Default is True.
-        """
-        user = await self.cols['users'].find_one({"user_id": str(user_id)})
-        if not user:
-            return True
-        return user.get("is_active", True)
-
     async def get_user(self, user_id: Union[str, int]) -> UserDB:
         """
         Retrieves the full user document.
@@ -110,6 +78,13 @@ class UserService:
         if mode not in get_args(ReviewMode):
             raise ValueError(f"Unknown review mode: {mode!r}")
         await self._set(user_id, "review_mode", mode)
+
+    async def set_active(self, user_id: Union[str, int], active: bool) -> None:
+        """Pause or resume scheduled reviews. Idempotent: a repeated tap changes nothing."""
+        if type(active) is not bool:
+            raise ValueError(f"active must be a bool: {active!r}")
+        await self._set(user_id, "is_active", active)
+        logger.info(f"User {user_id} status set to {'Active' if active else 'Inactive'}")
 
     async def _set(self, user_id: Union[str, int], field: str, value) -> None:
         """Only for the validated setters above; never creates a user."""

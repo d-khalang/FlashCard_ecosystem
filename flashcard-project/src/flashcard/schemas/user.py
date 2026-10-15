@@ -72,7 +72,7 @@ class UserDB(BaseModel):
         default_factory=lambda: settings.DEFAULT_TARGET_LEVEL,
         description="Target CEFR level (A1-C2)",
     )
-    review_mode: str = Field("standard", description="Review mode: standard or dual")
+    review_mode: ReviewMode = Field("standard", description="Review mode: standard or dual")
     review_interval_minutes: int = Field(30, description="Minutes between review batches")
     api_config: Optional[UserAPIConfig] = Field(None, description="Custom User API Config")
     

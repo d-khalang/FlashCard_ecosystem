@@ -1,8 +1,7 @@
 """
 Unit tests for flashcard.services.user.UserService
 
-Tests toggle_active_status, get_user_status, get_user, the settings setters,
-advance_onboarding. Review-state writes live in ReviewStateStore.
+Tests get_user, the settings setters (incl. set_active), advance_onboarding. Review-state writes live in ReviewStateStore.
 All use mocked MongoDB.
 """
 from unittest.mock import MagicMock, AsyncMock
@@ -22,78 +21,6 @@ def _make_service(user_doc=None):
     mock_cols["users"].find_one = AsyncMock(return_value=user_doc)
     mock_cols["users"].update_one = AsyncMock()
     return UserService(mock_cols), mock_cols
-
-
-# ===================================================================
-# toggle_active_status
-# ===================================================================
-class TestToggleActiveStatus:
-
-    async def test_active_to_inactive(self):
-        service, cols = _make_service(user_doc={"user_id": "123", "is_active": True})
-
-        result = await service.toggle_active_status(123)
-
-        assert result is False
-        set_dict = cols["users"].update_one.call_args[0][1]["$set"]
-        assert set_dict["is_active"] is False
-
-    async def test_inactive_to_active(self):
-        service, cols = _make_service(user_doc={"user_id": "123", "is_active": False})
-
-        result = await service.toggle_active_status(123)
-
-        assert result is True
-        set_dict = cols["users"].update_one.call_args[0][1]["$set"]
-        assert set_dict["is_active"] is True
-
-    async def test_new_user_defaults_true_toggles_to_false(self):
-        """No user doc → default is True → toggles to False."""
-        service, cols = _make_service(user_doc=None)
-
-        result = await service.toggle_active_status(123)
-
-        assert result is False
-
-    async def test_missing_is_active_field_defaults_true(self):
-        """User doc exists but no is_active field → defaults True → toggles False."""
-        service, cols = _make_service(user_doc={"user_id": "123"})
-
-        result = await service.toggle_active_status(123)
-
-        assert result is False
-
-    async def test_double_toggle_returns_to_original(self):
-        """Toggling twice should return to the original state."""
-        service, cols = _make_service(user_doc={"user_id": "123", "is_active": True})
-
-        first = await service.toggle_active_status(123)
-        assert first is False
-
-        # Update mock to reflect the toggle
-        cols["users"].find_one = AsyncMock(
-            return_value={"user_id": "123", "is_active": False}
-        )
-        second = await service.toggle_active_status(123)
-        assert second is True
-
-
-# ===================================================================
-# get_user_status
-# ===================================================================
-class TestGetUserStatus:
-
-    async def test_existing_active_user(self):
-        service, _ = _make_service(user_doc={"user_id": "123", "is_active": True})
-        assert await service.get_user_status(123) is True
-
-    async def test_existing_inactive_user(self):
-        service, _ = _make_service(user_doc={"user_id": "123", "is_active": False})
-        assert await service.get_user_status(123) is False
-
-    async def test_missing_user_defaults_to_true(self):
-        service, _ = _make_service(user_doc=None)
-        assert await service.get_user_status(999) is True
 
 
 # ===================================================================
@@ -143,6 +70,8 @@ class TestSetters:
         ("set_secondary_language", "fa", "secondary_language"),
         ("set_secondary_language", "none", "secondary_language"),
         ("set_review_mode", "dual", "review_mode"),
+        ("set_active", False, "is_active"),
+        ("set_active", True, "is_active"),
     ])
     async def test_valid_value_is_written_without_creating_a_user(self, method, value, field):
         service, cols = _make_service()
@@ -164,6 +93,9 @@ class TestSetters:
         ("set_primary_language", "English"),
         ("set_secondary_language", "klingon"),
         ("set_review_mode", "triple"),
+        ("set_active", "yes"),
+        ("set_active", 1),
+        ("set_active", None),
     ])
     async def test_invalid_value_is_rejected_without_writing(self, method, value):
         service, cols = _make_service()
@@ -172,8 +104,9 @@ class TestSetters:
             await getattr(service, method)(42, value)
         cols["users"].update_one.assert_not_called()
 
-    def test_there_is_no_generic_field_writer(self):
-        assert not hasattr(UserService, "update_setting")
+    @pytest.mark.parametrize("removed", ["update_setting", "toggle_active_status", "get_user_status"])
+    def test_removed_methods_stay_removed(self, removed):
+        assert not hasattr(UserService, removed)
 
 
 # ===================================================================

@@ -110,7 +110,10 @@ async def handle_settings_select(callback: CallbackQuery, callback_data: Setting
             kb = get_interval_settings_keyboard(minutes)
 
         elif section == "review_mode":
-            new_mode = await settings_use_cases.toggle_review_mode(user_id)
+            if value == "toggle":  # menus sent before the button named its target mode
+                new_mode = await settings_use_cases.toggle_review_mode(user_id)
+            else:
+                new_mode = await settings_use_cases.set_review_mode(user_id, value)
             # Redraw the whole menu, since it shows the mode.
             user_data = await settings_use_cases.get(user_id)
             with suppress(TelegramBadRequest):

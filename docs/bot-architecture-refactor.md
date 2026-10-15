@@ -156,6 +156,11 @@ Migration (each step deployable and reversible):
   field. Replaced by `set_target_level`, `set_review_interval`, `set_primary_language`,
   `set_secondary_language`, `set_review_mode`; each enforces its rules (now in
   `schemas/user.py`, next to the fields). `SettingsUseCases` only parses input.
+- [x] **Idempotent toggles.** Pause/Resume and the review-mode button were read-then-write
+  flips: a double tap or a stale button flipped the setting back. The buttons already
+  name what the user wants, so they now call `set_active(active)` and
+  `set_review_mode(mode)` (single `$set`, atomic). The review-mode button's callback
+  names the other mode. `toggle_active_status` and the unused `get_user_status` removed.
 - [ ] `ExpressionService.get_review_candidate` still reads `users.review_mode`;
   the use case should pass it in.
 
@@ -230,8 +235,8 @@ Temporary code that becomes dead once the switch is proven in production:
   `claim_first_save_tip` are the same pattern on different steps. Move them
   into one onboarding concept when a third tip appears or with #3.
 - **Settings leftovers:**
-  - `toggle_active_status` and `toggle_review_mode` read then write, so they are
-    not atomic (#3, #8).
+  - Legacy settings menus (callback value `"toggle"`) still use the read-then-write
+    `SettingsUseCases.toggle_review_mode`; remove it once old menus no longer matter.
   - Pause/resume/close buttons match text from the deployment locale only (#1, #7).
   - "none" is stored as the string `"none"`, not `None`; readers check both.
 - **Story/verb leftovers:**

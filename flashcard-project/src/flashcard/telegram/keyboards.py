@@ -135,10 +135,11 @@ def get_main_settings_keyboard(user_data: UserDB = None) -> InlineKeyboardMarkup
     # 🔔 Schedule/Interval
     builder.button(text=i18n.get("commands.settings.menu_options.interval"), callback_data=SettingsCallback(action="nav", section="interval").pack())
     
-    # 🔄 Review Mode (Standard/Dual), toggled on press
-    mode = review_mode_label(user_data.review_mode if user_data else "standard")
-    builder.button(text=i18n.get("commands.settings.menu_options.review_mode", mode=mode),
-                   callback_data=SettingsCallback(action="select", section="review_mode", value="toggle").pack())
+    # 🔄 Review Mode (Standard/Dual): shows the current mode, the callback names the other one
+    current = user_data.review_mode if user_data else "standard"
+    target = "dual" if current == "standard" else "standard"
+    builder.button(text=i18n.get("commands.settings.menu_options.review_mode", mode=review_mode_label(current)),
+                   callback_data=SettingsCallback(action="select", section="review_mode", value=target).pack())
 
     # 🔑 API Config
     builder.button(text=i18n.get("commands.settings.menu_options.api"), callback_data=SettingsCallback(action="nav", section="api").pack())

@@ -14,10 +14,11 @@ router = Router()
 @router.message(F.text == i18n.get("messages.buttons.resume_learning"))
 async def handle_status_change(message: Message, settings_use_cases: SettingsUseCases):
     """
-    Handles the text buttons from the persistent ReplyKeyboard.
+    Handles the Pause/Resume text buttons from the persistent ReplyKeyboard.
+    The button says what the user wants, so a repeated or stale tap changes nothing.
     """
-    # Toggle (logic is same for both buttons: flip the bit)
-    new_status = await settings_use_cases.toggle_active(message.from_user.id)
+    resume = message.text == i18n.get("messages.buttons.resume_learning")
+    new_status = await settings_use_cases.set_active(message.from_user.id, resume)
     
     # Send feedback + NEW keyboard (with opposite option)
     action_key = "messages.notifications.resumed" if new_status else "messages.notifications.paused"

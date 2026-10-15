@@ -96,12 +96,26 @@ class TestToggles:
         assert await use_cases.toggle_review_mode(777) == new
         assert users["review_mode"] == new
 
-    @pytest.mark.parametrize("current, new", [(True, False), (False, True)])
-    async def test_active_returns_new_status(self, current, new):
+    @pytest.mark.parametrize("current, wanted", [(True, False), (False, True), (True, True), (False, False)])
+    async def test_set_active_is_idempotent(self, current, wanted):
         use_cases, users = _use_cases(is_active=current)
 
-        assert await use_cases.toggle_active(777) is new
-        assert users["is_active"] is new
+        assert await use_cases.set_active(777, wanted) is wanted
+        assert users["is_active"] is wanted
+
+    @pytest.mark.parametrize("mode", ["standard", "dual"])
+    async def test_set_review_mode_is_idempotent(self, mode):
+        use_cases, users = _use_cases(review_mode=mode)
+
+        assert await use_cases.set_review_mode(777, mode) == mode
+        assert users["review_mode"] == mode
+
+    async def test_unknown_review_mode_is_rejected(self):
+        use_cases, users = _use_cases()
+
+        with pytest.raises(ValueError):
+            await use_cases.set_review_mode(777, "toggle")
+        assert set(users) == {"user_id"}  # nothing written
 
     async def test_get_returns_the_user(self):
         use_cases, _ = _use_cases(target_level="B2")

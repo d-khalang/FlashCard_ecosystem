@@ -220,9 +220,9 @@ class TestSettingsSelect:
         callback.answer.assert_awaited_once_with(i18n.get("commands.settings.saved"), show_alert=False)
 
     @pytest.mark.parametrize("current, new", [("standard", "dual"), ("dual", "standard")])
-    async def test_review_mode_toggles_and_redraws_menu(self, current, new):
+    async def test_review_mode_button_switches_to_the_named_mode(self, current, new):
         d = _deps(_user(review_mode=current))
-        callback = await _select(d, "review_mode", "toggle")
+        callback = await _select(d, "review_mode", new)
 
         assert d.saved()["review_mode"] == new
         updated = _user(review_mode=new)
@@ -230,6 +230,29 @@ class TestSettingsSelect:
             text=_menu_text(updated), reply_markup=get_main_settings_keyboard(updated))
         callback.answer.assert_awaited_once_with(i18n.get(
             "commands.settings.switched_mode", mode=i18n.get(f"commands.settings.mode_{new}")), show_alert=False)
+
+    async def test_stale_review_mode_button_changes_nothing(self):
+        """A double tap or an old menu names the mode already set; it is not flipped back."""
+        d = _deps(_user(review_mode="dual"))
+        await _select(d, "review_mode", "dual")
+
+        assert d.saved()["review_mode"] == "dual"
+
+    @pytest.mark.parametrize("current, new", [("standard", "dual"), ("dual", "standard")])
+    async def test_legacy_toggle_button_still_flips(self, current, new):
+        """Menus sent before buttons named their target mode carry value "toggle"."""
+        d = _deps(_user(review_mode=current))
+        await _select(d, "review_mode", "toggle")
+
+        assert d.saved()["review_mode"] == new
+
+    @pytest.mark.parametrize("current", ["standard", "dual"])
+    def test_review_mode_button_names_the_other_mode(self, current):
+        markup = get_main_settings_keyboard(_user(review_mode=current))
+        data = [b.callback_data for row in markup.inline_keyboard for b in row if "review_mode" in b.callback_data]
+
+        other = "dual" if current == "standard" else "standard"
+        assert data == [SettingsCallback(action="select", section="review_mode", value=other).pack()]
 
     @pytest.mark.parametrize("minutes", ["15", "45", "240"])
     async def test_any_interval_in_range_is_saved(self, minutes):
@@ -325,6 +348,17 @@ class TestReplyButtons:
         assert d.saved()["is_active"] is not was_active
         message.answer.assert_awaited_once_with(
             i18n.get(key), reply_markup=get_reply_settings_keyboard(not was_active))
+
+    @pytest.mark.parametrize("active, button", [
+        (False, "messages.buttons.pause_learning"),
+        (True, "messages.buttons.resume_learning"),
+    ])
+    async def test_repeated_tap_changes_nothing(self, active, button):
+        """Pause when already paused (double tap, stale keyboard) stays paused."""
+        d = _deps(_user(is_active=active))
+        await reply_commands.handle_status_change(_message(i18n.get(button)), settings_use_cases=d.settings_use_cases)
+
+        assert d.saved()["is_active"] is active
 
     async def test_close_removes_the_reply_keyboard(self):
         message = _message(i18n.get("messages.buttons.close_settings"))
