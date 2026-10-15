@@ -105,6 +105,42 @@ class TestBackfillCreatedAt:
         assert report == BackfillReport()
 
 
+class TestUnusualExpressionDates:
+
+    async def test_unreadable_dates_are_skipped_and_counted(self):
+        good = _ago(20)
+        cols = _cols([{"user_id": "42"}], [_word("not a date"), _word(good)])
+
+        report = await _run(cols)
+
+        assert _created(cols) == good
+        assert report.unreadable_expression_dates == 1
+
+    async def test_only_unreadable_dates_falls_back_to_run_time(self):
+        cols = _cols([{"user_id": "42"}], [_word("garbage")])
+
+        report = await _run(cols)
+
+        assert _created(cols) is not None
+        assert report.from_run_time == 1
+
+    async def test_naive_and_aware_dates_compare_as_utc(self):
+        cols = _cols([{"user_id": "42"}], [_word("2026-09-01T10:00:00"), _word("2026-09-02T10:00:00Z")])
+
+        await _run(cols)
+
+        assert _created(cols) == "2026-09-01T10:00:00Z"
+
+    async def test_bson_datetime_values_are_accepted(self):
+        from datetime import datetime, timezone
+        cols = _cols([{"user_id": "42"}], [{"user_id": "42", "value": "x",
+                                            "created_at": datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)}])
+
+        await _run(cols)
+
+        assert _created(cols) == "2026-08-01T12:00:00Z"
+
+
 class TestBackfillCreatedAtWrite:
 
     async def test_never_overwrites(self):

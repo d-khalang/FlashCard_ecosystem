@@ -16,6 +16,8 @@ graph TD
     ES --> DB[(MongoDB)]
     US --> DB
     US --> CS[ConsumptionService]
+    H --> RS[ReviewStateStore]
+    RS --> DB
     VS --> DB
     VS --> SCRAPER[WR Scraper API]
     LLM --> GEMINI[Google Gemini API]
@@ -41,13 +43,12 @@ Manages flashcard CRUD and the review candidate selection algorithm.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `add_expression` | `(user_id, value) → bool` | Adds expression if not duplicate (case-insensitive). Returns `True` if inserted. Also updates user's `last_push_at` and `has_pending`. |
+| `add_expression` | `(user_id, value) → bool` | Adds expression if not duplicate (case-insensitive). Returns `True` if inserted. Never writes `users`. |
 | `add_expressions_bulk` | `(user_id, expressions) → list[str]` | Bulk insert, skipping duplicates. Returns list of actually inserted values. |
 | `get_all_expressions` | `(user_id, sort_by_time=False) → list[str]` | Returns all user expressions. Optional chronological sort. |
 | `get_review_candidate` | `(user_id) → dict \| None` | Selects the highest-priority card for review using the SRS algorithm. Filters by 12-hour cooldown. Returns `{doc, direction}`. |
 | `update_expression_sent` | `(expression_id, message_id)` | Marks expression as sent with the Telegram message ID. |
-| `update_user_last_push` | `(user_id)` | Updates user's `last_push_at` timestamp. |
-| `grade_expression` | `(user_id, expression_id, grade, direction="forward")` | Processes a grade (0–5) using the SRS algorithm and updates stats. |
+| `grade_expression` | `(user_id, expression_id, grade, direction="forward")` | Processes a grade (0–5) using the SRS algorithm and updates the expression's stats only. |
 
 ### Review Candidate Selection
 
@@ -65,16 +66,20 @@ The `get_review_candidate` method implements the core spaced repetition logic:
 **Collection:** `users`  
 **Dependencies:** `cols`, `consumption_service` ([`ConsumptionService`](../src/flashcard/services/consumption.py))
 
-Manages user profiles and settings.
+Manages user profiles and settings. The only service that creates user documents.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `get_user` | `(user_id) → UserDB` | Returns full user document. Creates default if not found. |
+| `record_seen` | `(user_id, username)` | Called by the trace middleware before every handler. Creates the user on first contact (`created_at`, the trial start) and updates `last_seen_at` and `username`. The only upsert on `users`. |
+| `get_user` | `(user_id) → UserDB` | Returns the user document, or unsaved defaults if not found. |
 | `get_user_status` | `(user_id) → bool` | Returns `True` if user is active. |
 | `toggle_active_status` | `(user_id) → bool` | Toggles active/inactive. Returns new status. |
-| `update_user_last_push` | `(user_id)` | Updates `last_push_at` timestamp and sets `has_pending=True`. |
 | `update_setting` | `(user_id, field, value)` | Updates any single field in the user document (used by settings FSM). |
 | `advance_onboarding` | `(user_id, current_step) → bool` | Atomically advances user's onboarding step if it matches `current_step`. |
+| `backfill_created_at` | `(user_id, created_at) → bool` | Migration only: sets a missing `created_at`, never overwrites. |
+
+Only `UserService`, `ConsumptionService` and `ReviewStateStore` write `users`
+(guarded by `tests/unit/test_data_ownership.py`); other writers update existing users only.
 
 ### UserDB Schema
 
@@ -89,12 +94,35 @@ Defined in [`schemas/user.py`](../src/flashcard/schemas/user.py):
 | `review_mode` | `str` | `"standard"` | `"standard"` or `"dual"` |
 | `review_interval_minutes` | `int` | `30` | Minutes between review batches |
 | `is_active` | `bool` | `True` | Whether scheduler sends reviews |
-| `has_pending` | `bool` | `False` | Whether user has pending reviews |
+| `has_pending` | `bool` | `False` | Legacy pause flag; replaced by `current_review` + `last_seen_at` (review-state migration) |
+| `current_review` | `CurrentReview?` | `None` | Delivered card still waiting for a grade (`expression_id`, `direction`, `message_id`, `sent_at`) |
 | `onboarding_step` | `int` | `0` | Tracks user's progress through contextual onboarding tips |
-| `last_push_at` | `str?` | `None` | ISO timestamp of last push |
-| `last_reviewed_at` | `str?` | `None` | ISO timestamp of last review |
+| `created_at` | `str?` | `None` | ISO timestamp of first contact; the trial start |
+| `last_seen_at` | `str?` | `None` | ISO timestamp of the user's last interaction |
+| `last_push_at` | `str?` | `None` | Legacy, no longer written or read |
+| `last_reviewed_at` | `str?` | `None` | ISO timestamp of last graded review (starts the review interval) |
 | `api_config` | `UserAPIConfig?` | `None` | Custom LLM provider/model/key config |
 | `consumption` | `UserConsumption` | `{...}` | Nested usage counters (`cards_generated`, etc.) with daily reset |
+
+---
+
+## ReviewStateStore
+
+**File:** [`services/review_state.py`](../src/flashcard/services/review_state.py)
+**Collection:** `users` (review-state fields)
+**Dependencies:** `cols`
+
+Sole writer of the user's review state. Never creates users. See the migration plan in
+[bot-architecture-refactor.md](../../docs/bot-architecture-refactor.md).
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `record_sent` | `(user_id, expression_id, direction, message_id)` | Sets `current_review`; a newer card replaces it. |
+| `record_graded` | `(user_id, expression_id, direction)` | Clears `current_review` if the grade is for it. |
+| `record_removed` | `(user_id, expression_id)` | Clears `current_review` if that card was removed. |
+| `record_reviewed` | `(user_id)` | On grade: sets `last_reviewed_at` and clears the legacy `has_pending`. |
+| `mark_pending` / `clear_pending` | `(user_id)` | Legacy `has_pending` writes (send / save, import, remove). |
+| `backfill_from_legacy` | `(user_id, expression_id, message_id, sent_at) → bool` | Migration only: sets `current_review` from legacy fields, never overwrites. |
 
 ---
 
