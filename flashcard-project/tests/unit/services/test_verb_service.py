@@ -37,13 +37,15 @@ class TestIsValidVerb:
         service, _, _ = _make_service()
         assert service.is_valid_verb("être") is True
 
-    def test_with_verb_command_prefix(self):
+    def test_surrounding_whitespace_is_ignored(self):
         service, _, _ = _make_service()
-        assert service.is_valid_verb("/verb parlare") is True
+        assert service.is_valid_verb("  parlare ") is True
 
-    def test_with_verb_command_prefix_without_space(self):
+    def test_command_text_is_not_a_verb(self):
+        """Command parsing belongs to the handler (command.args); the service checks format only."""
         service, _, _ = _make_service()
-        assert service.is_valid_verb("/verbparlare") is True
+        assert service.is_valid_verb("/verb parlare") is False
+        assert service.is_valid_verb("/verbparlare") is False
 
     def test_numbers_rejected(self):
         service, _, _ = _make_service()

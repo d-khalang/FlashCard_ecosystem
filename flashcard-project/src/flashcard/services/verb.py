@@ -18,18 +18,12 @@ class VerbService:
 
     def is_valid_verb(self, verb: str) -> bool:
         """
-        Validates if the input string is a valid verb format.
+        Validates the verb's format only. Callers pass the verb itself: command
+        parsing (e.g. "/verb ...") belongs to the Telegram handler.
         """
-        if not verb:
+        if not isinstance(verb, str) or not verb.strip():
             return False
-        
-        # Clean the verb: remove /verb command if present, strip whitespace
-        cleaned = verb.replace("/verb", "").strip()
-        
-        if len(cleaned) == 0:
-            return False
-            
-        return bool(re.match(self.REGEX_VERB, cleaned))
+        return bool(re.match(self.REGEX_VERB, verb.strip()))
 
 
     @observe(name="VerbService.get_verb_data")
