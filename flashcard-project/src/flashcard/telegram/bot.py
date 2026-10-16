@@ -228,15 +228,9 @@ async def init_telegram_bot(app: FastAPI, settings):
     app.state.logger_bot = logger_bot
     install_asyncio_exception_handler(logger_bot=logger_bot)
 
-    # Initialize Services
-    # May later be removed from app.state if not needed globally as they are passed to handlers
-    mongo_client, db, cols = await init_and_get_mongo(settings)
-    app.state.mongo_client = mongo_client
-    app.state.db = db
-    app.state.cols = cols
-
-    http_client = await init_and_get_http_client()
-    app.state.http_client = http_client
+    # The FastAPI lifespan opens (and closes) Mongo and the HTTP client; the bot only uses them.
+    cols = app.state.cols
+    http_client = app.state.http_client
 
     services = build_services(cols, http_client, settings)
     app.state.expression_service = services.expression_service
@@ -304,9 +298,7 @@ async def close_telegram_bot(app: FastAPI):
     logger_bot: Bot = app.state.logger_bot
     await logger_bot.session.close()
 
-    await close_mongo_on_client(app.state.mongo_client)
-    await close_http_client_on_client(app.state.http_client)
-
+    # Mongo and the HTTP client belong to the FastAPI lifespan, which closes them after this.
     get_trace_logger().shutdown()
 
 

@@ -277,7 +277,9 @@ Temporary code that becomes dead once the switch is proven in production:
   that user: they silently never get reviews. Real dates would fix it.
 - **Duplicated startup** in `bot.py` (#10): both startup paths now share
   `build_services`, but still duplicate the bot/logger-bot/Mongo/HTTP setup.
-- **Two Mongo clients under FastAPI (#10).** `lifespan` calls `init_mongo(app)`, then
-  `init_telegram_bot` opens a second client and overwrites `app.state.mongo_client`:
-  the first is never closed (pool leak) and the second is closed twice on shutdown.
-  The HTTP client has the same pattern (`init_http_client` + `init_and_get_http_client`).
+- [x] **One Mongo and one HTTP client under FastAPI (#10).** `init_telegram_bot` opened
+  a second pair and overwrote `app.state`: the first pair was never closed, the second
+  closed twice. Now the `lifespan` owns both (opens and closes them); the bot only uses
+  `app.state.cols` / `app.state.http_client` and closes only what it opened. The
+  standalone polling path still owns its own clients. Pinned by
+  `test_lifespan_opens_one_mongo_and_one_http_client_and_closes_each_once`.

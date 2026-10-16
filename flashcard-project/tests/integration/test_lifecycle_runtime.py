@@ -30,16 +30,12 @@ async def test_init_telegram_bot_webhook_mode_sets_webhook(monkeypatch):
     monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda: (bot, dp))
     monkeypatch.setattr(bot_module, "Bot", lambda *args, **kwargs: logger_bot)
     monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot: None)
-    monkeypatch.setattr(
-        bot_module,
-        "init_and_get_mongo",
-        AsyncMock(return_value=(InMemoryMongoClient(), object(), make_cols())),
-    )
-    monkeypatch.setattr(
-        bot_module,
-        "init_and_get_http_client",
-        AsyncMock(return_value=FakeHTTPClient(FakeHTTPResponse(200, {}))),
-    )
+    # The lifespan has already opened Mongo and the HTTP client; the bot must only use them.
+    app.state.cols = make_cols()
+    app.state.http_client = FakeHTTPClient(FakeHTTPResponse(200, {}))
+    open_mongo, open_http = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(bot_module, "init_and_get_mongo", open_mongo)
+    monkeypatch.setattr(bot_module, "init_and_get_http_client", open_http)
 
     async def fake_scheduler_loop(**kwargs):
         scheduler_started.set()
@@ -67,6 +63,8 @@ async def test_init_telegram_bot_webhook_mode_sets_webhook(monkeypatch):
     assert app.state.bot is bot
     assert app.state.dispatcher is dp
     assert any(call.method == "SetWebhook" for call in bot_session.calls)
+    open_mongo.assert_not_awaited()
+    open_http.assert_not_awaited()
     await asyncio.sleep(0)
     assert app.state.scheduler_task is not None
     assert scheduler_started.is_set()
@@ -88,16 +86,12 @@ async def test_init_telegram_bot_polling_mode_deletes_webhook_and_starts_polling
     monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda: (bot, dp))
     monkeypatch.setattr(bot_module, "Bot", lambda *args, **kwargs: logger_bot)
     monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot: None)
-    monkeypatch.setattr(
-        bot_module,
-        "init_and_get_mongo",
-        AsyncMock(return_value=(InMemoryMongoClient(), object(), make_cols())),
-    )
-    monkeypatch.setattr(
-        bot_module,
-        "init_and_get_http_client",
-        AsyncMock(return_value=FakeHTTPClient(FakeHTTPResponse(200, {}))),
-    )
+    # The lifespan has already opened Mongo and the HTTP client; the bot must only use them.
+    app.state.cols = make_cols()
+    app.state.http_client = FakeHTTPClient(FakeHTTPResponse(200, {}))
+    open_mongo, open_http = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(bot_module, "init_and_get_mongo", open_mongo)
+    monkeypatch.setattr(bot_module, "init_and_get_http_client", open_http)
     monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", AsyncMock())
     monkeypatch.setattr(bot_module, "LLMService", lambda: object())
     monkeypatch.setattr(bot_module, "get_trace_logger", lambda: DummyTraceLogger())
@@ -118,13 +112,15 @@ async def test_init_telegram_bot_polling_mode_deletes_webhook_and_starts_polling
     await bot_module.init_telegram_bot(app, bot_module.settings)
 
     assert any(call.method == "DeleteWebhook" for call in bot_session.calls)
+    open_mongo.assert_not_awaited()
+    open_http.assert_not_awaited()
     assert app.state.polling_task is not None
     await asyncio.sleep(0)
     assert polling_started.is_set()
     app.state.polling_task.cancel()
 
 
-async def test_close_telegram_bot_closes_resources(monkeypatch):
+async def test_close_telegram_bot_stops_the_bot_but_leaves_the_lifespans_clients(monkeypatch):
     app = FastAPI()
     bot, _ = make_bot()
     logger_bot, _ = make_bot()
@@ -156,8 +152,9 @@ async def test_close_telegram_bot_closes_resources(monkeypatch):
 
     assert scheduler_task.cancelled()
     assert polling_task.cancelled()
-    assert close_mongo.await_count == 1
-    assert close_http.await_count == 1
+    # The lifespan opened Mongo and the HTTP client, so it closes them, not the bot.
+    close_mongo.assert_not_awaited()
+    close_http.assert_not_awaited()
     assert trace_logger.shutdown_called is True
 
 
@@ -186,3 +183,61 @@ def test_readiness_returns_503_when_mongo_ping_fails(monkeypatch):
 
     assert ready.status_code == 503
     assert ready.json()["reason"] == "database unreachable"
+
+
+async def test_lifespan_opens_one_mongo_and_one_http_client_and_closes_each_once(monkeypatch):
+    """Before, the bot opened a second pair: the first was never closed, the second twice."""
+    from flashcard.api.lifecycle import lifecycle
+    from flashcard.db import mongo as mongo_module
+    from flashcard.services import http_client as http_module
+
+    opened = {"mongo": [], "http": []}
+
+    class FakeMongoClient:
+        def __init__(self, *args, **kwargs):
+            self.closes = 0
+            opened["mongo"].append(self)
+
+        def __getitem__(self, name):
+            return _FakeDB()
+
+        async def close(self):
+            self.closes += 1
+
+    class _FakeDB:
+        def __getitem__(self, name):
+            return object()
+
+    class FakeHTTPXClient:
+        def __init__(self, *args, **kwargs):
+            self.closes = 0
+            opened["http"].append(self)
+
+        async def aclose(self):
+            self.closes += 1
+
+    bot, _ = make_bot()
+    logger_bot, _ = make_bot()
+
+    async def fake_start_polling(*args, **kwargs):
+        await asyncio.sleep(3600)
+
+    dp = SimpleNamespace(resolve_used_update_types=lambda: ["message"], start_polling=fake_start_polling)
+    monkeypatch.setattr(mongo_module, "AsyncMongoClient", FakeMongoClient)
+    monkeypatch.setattr(http_module.httpx, "AsyncClient", FakeHTTPXClient)
+    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda: (bot, dp))
+    monkeypatch.setattr(bot_module, "Bot", lambda *args, **kwargs: logger_bot)
+    monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot: None)
+    monkeypatch.setattr(bot_module, "LLMService", lambda: object())
+    monkeypatch.setattr(bot_module, "get_trace_logger", lambda: DummyTraceLogger())
+    monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", AsyncMock())
+
+    app = FastAPI()
+    async with lifecycle.lifespan(app):
+        assert len(opened["mongo"]) == 1 and len(opened["http"]) == 1
+        # The bot and the readiness check use the lifespan's clients.
+        assert app.state.mongo_client is opened["mongo"][0]
+        assert app.state.http_client is opened["http"][0]
+
+    assert [client.closes for client in opened["mongo"]] == [1]
+    assert [client.closes for client in opened["http"]] == [1]
