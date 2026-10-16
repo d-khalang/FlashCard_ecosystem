@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
-from typing import List, Optional 
+from typing import List, Literal, Optional 
+
+# Grading rules, enforced by ExpressionService.grade_expression.
+MIN_GRADE = 0
+MAX_GRADE = 5
+Direction = Literal["forward", "reverse"]
 
 
 class TranslationLine(BaseModel):

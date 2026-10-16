@@ -276,13 +276,14 @@ class TestGrade:
 
     async def test_out_of_range_grade_alerts_invalid_data_and_admin(self):
         d = _deps()
+        # The real ExpressionService rejects it; the handler must turn that into the invalid-data alert.
+        d.expression_service.grade_expression.side_effect = ValueError("grade must be an integer 0-5, got 9")
         logger_bot = MagicMock()
         with patch.object(review, "notify_admin_with_trace", new=AsyncMock()) as notify:
             callback = await _run_grade(d, grade=9, logger_bot=logger_bot)
 
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.invalid_data"), show_alert=True)
         callback.message.edit_text.assert_not_awaited()
-        d.expression_service.grade_expression.assert_not_awaited()
         notify.assert_awaited_once()
         assert notify.await_args.args[0] is logger_bot
 

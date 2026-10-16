@@ -255,17 +255,16 @@ class TestGetReviewCandidate:
 class TestGradeExpression:
     """Tests for grading a flashcard after review."""
 
-    async def test_invalid_grade_returns_none(self):
-        """Grade outside 0-5 should be rejected."""
+    @pytest.mark.parametrize("grade, direction", [(6, "forward"), (-1, "forward"), (2.5, "forward"),
+                                                   (True, "forward"), (3, "fwd"), (3, "sideways")])
+    async def test_invalid_grade_or_direction_raises_without_writing(self, grade, direction):
+        """The owner enforces the grading rules; None means only "card not found"."""
         service, cols = _make_service()
 
-        result = await service.grade_expression("123", str(ObjectId()), grade=6)
-        assert result is None
+        with pytest.raises(ValueError):
+            await service.grade_expression("123", str(ObjectId()), grade=grade, direction=direction)
 
-        result = await service.grade_expression("123", str(ObjectId()), grade=-1)
-        assert result is None
-
-        # No DB writes should happen
+        cols["expression"].find_one.assert_not_called()
         cols["expression"].update_one.assert_not_called()
 
     async def test_missing_expression_returns_none(self):

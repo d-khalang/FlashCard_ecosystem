@@ -1,10 +1,10 @@
 import re
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Optional, Union, get_args
 
 from flashcard.utils.time import iso_z, now_utc
 
-from flashcard.schemas.expression import ExpressionDB
+from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE, Direction, ExpressionDB
 from flashcard.services.algorithm.priority import calculate_priority
 from flashcard.services.algorithm.grading import calculate_new_stats
 from flashcard.utils.logger import get_logger
@@ -263,11 +263,13 @@ class ExpressionService:
     async def grade_expression(self, user_id: str, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
         """
         Updates the expression with the new grade stats.
+        Returns None when the card does not exist; raises ValueError for an
+        out-of-range grade or unknown direction (nothing is written).
         """
-
-        if not (0 <= grade <= 5):
-            logger.warning(f"Invalid grade {grade} for user {user_id}")
-            return None
+        if type(grade) is not int or not MIN_GRADE <= grade <= MAX_GRADE:
+            raise ValueError(f"grade must be an integer {MIN_GRADE}-{MAX_GRADE}, got {grade!r}")
+        if direction not in get_args(Direction):
+            raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
 
         # 1. Get current document
         doc = await self.expressions.find_one(

@@ -6,8 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from flashcard.app.review import (
-    MAX_GRADE, MIN_GRADE, CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
+    CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
 )
+from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE
 from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 
@@ -192,21 +193,38 @@ class TestGrade:
 
         assert await use_cases.grade(111, EXPRESSION_ID, grade, "forward") == Graded()
 
+    # The grading rules live in ExpressionService, so these run against a real one.
+    def _with_real_expressions(self):
+        from bson import ObjectId
+        from flashcard.services.expression import ExpressionService
+        from tests.integration.helpers import make_cols
+        expression_id = ObjectId()
+        cols = make_cols(expressions=[{"_id": expression_id, "user_id": "111", "value": "andare",
+                                       "created_at": "2000-01-01T00:00:00Z", "status": "active"}])
+        use_cases = ReviewUseCases(review_state=AsyncMock(), user_service=MagicMock(),
+                                   expression_service=ExpressionService(expressions=cols["expression"]),
+                                   consumption_service=MagicMock(), llm_service=MagicMock())
+        return use_cases, str(expression_id), cols["expression"].docs
+
     @pytest.mark.parametrize("grade", [-1, 6, 9, True, 2.5, "3"])
     async def test_invalid_grade_raises_without_writing(self, grade):
-        use_cases, expressions, *_ = _use_cases()
+        use_cases, expression_id, docs = self._with_real_expressions()
+        before = [dict(doc) for doc in docs]
 
         with pytest.raises(ValueError, match="grade"):
-            await use_cases.grade(111, EXPRESSION_ID, grade, "forward")
-        expressions.grade_expression.assert_not_awaited()
+            await use_cases.grade(111, expression_id, grade, "forward")
+        assert docs == before
+        use_cases.review_state.record_reviewed.assert_not_awaited()
 
     @pytest.mark.parametrize("direction", ["fwd", "rev", "sideways", ""])
     async def test_unknown_direction_raises_without_writing(self, direction):
-        use_cases, expressions, *_ = _use_cases()
+        use_cases, expression_id, docs = self._with_real_expressions()
+        before = [dict(doc) for doc in docs]
 
         with pytest.raises(ValueError, match="direction"):
-            await use_cases.grade(111, EXPRESSION_ID, 3, direction)
-        expressions.grade_expression.assert_not_awaited()
+            await use_cases.grade(111, expression_id, 3, direction)
+        assert docs == before
+        use_cases.review_state.record_reviewed.assert_not_awaited()
 
 
 class TestClaimFirstReviewTip:

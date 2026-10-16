@@ -5,13 +5,13 @@ Callers own presentation and delivery: they format the card, send it however
 they deliver messages, then report the delivered message back via mark_sent.
 """
 from dataclasses import dataclass
-from typing import Literal, Optional, Union, get_args
+from typing import Optional, Union
 
 from flashcard.app.quota import QuotaExceeded
 from flashcard.app.shadow import shadow_write
 from flashcard.app.types import UserId
 from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
-from flashcard.schemas.expression import ExpressionCard
+from flashcard.schemas.expression import Direction, ExpressionCard
 from flashcard.schemas.languages import get_language_flag
 from flashcard.schemas.user import UserDB
 from flashcard.services.consumption import ConsumptionService
@@ -20,10 +20,6 @@ from flashcard.services.llm.llm import LLMService
 from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.user import UserService
 
-Direction = Literal["forward", "reverse"]
-
-MIN_GRADE = 0
-MAX_GRADE = 5
 
 
 @dataclass(frozen=True)
@@ -119,13 +115,9 @@ class ReviewUseCases:
     async def grade(self, user_id: UserId, expression_id: str, grade: int, direction: Direction) -> GradeResult:
         """
         Apply a 0-5 grade in the given direction.
-        Raises ValueError for an out-of-range grade or unknown direction.
+        Raises ValueError for an out-of-range grade or unknown direction
+        (enforced by ExpressionService.grade_expression, before anything is written).
         """
-        if type(grade) is not int or not MIN_GRADE <= grade <= MAX_GRADE:
-            raise ValueError(f"grade must be an integer {MIN_GRADE}-{MAX_GRADE}, got {grade!r}")
-        if direction not in get_args(Direction):
-            raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
-
         updated = await self.expressions.grade_expression(user_id, expression_id, grade, direction)
         if not updated:
             return CardNotFound()
