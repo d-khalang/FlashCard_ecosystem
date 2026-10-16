@@ -20,7 +20,7 @@ USER_ID = 555
 def _deps(values=None):
     expression_service = MagicMock()
     expression_service.get_all_expressions = AsyncMock(
-        side_effect=lambda user_id, sort_by_time=False: list(values or []))
+        side_effect=lambda user_id: list(values or []))
     return SimpleNamespace(expression_service=expression_service)
 
 
@@ -56,7 +56,7 @@ class TestListOrder:
         d = _deps(["fare"])
         await _run(d)
 
-        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID, sort_by_time=False)
+        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID)
 
     @pytest.mark.parametrize("text", ["/list_my_flashcards -t", "/list_my_flashcards -pt", "/list_my_flashcards -tp",
                                       "/list_my_flashcards -p -t"])
@@ -64,7 +64,7 @@ class TestListOrder:
         d = _deps(["fare", "andare", "bere"])
         message = await _run(d, text=text)
 
-        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID, sort_by_time=True)
+        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID)
         sent = _sent(message)
         assert sent[0].index("fare") < sent[0].index("andare") < sent[0].index("bere")
         assert "<b>A</b>" not in sent[0]
@@ -118,17 +118,17 @@ class TestListArguments:
         d = _deps(["fare"])
         await _run(d, text=text)
 
-        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID, sort_by_time=False)
+        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID)
 
     async def test_known_quirk_any_dash_word_containing_t_enables_time_order(self):
         # Any argument starting with "-" is scanned for the letters p and t, e.g. "-xyzt".
         d = _deps(["fare"])
         await _run(d, text="/list_my_flashcards -xyzt")
 
-        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID, sort_by_time=True)
+        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID)
 
     async def test_bot_mention_does_not_hide_flags(self):
         d = _deps(["fare"])
         await _run(d, text="/list_my_flashcards@kartino_bot -t")
 
-        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID, sort_by_time=True)
+        d.expression_service.get_all_expressions.assert_awaited_once_with(USER_ID)

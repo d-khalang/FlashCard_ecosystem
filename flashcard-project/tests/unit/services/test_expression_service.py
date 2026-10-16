@@ -77,19 +77,56 @@ class TestAddExpression:
 # get_all_expressions
 # ===================================================================
 class TestGetAllExpressions:
-    """Tests for retrieving all expressions."""
+    """Each active value once, oldest first; one query for /list and /story."""
 
-    async def test_returns_distinct_values(self):
-        service, cols = _make_service()
-        expected = ["exp1", "exp2"]
-        cols["expression"].distinct = AsyncMock(return_value=expected)
+    def _service(self, *docs):
+        from tests.integration.helpers import make_cols
+        cols = make_cols(expressions=[{"user_id": "999", **doc} for doc in docs])
+        return ExpressionService(expressions=cols["expression"])
 
-        result = await service.get_all_expressions(999)
+    async def test_unique_values_oldest_first(self):
+        service = self._service({"value": "b", "created_at": "2026-01-02T00:00:00Z", "status": "active"},
+                                {"value": "a", "created_at": "2026-01-01T00:00:00Z", "status": "active"},
+                                {"value": "b", "created_at": "2026-01-03T00:00:00Z", "status": "active"})
 
-        assert result == expected
-        cols["expression"].distinct.assert_called_once_with(
-            "value", {"user_id": "999"}
-        )
+        assert await service.get_all_expressions(999) == ["a", "b"]
+
+    async def test_documents_without_status_count_as_active(self):
+        service = self._service({"value": "legacy", "created_at": "2025-12-01T00:00:00Z"},
+                                {"value": "gone", "created_at": "2026-01-01T00:00:00Z", "status": "archived"})
+
+        assert await service.get_all_expressions(999) == ["legacy"]
+
+
+class TestActiveDefinition:
+    """search, remove and review candidates use the same definition of an active card."""
+
+    def _service(self, *docs):
+        from tests.integration.helpers import make_cols
+        cols = make_cols(expressions=[{"user_id": "123", "created_at": "2000-01-01T00:00:00Z", **doc}
+                                      for doc in docs])
+        return ExpressionService(expressions=cols["expression"]), cols["expression"]
+
+    async def test_search_finds_a_card_without_status(self):
+        service, _ = self._service({"value": "andare"})
+
+        assert [doc["value"] for doc in await service.search_expressions("123", "and")] == ["andare"]
+
+    async def test_remove_deletes_a_card_without_status(self):
+        expression_id = ObjectId()
+        service, expressions = self._service({"_id": expression_id, "value": "andare"})
+
+        assert await service.remove_expression("123", str(expression_id)) is True
+        assert expressions.docs == []
+
+    async def test_inactive_card_is_neither_found_removed_nor_reviewed(self):
+        expression_id = ObjectId()
+        service, expressions = self._service({"_id": expression_id, "value": "andare", "status": "archived"})
+
+        assert await service.search_expressions("123", "and") == []
+        assert await service.remove_expression("123", str(expression_id)) is False
+        assert await service.get_review_candidate("123", "standard") is None
+        assert len(expressions.docs) == 1
 
 
 class TestSearchExpressions:

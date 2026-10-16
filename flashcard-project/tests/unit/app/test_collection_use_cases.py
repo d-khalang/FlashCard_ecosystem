@@ -223,13 +223,13 @@ class TestListItems:
         use_cases, expressions = _saved(values=["fare", "Andare", "bere"])
 
         assert await use_cases.list_items(333) == ["Andare", "bere", "fare"]
-        expressions.get_all_expressions.assert_awaited_once_with(333, sort_by_time=False)
+        expressions.get_all_expressions.assert_awaited_once_with(333)
 
     async def test_created_keeps_storage_order(self):
         use_cases, expressions = _saved(values=["fare", "Andare", "bere"])
 
         assert await use_cases.list_items(333, order="created") == ["fare", "Andare", "bere"]
-        expressions.get_all_expressions.assert_awaited_once_with(333, sort_by_time=True)
+        expressions.get_all_expressions.assert_awaited_once_with(333)
 
     async def test_unknown_order_is_rejected(self):
         use_cases, expressions = _saved()

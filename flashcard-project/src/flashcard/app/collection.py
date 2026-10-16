@@ -163,8 +163,8 @@ class CollectionUseCases:
         """All saved values: alphabetical (case-insensitive) or oldest first."""
         if order not in get_args(ListOrder):
             raise ValueError(f"Unknown list order: {order!r}")
-        values = await self.expressions.get_all_expressions(user_id, sort_by_time=order == "created")
-        return sorted(values, key=str.lower) if order == "alphabetical" else list(values)
+        values = await self.expressions.get_all_expressions(user_id)  # unique, oldest first
+        return sorted(values, key=str.lower) if order == "alphabetical" else values
 
     async def search(self, user_id: UserId, query: str) -> SearchResult:
         """Saved cards whose value contains the query, case-insensitively."""

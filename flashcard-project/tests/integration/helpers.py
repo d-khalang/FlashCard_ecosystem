@@ -165,7 +165,8 @@ class InMemoryCollection:
                 return result
         return None
 
-    def find(self, query: dict[str, Any]) -> AsyncCursorMock:
+    def find(self, query: dict[str, Any], projection: dict[str, Any] | None = None) -> AsyncCursorMock:
+        """The projection is ignored: tests see whole documents, which is a superset."""
         return AsyncCursorMock([_deepcopy_doc(doc) for doc in self.docs if _matches(doc, query)])
 
     async def distinct(self, field: str, query: dict[str, Any]) -> list[Any]:

@@ -13,6 +13,10 @@ from bson import ObjectId
 
 logger = get_logger(__name__)
 
+# Every read and remove uses this one definition of an active card. Documents saved
+# before `status` existed have none and count as active; nothing sets another status yet.
+ACTIVE = {"$in": ["active", None]}
+
 class ExpressionService:
     def __init__(self, expressions):
         """`expressions`: the expression collection, the only data this service touches."""
@@ -36,7 +40,7 @@ class ExpressionService:
         cursor = self.expressions.find(
             {
                 "user_id": str(user_id),
-                "status": "active",
+                "status": ACTIVE,
                 "value": {"$regex": escaped_query, "$options": "i"},
             }
         )
@@ -130,24 +134,18 @@ class ExpressionService:
         return new_items
 
 
-    async def get_all_expressions(self, user_id: Union[str, int], sort_by_time: bool = False) -> list[str]:
+    async def get_all_expressions(self, user_id: Union[str, int]) -> list[str]:
         """
-        Retrieves all active expressions for a given user.
-        :param sort_by_time: If True, returns expressions sorted by creation time (oldest first).
+        The user's active expressions, each value once, oldest first.
         """
-        if sort_by_time:
-            # Use find() and sort by created_at. 1 = Ascending (Oldest first)
-            cursor = self.expressions.find({"user_id": str(user_id)}).sort("created_at", 1)
-            expressions = []
-            async for doc in cursor:
-                if 'value' in doc:
-                    expressions.append(doc['value'])
-            return expressions
-        else:
-            # Default: use distinct which is likely faster for uniqueness, 
-            # though it doesn't guarantee specific order (UI handles alphabetical sort)
-            expressions = await self.expressions.distinct("value", {"user_id": str(user_id)})
-            return expressions
+        cursor = self.expressions.find(
+            {"user_id": str(user_id), "status": ACTIVE}, {"value": 1}
+        ).sort("created_at", 1)
+        values: dict[str, None] = {}  # keeps first-seen order
+        async for doc in cursor:
+            if doc.get("value"):
+                values.setdefault(doc["value"], None)
+        return list(values)
 
     async def remove_expression(self, user_id: Union[str, int], expression_id: str) -> bool:
         """
@@ -161,7 +159,7 @@ class ExpressionService:
             {
                 "_id": ObjectId(expression_id),
                 "user_id": str(user_id),
-                "status": "active",
+                "status": ACTIVE,
             }
         )
         deleted = bool(getattr(result, "deleted_count", 0))
@@ -191,6 +189,7 @@ class ExpressionService:
         
         query = {
             "user_id": str(user_id),
+            "status": ACTIVE,
             "$or": [
                 {"last_activity_at": {"$lt": cutoff_time}},
                 # Never interacted: use created_at as cooldown reference

@@ -224,11 +224,11 @@ Temporary code that becomes dead once the switch is proven in production:
   `user_id` is `int` in `/get` and `str` in the scheduler (#9); `/get` reloads the
   user, the scheduler reuses it; over quota, `/get` tells the user while the
   scheduler skips silently. Decide deliberately, then unify.
-- **Redundant grade check in `ExpressionService.grade_expression` (#3).** It
-  still checks `0 <= grade <= 5` and returns `None`, which callers cannot tell
-  apart from "card not found". `ReviewUseCases.grade` now validates grade and
-  direction first, so remove the service check (and the `None` overload) when
-  services are cleaned up.
+- [x] **Grading rules live with the owner (#3).** `ExpressionService.grade_expression`
+  returned `None` for a bad grade, which callers could not tell apart from "card not
+  found", and accepted any direction as "forward". It now raises `ValueError` for both
+  (rules `MIN_GRADE`, `MAX_GRADE`, `Direction` in `schemas/expression.py`); the use case no
+  longer duplicates the check. `None` means only "card not found".
 - **Creation flow quirks**, pinned by `test_creation_flow.py` and kept for now:
   - Unclear input (`card.success == False`) calls the LLM but is not counted
     as usage, so failed generations are free and invisible to quota (#6).
@@ -264,14 +264,17 @@ Temporary code that becomes dead once the switch is proven in production:
 - **Story/verb leftovers:**
   - Verb lookups are counted but not limited, by design: they use our own
     scraper and DB cache, no paid provider.
-  - `VerbService.is_valid_verb` still strips `/verb` itself (harmless; clean up with #3).
+  - [x] `VerbService.is_valid_verb` checks the verb format only; it no longer strips
+    `/verb` (the handler already passes `command.args`), which also accepted `"/verbparlare"`.
 - **Trace middleware writes users.** It awaits `user_service.record_seen` on every
   message/callback (creates the user, `last_seen_at`, `username`) (#3).
   Inline queries are not counted as "seen".
-- **Expression queries disagree (#3, #8).** `get_all_expressions` ignores
-  `status`, while search and remove only touch `status: "active"`; its `-t`
-  path uses `find` (keeps duplicates), the default uses `distinct`. `/story`
-  still calls `get_all_expressions` directly (story step).
+- [x] **One definition of an active card (#3).** `get_all_expressions` and review
+  candidates ignored `status` while search and remove required `"active"`, so a card
+  saved before `status` existed showed in `/list` and reviews but could not be found or
+  removed. `ExpressionService.ACTIVE` (`"active"` or missing) is now used by every read
+  and remove. `get_all_expressions` returns each value once, oldest first (the `-t` path
+  could list duplicates); `sort_by_time` is gone. Duplicate documents themselves are #8.
 - **Dates stored as text hide bad values (#9).** A `last_reviewed_at` that is not an
   ISO date can sort after real dates, so the scheduler's DB prefilter never returns
   that user: they silently never get reviews. Real dates would fix it.

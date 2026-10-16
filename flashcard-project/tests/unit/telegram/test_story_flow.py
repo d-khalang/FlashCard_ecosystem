@@ -31,7 +31,7 @@ def _user(**overrides) -> UserDB:
 
 def _deps(words=("andare", "fare"), *, user=None, can_generate=True, story_response=STORY):
     expression_service = MagicMock()
-    expression_service.get_all_expressions = AsyncMock(side_effect=lambda user_id, sort_by_time=False: list(words))
+    expression_service.get_all_expressions = AsyncMock(side_effect=lambda user_id: list(words))
 
     user_service = MagicMock()
     user_service.get_user = AsyncMock(return_value=user or _user())

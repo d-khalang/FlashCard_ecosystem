@@ -41,16 +41,17 @@ whole `cols` dict (guarded by `tests/unit/test_data_ownership.py`). They are inj
 **Collection:** `expressions`  
 **Dependencies:** `expressions` (the expression collection only)
 
-Manages flashcard CRUD and the review candidate selection algorithm.
+Manages flashcard CRUD and the review candidate selection algorithm. Every read and remove
+uses one definition of an active card, `ACTIVE`: `status` is `"active"` or missing.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `add_expression` | `(user_id, value) → bool` | Adds expression if not duplicate (case-insensitive). Returns `True` if inserted. Never writes `users`. |
 | `add_expressions_bulk` | `(user_id, expressions) → list[str]` | Bulk insert, skipping duplicates. Returns list of actually inserted values. |
-| `get_all_expressions` | `(user_id, sort_by_time=False) → list[str]` | Returns all user expressions. Optional chronological sort. |
+| `get_all_expressions` | `(user_id) → list[str]` | The user's active expressions, each value once, oldest first. |
 | `get_review_candidate` | `(user_id, review_mode) → dict \| None` | Selects the highest-priority card for review using the SRS algorithm. Filters by 12-hour cooldown. The caller passes the user's `review_mode`. Returns `{doc, direction}`. |
 | `update_expression_sent` | `(expression_id, message_id)` | Marks expression as sent with the Telegram message ID. |
-| `grade_expression` | `(user_id, expression_id, grade, direction="forward")` | Processes a grade (0–5) using the SRS algorithm and updates the expression's stats only. |
+| `grade_expression` | `(user_id, expression_id, grade, direction="forward")` | Processes a grade (0–5) using the SRS algorithm and updates the expression's stats only. Raises `ValueError` for a bad grade or direction; returns `None` only when the card is not found. |
 
 ### Review Candidate Selection
 
