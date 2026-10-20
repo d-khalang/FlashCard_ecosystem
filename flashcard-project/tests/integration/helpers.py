@@ -28,6 +28,7 @@ from flashcard.services.expression import ExpressionService
 from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.user import UserService
 from flashcard.services.verb import VerbService
+from tests.helpers import TEST_LANGUAGE
 
 
 def _utc_now() -> datetime:
@@ -519,7 +520,8 @@ def make_cols(*, users: list[dict[str, Any]] | None = None, expressions: list[di
 def make_services(cols: dict[str, InMemoryCollection], http_client: FakeHTTPClient | None = None) -> dict[str, Any]:
     expression_service = ExpressionService(expressions=cols["expression"])
     consumption_service = ConsumptionService(users=cols["users"])
-    user_service = UserService(users=cols["users"], consumption_service=consumption_service)
+    user_service = UserService(users=cols["users"], consumption_service=consumption_service,
+                               defaults=TEST_LANGUAGE.user_defaults)
     verb_service = VerbService(conjugations=cols["conjugation"], http_client=http_client)
     review_state = ReviewStateStore(users=cols["users"])
     return {

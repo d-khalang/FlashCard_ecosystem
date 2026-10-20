@@ -18,6 +18,7 @@ from flashcard.app.review import ReviewUseCases
 from flashcard.app.settings import SettingsUseCases
 from flashcard.app.story import StoryUseCases
 from flashcard.app.verb import VerbUseCases
+from flashcard.language import LanguageConfig
 from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
 from flashcard.telegram.handlers import (
@@ -65,7 +66,7 @@ def _build_ipv4_session() -> "AiohttpSession":
     return session
 
 
-def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
+def build_bot_dispatcher(language: LanguageConfig) -> tuple[Bot, Dispatcher]:
     bot = Bot(
         token=settings.BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -94,7 +95,7 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     # 3. Domain Features
     dp.include_router(start.router)      # /start, /help
     dp.include_router(review.router)     # /get + grade callback
-    if getattr(settings, "ENABLE_CONJUGATION", True):
+    if language.conjugation:
         dp.include_router(verb.router)   # /verb + conjugation callback
     dp.include_router(story.router)      # /story
     dp.include_router(collection.router) # /import, /list_my_flashcards
@@ -131,29 +132,36 @@ class Services:
     verb_service: Optional[VerbService]
     llm_service: LLMService
     language_validator: object
+    language: LanguageConfig
 
     def as_kwargs(self) -> dict:
         return {field.name: getattr(self, field.name) for field in fields(self)}
 
 
-def build_services(cols: dict, http_client, settings) -> Services:
+def build_services(cols: dict, http_client, language: LanguageConfig) -> Services:
     """
     The only place that hands out collections: each service gets just its own,
-    so no service can reach another's data.
+    so no service can reach another's data. Services get the instance's language
+    from here, never from global settings.
     """
     consumption_service = ConsumptionService(users=cols["users"])
     return Services(
         expression_service=ExpressionService(expressions=cols["expression"]),
-        user_service=UserService(users=cols["users"], consumption_service=consumption_service),
+        user_service=UserService(
+            users=cols["users"],
+            consumption_service=consumption_service,
+            defaults=language.user_defaults,
+        ),
         consumption_service=consumption_service,
         review_state=ReviewStateStore(users=cols["users"]),
         verb_service=(
             VerbService(conjugations=cols["conjugation"], http_client=http_client)
-            if getattr(settings, "ENABLE_CONJUGATION", True)
+            if language.conjugation
             else None
         ),
-        llm_service=LLMService(),
-        language_validator=get_language_validator(settings),
+        llm_service=LLMService(learning_language_name=language.name),
+        language_validator=get_language_validator(language),
+        language=language,
     )
 
 
@@ -167,6 +175,7 @@ def build_dispatcher_data(
     llm_service,
     language_validator,
     review_state,
+    language: LanguageConfig,
 ) -> dict:
     return {
         "http_client": http_client,
@@ -177,12 +186,14 @@ def build_dispatcher_data(
         "consumption_service": consumption_service,
         "llm_service": llm_service,
         "language_validator": language_validator,
+        "language": language,
         "review_use_cases": ReviewUseCases(
             expression_service=expression_service,
             user_service=user_service,
             consumption_service=consumption_service,
             llm_service=llm_service,
             review_state=review_state,
+            user_defaults=language.user_defaults,
         ),
         "creation_use_cases": CreationUseCases(
             expression_service=expression_service,
@@ -216,7 +227,8 @@ def build_dispatcher_data(
 
 
 async def init_telegram_bot(app: FastAPI, settings):
-    bot, dp = build_bot_dispatcher()
+    language = LanguageConfig.from_settings(settings)
+    bot, dp = build_bot_dispatcher(language)
     app.state.bot = bot
     app.state.dispatcher = dp
 
@@ -232,7 +244,7 @@ async def init_telegram_bot(app: FastAPI, settings):
     cols = app.state.cols
     http_client = app.state.http_client
 
-    services = build_services(cols, http_client, settings)
+    services = build_services(cols, http_client, language)
     app.state.expression_service = services.expression_service
     app.state.user_service = services.user_service
     app.state.consumption_service = services.consumption_service
@@ -268,6 +280,7 @@ async def init_telegram_bot(app: FastAPI, settings):
             logger_bot=logger_bot,
             user_service=services.user_service,
             review_use_cases=dispatcher_data["review_use_cases"],
+            language=language,
             admin_id=settings.ADMIN_ID,
             pause_rule=settings.REVIEW_PAUSE_RULE,
         )
@@ -303,7 +316,8 @@ async def close_telegram_bot(app: FastAPI):
 
 
 async def init_telegram_without_fastapi(settings):
-    bot, dp = build_bot_dispatcher()
+    language = LanguageConfig.from_settings(settings)
+    bot, dp = build_bot_dispatcher(language)
 
     logger_bot = Bot(
         token=settings.LOGGER_BOT_TOKEN,
@@ -318,7 +332,7 @@ async def init_telegram_without_fastapi(settings):
 
     http_client = await init_and_get_http_client()
 
-    services = build_services(cols, http_client, settings)
+    services = build_services(cols, http_client, language)
 
     # Polling cannot run while a webhook is active.
     await bot.delete_webhook(drop_pending_updates=False)
@@ -343,6 +357,7 @@ async def init_telegram_without_fastapi(settings):
             logger_bot=logger_bot,
             user_service=services.user_service,
             review_use_cases=dispatcher_data["review_use_cases"],
+            language=language,
             admin_id=settings.ADMIN_ID,
             pause_rule=settings.REVIEW_PAUSE_RULE,
         )

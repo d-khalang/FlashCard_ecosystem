@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from flashcard.services.language_validation import (
@@ -5,6 +7,7 @@ from flashcard.services.language_validation import (
     ItalianLanguageValidityChecker,
     get_language_validator,
 )
+from tests.helpers import TEST_LANGUAGE
 
 
 async def test_permissive_validator_normalizes_expression():
@@ -56,10 +59,6 @@ async def test_italian_validator_filters_import_items():
 
 
 def test_auto_validator_uses_italian_for_italian_settings():
-    class DummySettings:
-        LANGUAGE_VALIDATOR = "auto"
-        LEARNING_LANGUAGE_CODE = "it"
-
-    validator = get_language_validator(DummySettings())
+    validator = get_language_validator(replace(TEST_LANGUAGE, validator="auto", code="it"))
 
     assert isinstance(validator, ItalianLanguageValidityChecker)

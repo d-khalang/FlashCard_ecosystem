@@ -23,3 +23,17 @@ class AsyncCursorMock:
             return next(self._items)
         except StopIteration:
             raise StopAsyncIteration
+
+
+from flashcard.language import LanguageConfig, UserDefaults
+
+# The instance language used by tests: the shipped Italian defaults.
+TEST_LANGUAGE = LanguageConfig(
+    code="it",
+    name="Italian",
+    flag="🇮🇹",
+    ui_locale="en",
+    validator="auto",
+    conjugation=True,
+    user_defaults=UserDefaults(primary_language="en", secondary_language=None, target_level="A2"),
+)

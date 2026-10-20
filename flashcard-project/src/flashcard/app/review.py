@@ -10,7 +10,7 @@ from typing import Optional, Union
 from flashcard.app.quota import QuotaExceeded
 from flashcard.app.shadow import shadow_write
 from flashcard.app.types import UserId
-from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
+from flashcard.language import UserDefaults
 from flashcard.schemas.expression import Direction, ExpressionCard
 from flashcard.schemas.languages import get_language_flag
 from flashcard.schemas.user import UserDB
@@ -60,12 +60,14 @@ class ReviewUseCases:
         consumption_service: ConsumptionService,
         llm_service: LLMService,
         review_state: ReviewStateStore,
+        user_defaults: UserDefaults,
     ):
         self.expressions = expression_service
         self.users = user_service
         self.consumption = consumption_service
         self.llm = llm_service
         self.review_state = review_state
+        self.user_defaults = user_defaults
 
     async def prepare_next(self, user_id: UserId, user: Optional[UserDB] = None) -> PrepareResult:
         """
@@ -88,8 +90,8 @@ class ReviewUseCases:
 
         card = await self.llm.generate_expression_card(
             raw=candidate["value"],
-            level=user.target_level or DEFAULT_LANG_LEVEL,
-            lang1_code=user.primary_language or DEFAULT_LANG_1_CODE,
+            level=user.target_level or self.user_defaults.target_level,
+            lang1_code=user.primary_language or self.user_defaults.primary_language,
             lang2_code=user.secondary_language,
             lang1_label=get_language_flag(user.primary_language),
             lang2_label=get_language_flag(user.secondary_language),

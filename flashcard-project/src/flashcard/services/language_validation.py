@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import importlib
 import re
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel, Field
 
-from flashcard.settings import Settings, settings
+if TYPE_CHECKING:
+    from flashcard.language import LanguageConfig
 
 
 class LanguageValidationResult(BaseModel):
@@ -29,8 +30,8 @@ class LanguageValidityChecker(Protocol):
 
 
 class BaseLanguageValidityChecker:
-    def __init__(self, app_settings: Settings = settings) -> None:
-        self.settings = app_settings
+    def __init__(self, language: LanguageConfig | None = None) -> None:
+        self.language = language
 
     def _normalize_text(self, text: str) -> str:
         return " ".join(text.strip().split())
@@ -127,7 +128,7 @@ class ItalianLanguageValidityChecker(LatinScriptLanguageValidityChecker):
 #    Example:
 #      class GermanLanguageValidityChecker(BaseLanguageValidityChecker):
 #          async def validate_expression(self, text: str) -> LanguageValidationResult:
-#              # your validation logic...
+#              # your validation logic; self.language is the instance's LanguageConfig
 # 2. In your .env/settings config, set LANGUAGE_VALIDATOR to:
 #      - Either a registered key (e.g. 'permissive', 'latin', 'italian')
 #      - Or an import path to your custom class:
@@ -153,19 +154,13 @@ def _load_custom_validator(path: str):
     return getattr(module, attr_name)
 
 
-def get_language_validator(
-    app_settings: Settings = settings,
-) -> LanguageValidityChecker:
-    configured = getattr(app_settings, "LANGUAGE_VALIDATOR", "auto").strip().lower()
+def get_language_validator(language: LanguageConfig) -> LanguageValidityChecker:
+    configured = language.validator.strip().lower()
     if configured == "auto":
-        configured = (
-            "italian"
-            if getattr(app_settings, "LEARNING_LANGUAGE_CODE", "it").lower() == "it"
-            else "latin"
-        )
+        configured = "italian" if language.code.lower() == "it" else "latin"
 
     validator_cls = VALIDATOR_REGISTRY.get(configured)
     if validator_cls is None:
-        validator_cls = _load_custom_validator(getattr(app_settings, "LANGUAGE_VALIDATOR", "auto"))
+        validator_cls = _load_custom_validator(language.validator)
 
-    return validator_cls(app_settings)
+    return validator_cls(language)

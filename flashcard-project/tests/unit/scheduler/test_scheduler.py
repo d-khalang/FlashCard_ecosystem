@@ -16,6 +16,7 @@ from flashcard.schemas.user import UserDB
 from flashcard.services.user import UserService
 from flashcard.utils.time import now_utc, iso_z
 from tests.helpers import AsyncCursorMock as _AsyncCursor
+from tests.helpers import TEST_LANGUAGE
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +219,7 @@ class TestSchedulerLoopTracing:
                     logger_bot=mock_logger_bot,
                     user_service=mock_user_service,
                     review_use_cases=MagicMock(),
+                    language=TEST_LANGUAGE,
                     admin_id=12345,
                 )
             except _BreakLoop:
@@ -258,6 +260,7 @@ class TestSchedulerLoopTracing:
                     logger_bot=mock_logger_bot,
                     user_service=mock_user_service,
                     review_use_cases=MagicMock(),
+                    language=TEST_LANGUAGE,
                     admin_id=12345,
                 )
             except _BreakLoop:
@@ -439,7 +442,7 @@ class TestPerUserIsolation:
         ):
             try:
                 await scheduler_loop(bot=MagicMock(), logger_bot=MagicMock(), user_service=MagicMock(),
-                                     review_use_cases=MagicMock(), admin_id=12345)
+                                     review_use_cases=MagicMock(), language=TEST_LANGUAGE, admin_id=12345)
             except _BreakLoop:
                 pass
 

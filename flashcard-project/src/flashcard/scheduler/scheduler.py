@@ -6,6 +6,7 @@ from typing import Optional
 from aiogram import Bot
 
 from flashcard.app.review_schedule import PauseComparison, PauseRule, interval_elapsed, paused
+from flashcard.language import LanguageConfig
 from flashcard.schemas.trace import TraceData
 from flashcard.schemas.user import UserDB
 from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
@@ -120,6 +121,7 @@ async def send_scheduled_review(
     bot: Bot,
     user: UserDB,
     review_use_cases: ReviewUseCases,
+    language: LanguageConfig,
 ) -> bool:
     """
     Sends a scheduled review to a user.
@@ -141,7 +143,8 @@ async def send_scheduled_review(
         logger.info(f"Skipping scheduled review for user {user_id} due to quota limits (tier={result.tier})")
         return False
 
-    text = format_review_message(result.card, result.value, direction=result.direction)
+    text = format_review_message(
+        result.card, result.value, direction=result.direction, learning_flag=language.flag)
     keyboard = get_review_keyboard(result.expression_id, direction=result.direction)
     sent_msg = await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
     await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
@@ -247,6 +250,7 @@ async def scheduler_loop(
     logger_bot: Bot,
     user_service: UserService,
     review_use_cases: ReviewUseCases,
+    language: LanguageConfig,
     admin_id: int,
     pause_rule: PauseRule = "legacy",
 ) -> None:
@@ -296,6 +300,7 @@ async def scheduler_loop(
                             bot=bot,
                             user=user,
                             review_use_cases=review_use_cases,
+                            language=language,
                         ),
                         timeout=PER_USER_TIMEOUT,
                     )

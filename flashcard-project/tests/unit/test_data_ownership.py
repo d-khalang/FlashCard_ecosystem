@@ -10,12 +10,12 @@ consumption (ConsumptionService), review state (ReviewStateStore).
 """
 import ast
 from pathlib import Path
-from types import SimpleNamespace
 
 import flashcard
 from flashcard.telegram import bot as bot_module
 from flashcard.telegram.bot import build_services
 from tests.integration.helpers import make_cols
+from tests.helpers import TEST_LANGUAGE
 
 SRC = Path(flashcard.__file__).parent
 # Composition root, DB setup, and one-off migrations (removed after the rollout).
@@ -43,10 +43,10 @@ def test_no_module_keeps_the_cols_dict():
 
 def test_each_service_gets_only_its_own_collection(monkeypatch):
     # The LLM client and language validator hold no collections; keep them (and the key file) out.
-    monkeypatch.setattr(bot_module, "LLMService", lambda: object())
-    monkeypatch.setattr(bot_module, "get_language_validator", lambda settings: object())
+    monkeypatch.setattr(bot_module, "LLMService", lambda **_: object())
+    monkeypatch.setattr(bot_module, "get_language_validator", lambda language: object())
     cols = make_cols()
-    services = build_services(cols, http_client=None, settings=SimpleNamespace(ENABLE_CONJUGATION=True))
+    services = build_services(cols, http_client=None, language=TEST_LANGUAGE)
 
     assert services.expression_service.expressions is cols["expression"]
     assert services.user_service.users is cols["users"]

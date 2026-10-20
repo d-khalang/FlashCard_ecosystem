@@ -9,7 +9,7 @@ from flashcard.app.review import (
     CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
 )
 from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE
-from flashcard.schemas.defaults import DEFAULT_LANG_1_CODE, DEFAULT_LANG_LEVEL
+from tests.helpers import TEST_LANGUAGE
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 
 
@@ -42,7 +42,8 @@ def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
     llm.generate_expression_card = AsyncMock(return_value="CARD")
 
     use_cases = ReviewUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
-                               consumption_service=consumption, llm_service=llm)
+                               consumption_service=consumption, llm_service=llm,
+                               user_defaults=TEST_LANGUAGE.user_defaults)
     return use_cases, expressions, users, consumption, llm
 
 
@@ -130,8 +131,8 @@ class TestPrepareNext:
 
         await use_cases.prepare_next(111)
         kwargs = llm.generate_expression_card.await_args.kwargs
-        assert kwargs["level"] == DEFAULT_LANG_LEVEL
-        assert kwargs["lang1_code"] == DEFAULT_LANG_1_CODE
+        assert kwargs["level"] == TEST_LANGUAGE.user_defaults.target_level
+        assert kwargs["lang1_code"] == TEST_LANGUAGE.user_defaults.primary_language
 
     async def test_generation_failure_propagates(self):
         use_cases, _, _, consumption, llm = _use_cases(candidate=_candidate())
@@ -203,7 +204,8 @@ class TestGrade:
                                        "created_at": "2000-01-01T00:00:00Z", "status": "active"}])
         use_cases = ReviewUseCases(review_state=AsyncMock(), user_service=MagicMock(),
                                    expression_service=ExpressionService(expressions=cols["expression"]),
-                                   consumption_service=MagicMock(), llm_service=MagicMock())
+                                   consumption_service=MagicMock(), llm_service=MagicMock(),
+                                   user_defaults=TEST_LANGUAGE.user_defaults)
         return use_cases, str(expression_id), cols["expression"].docs
 
     @pytest.mark.parametrize("grade", [-1, 6, 9, True, 2.5, "3"])

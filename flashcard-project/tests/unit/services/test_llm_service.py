@@ -89,6 +89,7 @@ class TestLLMServiceMocked:
 
         # Create service without calling __init__ (avoids real key loading)
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         provider = GoogleGenAIProvider(
             name="mock",
             provider="google",
@@ -169,13 +170,13 @@ class TestLLMServiceMocked:
         )
         service, mock_client = self._make_service(parsed_response=mock_card)
 
-        with patch("flashcard.services.llm.llm.settings.LEARNING_LANGUAGE_NAME", "English"):
-            await service.generate_expression_card(
-                raw="walk",
-                level="A2",
-                lang1_code="it",
-                lang1_label="IT",
-            )
+        service.learning_language_name = "English"
+        await service.generate_expression_card(
+            raw="walk",
+            level="A2",
+            lang1_code="it",
+            lang1_label="IT",
+        )
 
         call_args = mock_client.models.generate_content.call_args
         prompt = call_args.kwargs["contents"]
@@ -205,6 +206,7 @@ class TestLLMServiceMocked:
         import itertools
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         mock_a = MagicMock()
         mock_b = MagicMock()
         service.clients = {"a": mock_a, "b": mock_b}
@@ -241,6 +243,7 @@ class TestLLMServiceMocked:
         )
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         notified = False
 
         async def slow_groq(**kwargs):
@@ -297,6 +300,7 @@ class TestLLMServiceMocked:
         google_card = groq_card.model_copy(update={"learning_definition": "Google definition"})
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         notified = False
         fallback_started = asyncio.Event()
         keep_google_pending = asyncio.Event()
@@ -357,6 +361,7 @@ class TestLLMServiceMocked:
         google_card = groq_card.model_copy(update={"learning_definition": "Google definition"})
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         keep_groq_pending = asyncio.Event()
 
         async def slow_groq(**kwargs):
@@ -405,6 +410,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         notified = False
 
         async def groq(**kwargs):
@@ -452,6 +458,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def groq(**kwargs):
             await asyncio.sleep(0.01)
@@ -494,6 +501,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def groq(**kwargs):
             await asyncio.sleep(0.03)
@@ -527,6 +535,7 @@ class TestLLMServiceMocked:
         from flashcard.services.llm.llm import LLMService
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def groq(**kwargs):
             await asyncio.sleep(0.01)
@@ -560,6 +569,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def google(**kwargs):
             return LLMGenerationResult(
@@ -598,6 +608,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def generate(**kwargs):
             return LLMGenerationResult(
@@ -643,6 +654,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         google_cancelled = asyncio.Event()
 
         async def groq(**kwargs):

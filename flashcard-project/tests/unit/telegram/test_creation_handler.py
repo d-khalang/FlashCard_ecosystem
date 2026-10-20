@@ -9,6 +9,7 @@ from flashcard.app.creation import CreationUseCases
 from flashcard.telegram.handlers.creation import handle_text_message
 from flashcard.schemas.user import UserDB
 from flashcard.services.language_validation import LanguageValidationResult
+from tests.helpers import TEST_LANGUAGE
 
 @pytest.mark.asyncio
 async def test_handle_text_message_too_long():
@@ -26,7 +27,7 @@ async def test_handle_text_message_too_long():
 
         # Call handler
         use_cases = CreationUseCases(MagicMock(), user_service, consumption_service, llm_service, review_state=AsyncMock())
-        await handle_text_message(message, creation_use_cases=use_cases)
+        await handle_text_message(message, creation_use_cases=use_cases, language=TEST_LANGUAGE)
 
         # Assertions
         # 1. It should answer with an error message
@@ -63,7 +64,7 @@ async def test_handle_text_message_invalid_language_skips_generation():
 
     use_cases = CreationUseCases(MagicMock(), user_service, consumption_service, llm_service, review_state=AsyncMock(),
                                  language_validator=language_validator)
-    await handle_text_message(message, creation_use_cases=use_cases)
+    await handle_text_message(message, creation_use_cases=use_cases, language=TEST_LANGUAGE)
 
     llm_service.generate_expression_card.assert_not_called()
     consumption_service.increment.assert_not_called()

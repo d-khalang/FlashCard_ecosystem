@@ -74,10 +74,6 @@ class VerbService:
         """
         Gets the verb from the API.
         """
-        if not settings.ENABLE_CONJUGATION:
-            logger.info("Conjugation lookup skipped because ENABLE_CONJUGATION=False")
-            return None
-
         if not settings.SCRAPER_URL or not settings.SCRAPER_PORT or not settings.SCRAPER_API_KEY:
             raise RuntimeError("Conjugation service is enabled but its settings are incomplete")
 

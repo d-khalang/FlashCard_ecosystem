@@ -7,6 +7,7 @@ import asyncio
 
 from flashcard.app.review import CardNotFound, NoCandidate, QuotaExceeded, ReviewUseCases
 from flashcard.settings import settings
+from flashcard.language import LanguageConfig
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.keyboards import get_review_keyboard
@@ -20,7 +21,7 @@ router = Router()
 
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_get(message: Message, review_use_cases: ReviewUseCases):
+async def cmd_get(message: Message, review_use_cases: ReviewUseCases, language: LanguageConfig):
     """
     Handle /get command to review a flashcard.
     """
@@ -40,7 +41,8 @@ async def cmd_get(message: Message, review_use_cases: ReviewUseCases):
         ))
         return
 
-    text = format_review_message(result.card, result.value, direction=result.direction)
+    text = format_review_message(
+        result.card, result.value, direction=result.direction, learning_flag=language.flag)
     keyboard = get_review_keyboard(result.expression_id, direction=result.direction)
     sent_msg = await message.answer(text, reply_markup=keyboard)
     await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)

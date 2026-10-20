@@ -6,7 +6,7 @@ from typing import Optional
 from flashcard.app.creation import CardReady, CreationUseCases, GenerateResult, InvalidInput, Saved
 from flashcard.app.quota import QuotaExceeded
 from flashcard.services.i18n import i18n
-from flashcard.settings import settings
+from flashcard.language import LanguageConfig
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.telegram.keyboards import expression_action_kb
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
@@ -16,12 +16,12 @@ logger = get_logger(__name__)
 router = Router()
 
 
-def _present(result: GenerateResult) -> tuple[str, Optional[InlineKeyboardMarkup]]:
+def _present(result: GenerateResult, language: LanguageConfig) -> tuple[str, Optional[InlineKeyboardMarkup]]:
     """Message text and buttons for a generation result."""
     if isinstance(result, InvalidInput):
         text = i18n.get(
             "messages.errors.invalid_learning_language_input",
-            language=settings.LEARNING_LANGUAGE_NAME,
+            language=language.name,
         )
         if result.suggestions:
             text = f"{text}\n" + "\n".join(result.suggestions[:3])
@@ -33,7 +33,7 @@ def _present(result: GenerateResult) -> tuple[str, Optional[InlineKeyboardMarkup
             tier=result.tier,
             limit=result.limit,
         ), None
-    content = render_expression_card(result.card)["content"]
+    content = render_expression_card(result.card, learning_flag=language.flag)["content"]
     if isinstance(result, CardReady):
         return content, expression_action_kb(result.card.norm)
     return content, None
@@ -41,7 +41,7 @@ def _present(result: GenerateResult) -> tuple[str, Optional[InlineKeyboardMarkup
 
 @router.message(F.text & ~F.via_bot & ~F.from_user.is_bot)
 @flags.chat_action(ChatAction.TYPING)
-async def handle_text_message(message: Message, creation_use_cases: CreationUseCases):
+async def handle_text_message(message: Message, creation_use_cases: CreationUseCases, language: LanguageConfig):
     if len(message.text) > 150:
         await message.answer(i18n.get("messages.errors.input_too_long"))
         return
@@ -56,7 +56,7 @@ async def handle_text_message(message: Message, creation_use_cases: CreationUseC
         message.text,
         on_fallback=notify_fallback,
     )
-    text, kb = _present(result)
+    text, kb = _present(result, language)
 
     await status_msg.edit_text(
         text=text,
@@ -109,7 +109,7 @@ async def handle_save(callback: CallbackQuery, creation_use_cases: CreationUseCa
 
 @router.callback_query(F.data.startswith("regen:"))
 @flags.chat_action(ChatAction.TYPING)
-async def handle_regen(callback: CallbackQuery, creation_use_cases: CreationUseCases):
+async def handle_regen(callback: CallbackQuery, creation_use_cases: CreationUseCases, language: LanguageConfig):
     callback_markup = callback.message.reply_markup
     await callback.message.edit_text(i18n.get("callbacks.regen.working"))
 
@@ -120,7 +120,7 @@ async def handle_regen(callback: CallbackQuery, creation_use_cases: CreationUseC
         await callback.message.edit_text(i18n.get("messages.llm_fallback"))
 
     result = await creation_use_cases.generate(user_id, expression, on_fallback=notify_fallback)
-    text, _ = _present(result)
+    text, _ = _present(result, language)
 
     if isinstance(result, CardReady):
         await callback.message.edit_text(

@@ -1,25 +1,24 @@
 from __future__ import annotations
 
 from flashcard.schemas.expression import ExpressionCard
-from flashcard.settings import settings
 
 LINE_SEP = "\u2508" * 12
 
 
-def _learning_definition_label() -> str:
-    return f"{settings.LEARNING_LANGUAGE_FLAG} Def"
+def _learning_definition_label(learning_flag: str) -> str:
+    return f"{learning_flag} Def"
 
 
 def _learning_example_label() -> str:
     return "🧩 Example"
 
 
-def render_expression_card(card: ExpressionCard) -> dict[str, object]:
+def render_expression_card(card: ExpressionCard, *, learning_flag: str) -> dict[str, object]:
     if not card.success:
         line1 = f"{card.note or 'Expression not clear'}"
         return {"success": False, "content": line1}
 
-    line1 = f"{_learning_definition_label()}: {card.learning_definition}".strip()
+    line1 = f"{_learning_definition_label(learning_flag)}: {card.learning_definition}".strip()
 
     t1 = card.translations[0] if len(card.translations) > 0 else None
     t2 = card.translations[1] if len(card.translations) > 1 else None
@@ -36,6 +35,8 @@ def format_review_message(
     card: ExpressionCard,
     value: str,
     direction: str = "forward",
+    *,
+    learning_flag: str,
 ) -> str:
     """
     Formats the review message for the /get command.
@@ -53,7 +54,7 @@ def format_review_message(
         
         question_part = ""
         if card.learning_definition:
-            question_part = f"{_learning_definition_label()}: {card.learning_definition}"
+            question_part = f"{_learning_definition_label(learning_flag)}: {card.learning_definition}"
         elif translations_str:
             question_part = translations_str.strip()
         else:
@@ -73,7 +74,7 @@ def format_review_message(
         )
 
     spoiler_content = f"""
-{_learning_definition_label()}: {card.learning_definition or ''}
+{_learning_definition_label(learning_flag)}: {card.learning_definition or ''}
 {translations_str.strip()}
 {_learning_example_label()}: "{card.learning_example or ''}"
 """.strip()

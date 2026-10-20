@@ -144,7 +144,9 @@ def _require_all_properties(node: Any) -> None:
 
 
 class LLMService:
-    def __init__(self) -> None:
+    def __init__(self, *, learning_language_name: str) -> None:
+        """`learning_language_name`: the language this instance teaches, used in every prompt."""
+        self.learning_language_name = learning_language_name
         self.google_model = settings.LLM_GOOGLE_MODEL
         self.groq_model = settings.LLM_GROQ_MODEL
         self.groq_fallback_delay_seconds = max(
@@ -441,7 +443,7 @@ class LLMService:
         prompt = EXPRESSION_PROMPT_TEMPLATE.format(
             raw=raw,
             level=level,
-            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
+            learning_language_name=self.learning_language_name,
             target_langs=", ".join(langs),
             target_labels="\n".join(labels),
         )
@@ -467,7 +469,7 @@ class LLMService:
         """
         prompt = IMPORT_PROMPT_TEMPLATE.format(
             raw_input=raw_text,
-            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
+            learning_language_name=self.learning_language_name,
         )
 
         output = await self._generate_with_fallback(
@@ -500,7 +502,7 @@ class LLMService:
             level=target_level,
             length=story_length,
             target_lang=target_lang,
-            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
+            learning_language_name=self.learning_language_name,
         )
 
         output = await self._generate_with_fallback(

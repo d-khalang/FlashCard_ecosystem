@@ -11,6 +11,7 @@ from flashcard.settings import settings
 from flashcard.utils.time import iso_z, now_utc, parse_iso
 
 if TYPE_CHECKING:
+    from flashcard.language import UserDefaults
     from flashcard.services.consumption import ConsumptionService
 
 logger = get_logger(__name__)
@@ -39,10 +40,23 @@ TRIAL_DAYS = 14
 
 
 class UserService:
-    def __init__(self, users, consumption_service: ConsumptionService | None = None):
-        """`users`: the users collection (profile, settings and onboarding fields)."""
+    def __init__(
+        self,
+        users,
+        consumption_service: ConsumptionService | None = None,
+        defaults: UserDefaults | None = None,
+    ):
+        """
+        `users`: the users collection (profile, settings and onboarding fields).
+        `defaults`: this instance's settings for users who have not chosen their own.
+        """
         self.users = users
         self.consumption_service = consumption_service
+        self.defaults = defaults.as_fields() if defaults else {}
+
+    def _to_user(self, doc: dict) -> UserDB:
+        """Missing settings fall back to this instance's defaults; stored values win."""
+        return UserDB.model_validate({**self.defaults, **doc})
 
     async def active_users_reviewed_before(
         self,
@@ -73,7 +87,7 @@ class UserService:
         users = []
         async for doc in self.users.find(query):
             try:
-                users.append(UserDB.model_validate(doc))
+                users.append(self._to_user(doc))
             except ValueError as e:  # pydantic's ValidationError is a ValueError
                 on_unreadable(str(doc.get("user_id", "?")), e)
         return users
@@ -84,9 +98,9 @@ class UserService:
         """
         doc = await self.users.find_one({"user_id": str(user_id)}) or {}
         if not doc:
-            return UserDB(user_id=str(user_id))
-            
-        return UserDB.model_validate(doc)
+            return self._to_user({"user_id": str(user_id)})
+
+        return self._to_user(doc)
 
     async def set_target_level(self, user_id: Union[str, int], level: LanguageLevel) -> None:
         if level not in get_args(LanguageLevel):

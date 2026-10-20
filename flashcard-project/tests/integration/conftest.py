@@ -29,6 +29,7 @@ from .helpers import (
     make_cols,
     make_services,
 )
+from tests.helpers import TEST_LANGUAGE
 
 
 @pytest.fixture
@@ -105,7 +106,7 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
         module.router._parent_router = None
 
     bot, session = bot_and_session
-    _, dp = build_bot_dispatcher()
+    _, dp = build_bot_dispatcher(TEST_LANGUAGE)
     logger_bot, _ = make_bot()
     dispatcher_data = build_dispatcher_data(
         http_client=services["verb_service"].http_client,
@@ -117,6 +118,7 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
         llm_service=llm_service,
         language_validator=BaseLanguageValidityChecker(),
         review_state=services["review_state"],
+        language=TEST_LANGUAGE,
     )
     yield {
         "bot": bot,

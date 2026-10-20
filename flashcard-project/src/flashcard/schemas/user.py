@@ -3,7 +3,6 @@ from typing import Literal, Optional, get_args
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator
 from flashcard.schemas.languages import LanguageCode, LanguageLevel
-from flashcard.settings import settings
 from flashcard.utils.logger import get_logger
 from flashcard.utils.time import iso_z, now_utc
 
@@ -62,17 +61,17 @@ class UserDB(BaseModel):
     current_review: Optional[CurrentReview] = Field(None, description="Ungraded delivered card, if any")
     is_active: bool = Field(True, description="If user is active for scheduler")
     
-    # Settings
+    # Settings. UserService fills missing ones from the instance's LanguageConfig.
     primary_language: LanguageCode = Field(
-        default_factory=lambda: settings.DEFAULT_PRIMARY_LANGUAGE,
+        "en",
         description="Primary translation language (e.g. 'en', 'fa')",
     )
     secondary_language: Optional[LanguageCode] = Field(
-        default_factory=lambda: settings.DEFAULT_SECONDARY_LANGUAGE,
+        None,
         description="Secondary translation language",
     )
     target_level: LanguageLevel = Field(
-        default_factory=lambda: settings.DEFAULT_TARGET_LEVEL,
+        "A2",
         description="Target CEFR level (A1-C2)",
     )
     review_mode: ReviewMode = Field("standard", description="Review mode: standard or dual")

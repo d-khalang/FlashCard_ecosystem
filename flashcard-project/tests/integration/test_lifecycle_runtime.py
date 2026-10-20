@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from flashcard.api.routes import health
 from flashcard.telegram import bot as bot_module
+from tests.helpers import TEST_LANGUAGE
 
 from .helpers import (
     DummyTraceLogger,
@@ -27,7 +28,8 @@ async def test_init_telegram_bot_webhook_mode_sets_webhook(monkeypatch):
     dp = SimpleNamespace(resolve_used_update_types=lambda: ["message"], start_polling=AsyncMock())
     scheduler_started = asyncio.Event()
 
-    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda: (bot, dp))
+    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda language: (bot, dp))
+    monkeypatch.setattr(bot_module.LanguageConfig, "from_settings", lambda settings: TEST_LANGUAGE)
     monkeypatch.setattr(bot_module, "Bot", lambda *args, **kwargs: logger_bot)
     monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot: None)
     # The lifespan has already opened Mongo and the HTTP client; the bot must only use them.
@@ -56,7 +58,7 @@ async def test_init_telegram_bot_webhook_mode_sets_webhook(monkeypatch):
         ),
     )
     monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", fake_scheduler_loop)
-    monkeypatch.setattr(bot_module, "LLMService", lambda: object())
+    monkeypatch.setattr(bot_module, "LLMService", lambda **_: object())
 
     await bot_module.init_telegram_bot(app, bot_module.settings)
 
@@ -83,7 +85,8 @@ async def test_init_telegram_bot_polling_mode_deletes_webhook_and_starts_polling
 
     dp = SimpleNamespace(resolve_used_update_types=lambda: ["message", "callback_query"], start_polling=fake_start_polling)
 
-    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda: (bot, dp))
+    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda language: (bot, dp))
+    monkeypatch.setattr(bot_module.LanguageConfig, "from_settings", lambda settings: TEST_LANGUAGE)
     monkeypatch.setattr(bot_module, "Bot", lambda *args, **kwargs: logger_bot)
     monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot: None)
     # The lifespan has already opened Mongo and the HTTP client; the bot must only use them.
@@ -93,7 +96,7 @@ async def test_init_telegram_bot_polling_mode_deletes_webhook_and_starts_polling
     monkeypatch.setattr(bot_module, "init_and_get_mongo", open_mongo)
     monkeypatch.setattr(bot_module, "init_and_get_http_client", open_http)
     monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", AsyncMock())
-    monkeypatch.setattr(bot_module, "LLMService", lambda: object())
+    monkeypatch.setattr(bot_module, "LLMService", lambda **_: object())
     monkeypatch.setattr(bot_module, "get_trace_logger", lambda: DummyTraceLogger())
     monkeypatch.setattr(
         bot_module,
@@ -225,10 +228,11 @@ async def test_lifespan_opens_one_mongo_and_one_http_client_and_closes_each_once
     dp = SimpleNamespace(resolve_used_update_types=lambda: ["message"], start_polling=fake_start_polling)
     monkeypatch.setattr(mongo_module, "AsyncMongoClient", FakeMongoClient)
     monkeypatch.setattr(http_module.httpx, "AsyncClient", FakeHTTPXClient)
-    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda: (bot, dp))
+    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda language: (bot, dp))
+    monkeypatch.setattr(bot_module.LanguageConfig, "from_settings", lambda settings: TEST_LANGUAGE)
     monkeypatch.setattr(bot_module, "Bot", lambda *args, **kwargs: logger_bot)
     monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot: None)
-    monkeypatch.setattr(bot_module, "LLMService", lambda: object())
+    monkeypatch.setattr(bot_module, "LLMService", lambda **_: object())
     monkeypatch.setattr(bot_module, "get_trace_logger", lambda: DummyTraceLogger())
     monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", AsyncMock())
 

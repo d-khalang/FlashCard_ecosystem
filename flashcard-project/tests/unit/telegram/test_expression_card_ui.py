@@ -9,6 +9,7 @@ from flashcard.telegram.ui.expression import (
     render_expression_card,
     format_review_message,
 )
+from tests.helpers import TEST_LANGUAGE
 
 
 # ---------------------------------------------------------------------------
@@ -52,40 +53,40 @@ def _make_failure_card(**overrides) -> ExpressionCard:
 class TestRenderExpressionCard:
 
     def test_success_card_contains_definition(self):
-        result = render_expression_card(_make_card())
+        result = render_expression_card(_make_card(), learning_flag=TEST_LANGUAGE.flag)
 
         assert result["success"] is True
         assert "Comunicare a voce" in result["content"]
 
     def test_success_card_contains_translations(self):
-        result = render_expression_card(_make_card())
+        result = render_expression_card(_make_card(), learning_flag=TEST_LANGUAGE.flag)
 
         assert "to speak" in result["content"]
         assert "🇬🇧 EN" in result["content"]
 
     def test_success_card_contains_example(self):
-        result = render_expression_card(_make_card())
+        result = render_expression_card(_make_card(), learning_flag=TEST_LANGUAGE.flag)
         assert "Parliamo italiano" in result["content"]
 
     def test_failure_card_returns_note(self):
-        result = render_expression_card(_make_failure_card())
+        result = render_expression_card(_make_failure_card(), learning_flag=TEST_LANGUAGE.flag)
 
         assert result["success"] is False
         assert "Parola non chiara" in result["content"]
 
     def test_failure_card_without_note_uses_default(self):
-        result = render_expression_card(_make_failure_card(note=None))
+        result = render_expression_card(_make_failure_card(note=None), learning_flag=TEST_LANGUAGE.flag)
         assert "Expression not clear" in result["content"]
 
     def test_one_translation_doesnt_crash(self):
         card = _make_card(translations=[{"label": "🇬🇧 EN", "text": "to speak"}])
-        result = render_expression_card(card)
+        result = render_expression_card(card, learning_flag=TEST_LANGUAGE.flag)
         assert result["success"] is True
         assert "to speak" in result["content"]
 
     def test_no_translations_doesnt_crash(self):
         card = _make_card(translations=[])
-        result = render_expression_card(card)
+        result = render_expression_card(card, learning_flag=TEST_LANGUAGE.flag)
         assert result["success"] is True
 
 
@@ -96,14 +97,14 @@ class TestFormatReviewMessage:
 
     def test_forward_shows_word_prominently(self):
         card = _make_card()
-        msg = format_review_message(card, "parlare", direction="forward")
+        msg = format_review_message(card, "parlare", direction="forward", learning_flag=TEST_LANGUAGE.flag)
 
         assert "<b>parlare</b>" in msg
         assert "tg-spoiler" in msg
 
     def test_forward_hides_definition_in_spoiler(self):
         card = _make_card()
-        msg = format_review_message(card, "parlare", direction="forward")
+        msg = format_review_message(card, "parlare", direction="forward", learning_flag=TEST_LANGUAGE.flag)
 
         # Definition should be inside spoiler
         spoiler_start = msg.index("<tg-spoiler>")
@@ -114,14 +115,14 @@ class TestFormatReviewMessage:
 
     def test_reverse_shows_definition_prominently(self):
         card = _make_card()
-        msg = format_review_message(card, "parlare", direction="reverse")
+        msg = format_review_message(card, "parlare", direction="reverse", learning_flag=TEST_LANGUAGE.flag)
 
         assert "Reverse Review" in msg
         assert "Comunicare a voce" in msg
 
     def test_reverse_hides_word_in_spoiler(self):
         card = _make_card()
-        msg = format_review_message(card, "parlare", direction="reverse")
+        msg = format_review_message(card, "parlare", direction="reverse", learning_flag=TEST_LANGUAGE.flag)
 
         spoiler_start = msg.index("<tg-spoiler>")
         spoiler_end = msg.index("</tg-spoiler>")
@@ -132,6 +133,6 @@ class TestFormatReviewMessage:
     def test_missing_definition_uses_translation(self):
         """If learning_definition is None, reverse mode should fall back to translations."""
         card = _make_card(learning_definition=None)
-        msg = format_review_message(card, "parlare", direction="reverse")
+        msg = format_review_message(card, "parlare", direction="reverse", learning_flag=TEST_LANGUAGE.flag)
 
         assert "to speak" in msg  # falls back to translation

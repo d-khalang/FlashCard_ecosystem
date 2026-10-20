@@ -14,6 +14,7 @@ from pathlib import Path
 import flashcard
 from flashcard.telegram.bot import build_bot_dispatcher
 from flashcard.telegram.middlewares.trace_middleware import TraceMiddleware
+from tests.helpers import TEST_LANGUAGE
 
 SRC = Path(flashcard.__file__).parent
 ALLOWED_USER_CREATORS = {("services/user.py", "record_seen")}
@@ -42,6 +43,6 @@ def test_only_record_seen_creates_users():
 
 
 def test_telegram_entry_point_records_the_user_first():
-    _, dp = build_bot_dispatcher()
+    _, dp = build_bot_dispatcher(TEST_LANGUAGE)
 
     assert any(isinstance(middleware, TraceMiddleware) for middleware in dp.update.middleware)

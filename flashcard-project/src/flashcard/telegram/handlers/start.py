@@ -3,15 +3,15 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 
 from flashcard.services.i18n import i18n
-from flashcard.settings import settings
+from flashcard.language import LanguageConfig
 from flashcard.utils.logger import get_logger
 
 logger = get_logger(__name__)
 router = Router()
 
 
-def _conjugation_help_line() -> str:
-    if not settings.ENABLE_CONJUGATION:
+def _conjugation_help_line(language: LanguageConfig) -> str:
+    if not language.conjugation:
         return ""
     return i18n.get("commands.help.conjugation_line")
 
@@ -26,11 +26,11 @@ async def cmd_start(message: Message):
 
 
 @router.message(Command("help"))
-async def cmd_help(message: Message):
+async def cmd_help(message: Message, language: LanguageConfig):
     await message.answer(
         i18n.get(
             "commands.help.message",
-            conjugation_help=_conjugation_help_line(),
+            conjugation_help=_conjugation_help_line(language),
         )
     )
     await message.reply(i18n.get("commands.help.reply"))
