@@ -239,8 +239,6 @@ Mini App consequence: its authority DB, language exchange and second build go aw
   `latin` silently rejected non-Latin scripts). `LANGUAGE_VALIDATOR` is required: a
   missing, `auto` or unknown value fails at startup (`get_language_validator`) and
   lists the choices. Settings still load without it, so imports and tests don't need it.
-- [ ] Reply buttons (pause/resume/close) match their text in every locale, not one
-  evaluated at import (`reply_commands.py`).
 - [ ] #8: `value_key` (casefold + trim) on expressions; unique index `(user_id, value_key)`.
   Plain `value` would allow "Ciao" and "ciao". Backfill + dedupe migration per DB:
   normalize `user_id` to `str`, keep the copy with most reviews, repoint
@@ -293,7 +291,9 @@ Out of scope: per-user interface locale (new feature, own item later).
 - **Settings leftovers:**
   - Legacy settings menus (callback value `"toggle"`) still use the read-then-write
     `SettingsUseCases.toggle_review_mode`; removal is rollout step 7.
-  - Pause/resume/close buttons match text from the deployment locale only (planned in #1).
+  - Pause/resume/close buttons match text evaluated once at import (`reply_commands.py`,
+    `F.text == i18n.get(...)`), coupled to the i18n singleton. Correct while each instance has
+    one locale; fix with #7 (injected i18n) or a per-user locale: match every locale's text.
   - "none" is stored as the string `"none"`, not `None`; readers check both.
 - **Story/verb leftovers:**
   - Verb lookups are counted but not limited, by design: they use our own
