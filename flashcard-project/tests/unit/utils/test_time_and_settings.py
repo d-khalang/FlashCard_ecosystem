@@ -143,6 +143,7 @@ class TestSettingsLanguageAndConjugation:
             **self._base_settings_kwargs(),
             ENABLE_CONJUGATION=False,
             DEFAULT_SECONDARY_LANGUAGE="",
+            LANGUAGE_VALIDATOR="",
             SCRAPER_API_KEY="",
             SCRAPER_URL="   ",
             SCRAPER_PORT=None,
@@ -150,6 +151,7 @@ class TestSettingsLanguageAndConjugation:
         )
 
         assert settings.DEFAULT_SECONDARY_LANGUAGE is None
+        assert settings.LANGUAGE_VALIDATOR is None
         assert settings.SCRAPER_API_KEY is None
         assert settings.SCRAPER_URL is None
         assert settings.LLM_KEY_FILE is None

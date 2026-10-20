@@ -27,7 +27,7 @@ class LanguageConfig:
     name: str
     flag: str
     ui_locale: str
-    validator: str
+    validator: Optional[str]
     conjugation: bool
     user_defaults: UserDefaults
 

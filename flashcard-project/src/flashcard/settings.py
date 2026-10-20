@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     DEFAULT_TARGET_LEVEL: str = "A2"
     UI_LOCALE: str = "en"
     ENABLE_CONJUGATION: bool = True
-    LANGUAGE_VALIDATOR: str = "auto"
+    # Required at startup (no guess per language): see get_language_validator.
+    LANGUAGE_VALIDATOR: Optional[str] = None
     SCHEDULER_CHECK_INTERVAL_SECONDS: int = 600  # 10 minutes
     # Review-state migration switch; see docs/bot-architecture-refactor.md (rollout).
     REVIEW_PAUSE_RULE: Literal["legacy", "current_review"] = "legacy"
@@ -78,6 +79,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "DEFAULT_SECONDARY_LANGUAGE",
+        "LANGUAGE_VALIDATOR",
         "SCRAPER_API_KEY",
         "SCRAPER_URL",
         "LLM_KEY_FILE",

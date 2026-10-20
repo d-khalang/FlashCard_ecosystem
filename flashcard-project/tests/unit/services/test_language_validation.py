@@ -58,7 +58,7 @@ async def test_italian_validator_filters_import_items():
     assert result.suggestions == ["こんにちは"]
 
 
-def test_auto_validator_uses_italian_for_italian_settings():
-    validator = get_language_validator(replace(TEST_LANGUAGE, validator="auto", code="it"))
+def test_named_validator_is_used():
+    validator = get_language_validator(replace(TEST_LANGUAGE, validator="Italian"))
 
     assert isinstance(validator, ItalianLanguageValidityChecker)

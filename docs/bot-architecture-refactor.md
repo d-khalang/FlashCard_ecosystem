@@ -24,7 +24,8 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 Nothing from this refactor is deployed yet. Everything ships in **one update** once the
 refactor is finished, then these production steps run in order:
 
-1. Back up each language database.
+1. Back up each language database. In `kartino-deploy`, set `LANGUAGE_VALIDATOR` in each
+   instance's env (`italian` for IT, `latin` for EN); without it the new image does not start.
 2. Deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes (`current_review`,
    `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
 3. Backfill each language DB (dry run, check counts, then `--apply`):
@@ -234,8 +235,10 @@ Mini App consequence: its authority DB, language exchange and second build go aw
   `UI_LOCALE` / `LEARNING_LANGUAGE_NAME` (#7).
   Custom validators now receive the `LanguageConfig`, not `Settings`. `VerbService` lost
   its `ENABLE_CONJUGATION` check: it is only built when conjugation is on.
-- [ ] Validator chosen explicitly in config; drop the `auto` guess (non-Italian →
-  `latin` would reject non-Latin scripts).
+- [x] Validator chosen explicitly in config; the `auto` guess is gone (non-Italian →
+  `latin` silently rejected non-Latin scripts). `LANGUAGE_VALIDATOR` is required: a
+  missing, `auto` or unknown value fails at startup (`get_language_validator`) and
+  lists the choices. Settings still load without it, so imports and tests don't need it.
 - [ ] Reply buttons (pause/resume/close) match their text in every locale, not one
   evaluated at import (`reply_commands.py`).
 - [ ] #8: `value_key` (casefold + trim) on expressions; unique index `(user_id, value_key)`.

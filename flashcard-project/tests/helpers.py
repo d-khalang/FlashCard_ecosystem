@@ -33,7 +33,7 @@ TEST_LANGUAGE = LanguageConfig(
     name="Italian",
     flag="🇮🇹",
     ui_locale="en",
-    validator="auto",
+    validator="italian",
     conjugation=True,
     user_defaults=UserDefaults(primary_language="en", secondary_language=None, target_level="A2"),
 )

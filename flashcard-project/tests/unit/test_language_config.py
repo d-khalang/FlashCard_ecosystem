@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 import flashcard
 from flashcard.language import LanguageConfig, UserDefaults
 from flashcard.services.language_validation import (
@@ -46,8 +48,21 @@ def test_from_settings_maps_every_language_setting():
     )
 
 
-def test_auto_validator_uses_latin_for_other_languages():
-    validator = get_language_validator(replace(TEST_LANGUAGE, validator="auto", code="es"))
+@pytest.mark.parametrize("validator", [None, "", "  ", "auto"])
+def test_validator_must_be_named(validator):
+    # No guess per language: `latin` would silently reject every Russian word.
+    with pytest.raises(ValueError, match="LANGUAGE_VALIDATOR is required"):
+        get_language_validator(replace(TEST_LANGUAGE, validator=validator, code="ru"))
+
+
+def test_unknown_validator_name_fails_and_lists_the_choices():
+    with pytest.raises(ValueError, match="Unknown LANGUAGE_VALIDATOR 'russian'; choose permissive, latin"):
+        get_language_validator(replace(TEST_LANGUAGE, validator="russian"))
+
+
+def test_custom_validator_class_by_import_path():
+    validator = get_language_validator(replace(
+        TEST_LANGUAGE, validator="flashcard.services.language_validation:LatinScriptLanguageValidityChecker"))
 
     assert type(validator) is LatinScriptLanguageValidityChecker
 

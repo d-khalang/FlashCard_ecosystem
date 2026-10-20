@@ -129,7 +129,7 @@ class ItalianLanguageValidityChecker(LatinScriptLanguageValidityChecker):
 #      class GermanLanguageValidityChecker(BaseLanguageValidityChecker):
 #          async def validate_expression(self, text: str) -> LanguageValidationResult:
 #              # your validation logic; self.language is the instance's LanguageConfig
-# 2. In your .env/settings config, set LANGUAGE_VALIDATOR to:
+# 2. In your .env/settings config, set LANGUAGE_VALIDATOR (required) to:
 #      - Either a registered key (e.g. 'permissive', 'latin', 'italian')
 #      - Or an import path to your custom class:
 #          LANGUAGE_VALIDATOR="my_module.validators:GermanLanguageValidityChecker"
@@ -140,27 +140,33 @@ VALIDATOR_REGISTRY = {
 }
 
 
+def _choices() -> str:
+    return ", ".join(VALIDATOR_REGISTRY) + ", or a custom 'module:ClassName'"
+
+
 def _load_custom_validator(path: str):
     module_path, separator, attr_name = path.partition(":")
     if not separator:
         module_path, separator, attr_name = path.rpartition(".")
     if not module_path or not attr_name:
-        raise ValueError(
-            "Custom LANGUAGE_VALIDATOR must be 'module:ClassName' or "
-            "'module.ClassName'"
-        )
+        raise ValueError(f"Unknown LANGUAGE_VALIDATOR {path!r}; choose {_choices()}")
 
     module = importlib.import_module(module_path)
     return getattr(module, attr_name)
 
 
 def get_language_validator(language: LanguageConfig) -> LanguageValidityChecker:
-    configured = language.validator.strip().lower()
-    if configured == "auto":
-        configured = "italian" if language.code.lower() == "it" else "latin"
+    """
+    Each instance names its validator; there is no guess per language, because
+    a wrong guess (e.g. `latin` for Russian) silently rejects every word.
+    Raises ValueError at startup when it is missing or unknown.
+    """
+    configured = (language.validator or "").strip()
+    if not configured or configured.lower() == "auto":
+        raise ValueError(f"LANGUAGE_VALIDATOR is required; choose {_choices()}")
 
-    validator_cls = VALIDATOR_REGISTRY.get(configured)
+    validator_cls = VALIDATOR_REGISTRY.get(configured.lower())
     if validator_cls is None:
-        validator_cls = _load_custom_validator(language.validator)
+        validator_cls = _load_custom_validator(configured)
 
     return validator_cls(language)
