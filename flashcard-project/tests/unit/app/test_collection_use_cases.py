@@ -16,12 +16,13 @@ from flashcard.app.quota import QuotaExceeded
 from flashcard.schemas.import_model import ImportResponse
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.language_validation import LanguageValidationResult
+from tests.helpers import make_user
 
 
 def _user(**overrides) -> UserDB:
     fields = {"user_id": "333", "tier": UserTier.normal}
     fields.update(overrides)
-    return UserDB(**fields)
+    return make_user(**fields)
 
 
 def _use_cases(*, parsed=None, inserted=None, validation=None, user=None, can_generate=True, card_limit=10):

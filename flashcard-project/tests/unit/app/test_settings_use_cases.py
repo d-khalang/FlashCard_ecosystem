@@ -13,11 +13,12 @@ from flashcard.schemas.languages import LanguageLevel
 from flashcard.schemas.user import MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE
 from flashcard.services.user import UserService
 from tests.integration.helpers import make_cols
+from tests.helpers import TEST_LANGUAGE
 
 
 def _use_cases(**user_fields):
     cols = make_cols(users=[{"user_id": "777", **user_fields}])
-    return SettingsUseCases(user_service=UserService(users=cols["users"])), cols["users"].docs[0]
+    return SettingsUseCases(user_service=UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults)), cols["users"].docs[0]
 
 
 class TestLevel:

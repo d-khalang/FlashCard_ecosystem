@@ -18,7 +18,7 @@ from flashcard.services.language_validation import LanguageValidationResult
 from flashcard.telegram.handlers import creation
 from flashcard.telegram.keyboards import expression_action_kb
 from flashcard.telegram.ui.expression import render_expression_card
-from tests.helpers import TEST_LANGUAGE
+from tests.helpers import TEST_LANGUAGE, make_user
 
 
 USER_ID = 222
@@ -37,7 +37,7 @@ def _user(**overrides) -> UserDB:
     fields = {"user_id": str(USER_ID), "primary_language": "en", "secondary_language": None,
               "target_level": "B1", "tier": UserTier.normal}
     fields.update(overrides)
-    return UserDB(**fields)
+    return make_user(**fields)
 
 
 def _deps(*, card=None, user=None, can_generate=True, validation=None):

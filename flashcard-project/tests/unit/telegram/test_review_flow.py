@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from flashcard.app.review import ReviewUseCases
-from tests.helpers import TEST_LANGUAGE
+from tests.helpers import TEST_LANGUAGE, make_user
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.i18n import i18n
 from flashcard.telegram.handlers import review
@@ -27,7 +27,7 @@ def _user(**overrides) -> UserDB:
     fields = {"user_id": str(USER_ID), "primary_language": "en", "secondary_language": "fa",
               "target_level": "B1", "tier": UserTier.normal}
     fields.update(overrides)
-    return UserDB(**fields)
+    return make_user(**fields)
 
 
 def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=True, sent_message_id=42):

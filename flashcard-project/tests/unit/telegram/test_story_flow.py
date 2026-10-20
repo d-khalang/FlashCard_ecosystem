@@ -14,6 +14,7 @@ from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.i18n import i18n
 from flashcard.telegram.handlers import story
 from flashcard.telegram.ui.story import format_story_messages
+from tests.helpers import make_user
 
 
 USER_ID = 888
@@ -26,7 +27,7 @@ STORY = StoryResponse(paragraphs=[
 def _user(**overrides) -> UserDB:
     fields = {"user_id": str(USER_ID), "tier": UserTier.normal, "primary_language": "fa", "target_level": "B1"}
     fields.update(overrides)
-    return UserDB(**fields)
+    return make_user(**fields)
 
 
 def _deps(words=("andare", "fare"), *, user=None, can_generate=True, story_response=STORY):

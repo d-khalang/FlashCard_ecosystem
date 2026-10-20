@@ -3,8 +3,9 @@ from datetime import timedelta
 from unittest.mock import MagicMock, AsyncMock, ANY
 from flashcard.services.user import UserService
 from flashcard.services.consumption import ConsumptionService
-from flashcard.schemas.user import UserDB, UserTier
+from flashcard.schemas.user import UserTier
 from flashcard.utils.time import now_utc, iso_z
+from tests.helpers import make_user, TEST_LANGUAGE
 
 
 def _today() -> str:
@@ -15,27 +16,28 @@ def _make_service():
     # update_one is often awaited
     mock_cols["users"].update_one = AsyncMock()
     consumption_service = ConsumptionService(users=mock_cols["users"])
-    return UserService(users=mock_cols["users"], consumption_service=consumption_service), mock_cols
+    return UserService(users=mock_cols["users"], consumption_service=consumption_service,
+                       defaults=TEST_LANGUAGE.user_defaults), mock_cols
 
 class TestUserServiceQuota:
 
     def test_get_effective_limits_admin(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.admin)
+        user = make_user(user_id="1", tier=UserTier.admin)
         limits = service._get_effective_limits(user)
         assert limits["cards"] == 999
         assert limits["stories"] == 99
 
     def test_get_effective_limits_plus(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.plus)
+        user = make_user(user_id="1", tier=UserTier.plus)
         limits = service._get_effective_limits(user)
         assert limits["cards"] == 50
         assert limits["stories"] == 10
 
     def test_get_effective_limits_digi(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.digi)
+        user = make_user(user_id="1", tier=UserTier.digi)
         limits = service._get_effective_limits(user)
         assert limits["cards"] == 40
         assert limits["stories"] == 3
@@ -43,7 +45,7 @@ class TestUserServiceQuota:
     def test_get_effective_limits_normal_trial_new_user(self):
         """User has no created_at (hasn't saved anything yet) -> should get plus limits."""
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.normal, created_at=None)
+        user = make_user(user_id="1", tier=UserTier.normal, created_at=None)
         limits = service._get_effective_limits(user)
         assert limits["cards"] == 50
         assert limits["stories"] == 10
@@ -52,7 +54,7 @@ class TestUserServiceQuota:
         service, _ = _make_service()
         # Created 5 days ago (within 14 days)
         created_at = iso_z(now_utc() - timedelta(days=5))
-        user = UserDB(user_id="1", tier=UserTier.normal, created_at=created_at)
+        user = make_user(user_id="1", tier=UserTier.normal, created_at=created_at)
         limits = service._get_effective_limits(user)
         # Should get 'plus' limits
         assert limits["cards"] == 50
@@ -62,7 +64,7 @@ class TestUserServiceQuota:
         service, _ = _make_service()
         # Created 20 days ago (past 14 days)
         created_at = iso_z(now_utc() - timedelta(days=20))
-        user = UserDB(user_id="1", tier=UserTier.normal, created_at=created_at)
+        user = make_user(user_id="1", tier=UserTier.normal, created_at=created_at)
         limits = service._get_effective_limits(user)
         # Should get 'normal' limits (2 cards, as updated by user)
         assert limits["cards"] == 10
@@ -74,34 +76,34 @@ class TestUserServiceQuota:
     ])
     def test_public_limits_match_tier(self, tier, cards, stories):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=tier)
+        user = make_user(user_id="1", tier=tier)
         assert service.card_limit(user) == cards
         assert service.story_limit(user) == stories
 
     def test_public_limits_follow_trial_expiry(self):
         service, _ = _make_service()
-        expired = UserDB(user_id="1", tier=UserTier.normal,
+        expired = make_user(user_id="1", tier=UserTier.normal,
                          created_at=iso_z(now_utc() - timedelta(days=20)))
         assert service.card_limit(expired) == 10
         assert service.story_limit(expired) == 2
 
     def test_can_generate_card_admin_always_true(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.admin)
+        user = make_user(user_id="1", tier=UserTier.admin)
         # Even if consumption is huge
         user.consumption.system_api.cards_generated = 9999
         assert service.can_generate_card(user) is True
 
     def test_can_generate_card_own_key_always_true(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.normal)
+        user = make_user(user_id="1", tier=UserTier.normal)
         user.consumption.system_api.cards_generated = 9999
         # Uses own key -> unlimited
         assert service.can_generate_card(user, uses_own_key=True) is True
 
     def test_can_generate_card_enforces_limit(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.plus)
+        user = make_user(user_id="1", tier=UserTier.plus)
         user.consumption.consumption_date = _today()
         
         # Below limit (49 < 50)
@@ -114,7 +116,7 @@ class TestUserServiceQuota:
 
     def test_can_generate_story_enforces_limit(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.digi)
+        user = make_user(user_id="1", tier=UserTier.digi)
         user.consumption.consumption_date = _today()
         
         # Below limit (2 < 3)
@@ -127,7 +129,7 @@ class TestUserServiceQuota:
 
     def test_can_generate_card_new_day_reset(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.plus)
+        user = make_user(user_id="1", tier=UserTier.plus)
         
         # At limit (50) but from yesterday
         user.consumption.system_api.cards_generated = 50
@@ -138,7 +140,7 @@ class TestUserServiceQuota:
 
     def test_can_generate_story_new_day_reset(self):
         service, _ = _make_service()
-        user = UserDB(user_id="1", tier=UserTier.digi)
+        user = make_user(user_id="1", tier=UserTier.digi)
         
         # At limit (3) but from yesterday
         user.consumption.system_api.stories_generated = 3

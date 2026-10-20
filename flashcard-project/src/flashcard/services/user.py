@@ -44,7 +44,8 @@ class UserService:
         self,
         users,
         consumption_service: ConsumptionService | None = None,
-        defaults: UserDefaults | None = None,
+        *,
+        defaults: UserDefaults,
     ):
         """
         `users`: the users collection (profile, settings and onboarding fields).
@@ -52,7 +53,7 @@ class UserService:
         """
         self.users = users
         self.consumption_service = consumption_service
-        self.defaults = defaults.as_fields() if defaults else {}
+        self.defaults = defaults.as_fields()
 
     def _to_user(self, doc: dict) -> UserDB:
         """Missing settings fall back to this instance's defaults; stored values win."""

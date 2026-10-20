@@ -8,6 +8,7 @@ import pytest
 from flashcard.app.review_schedule import PauseComparison, awaiting_answer, compare_pause, interval_elapsed, paused
 from flashcard.schemas.user import UserDB
 from flashcard.utils.time import iso_z, now_utc
+from tests.helpers import make_user
 
 NOW = now_utc()
 SENT = iso_z(NOW - timedelta(hours=2))
@@ -20,7 +21,7 @@ def _ago(**delta) -> str:
 def _user(*, has_pending=False, sent_at=None, last_seen_at=None, **fields) -> UserDB:
     review = None if sent_at is None else {
         "expression_id": "e1", "direction": "forward", "message_id": 1, "sent_at": sent_at}
-    return UserDB(user_id="42", has_pending=has_pending, current_review=review, last_seen_at=last_seen_at, **fields)
+    return make_user(user_id="42", has_pending=has_pending, current_review=review, last_seen_at=last_seen_at, **fields)
 
 
 class TestIntervalElapsed:

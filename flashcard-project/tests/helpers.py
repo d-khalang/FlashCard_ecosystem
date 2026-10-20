@@ -37,3 +37,10 @@ TEST_LANGUAGE = LanguageConfig(
     conjugation=True,
     user_defaults=UserDefaults(primary_language="en", secondary_language=None, target_level="A2"),
 )
+
+
+def make_user(**fields):
+    """A UserDB with the test instance's default settings; `fields` override them."""
+    from flashcard.schemas.user import UserDB
+
+    return UserDB(**{**TEST_LANGUAGE.user_defaults.as_fields(), **fields})

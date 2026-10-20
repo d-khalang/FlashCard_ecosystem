@@ -9,7 +9,7 @@ from flashcard.app.review import (
     CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
 )
 from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE
-from tests.helpers import TEST_LANGUAGE
+from tests.helpers import TEST_LANGUAGE, make_user
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 
 
@@ -20,7 +20,7 @@ def _user(**overrides) -> UserDB:
     fields = {"user_id": "111", "primary_language": "en", "secondary_language": None,
               "target_level": "B1", "tier": UserTier.normal}
     fields.update(overrides)
-    return UserDB(**fields)
+    return make_user(**fields)
 
 
 def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):

@@ -82,11 +82,12 @@ def _parse_time(value) -> Optional[datetime]:
 
 async def _main(apply: bool) -> None:
     from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
+    from flashcard.language import LanguageConfig
     from flashcard.settings import settings
 
     client, _, cols = await init_and_get_mongo(settings)
     try:
-        report = await backfill_created_at(cols, UserService(users=cols["users"]), apply=apply)
+        report = await backfill_created_at(cols, UserService(users=cols["users"], defaults=LanguageConfig.from_settings(settings).user_defaults), apply=apply)
     finally:
         await close_mongo_on_client(client)
     print(f"{'APPLIED' if apply else 'DRY RUN (nothing written)'} on database '{settings.MONGO_DB}'")

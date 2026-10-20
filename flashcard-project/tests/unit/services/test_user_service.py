@@ -10,6 +10,7 @@ import pytest
 
 from flashcard.services.user import UserService
 from flashcard.schemas.user import UserDB
+from tests.helpers import TEST_LANGUAGE
 
 
 # ---------------------------------------------------------------------------
@@ -20,7 +21,7 @@ def _make_service(user_doc=None):
     mock_cols = {"users": MagicMock()}
     mock_cols["users"].find_one = AsyncMock(return_value=user_doc)
     mock_cols["users"].update_one = AsyncMock()
-    return UserService(users=mock_cols["users"]), mock_cols
+    return UserService(users=mock_cols["users"], defaults=TEST_LANGUAGE.user_defaults), mock_cols
 
 
 # ===================================================================

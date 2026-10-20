@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from flashcard.schemas.expression import ExpressionCard, ExpressionDB, ExpressionStats
 from flashcard.schemas.story import StoryParagraph
 from flashcard.schemas.user import UserDB, UserConsumption, LLMUsage
+from tests.helpers import make_user
 from flashcard.schemas.languages import (
     normalize_language_input,
     get_language_flag,
@@ -147,24 +148,29 @@ class TestExpressionDB:
 # ===================================================================
 class TestUserDB:
 
+    def test_language_settings_have_no_schema_defaults(self):
+        # They come only from the instance's LanguageConfig, via UserService.
+        with pytest.raises(ValidationError) as error:
+            UserDB(user_id="123")
+        missing = {e["loc"][0] for e in error.value.errors() if e["type"] == "missing"}
+        assert missing == {"primary_language", "secondary_language", "target_level"}
+
     def test_defaults(self):
-        user = UserDB(user_id="123")
+        user = make_user(user_id="123")
         assert user.is_active is True
-        assert user.primary_language == "en"
-        assert user.target_level == "A2"
         assert user.review_mode == "standard"
         assert user.review_interval_minutes == 30
         assert user.api_config is None
         assert user.onboarding_step == 0
 
     def test_consumption_defaults(self):
-        user = UserDB(user_id="123")
+        user = make_user(user_id="123")
         assert isinstance(user.consumption, UserConsumption)
         assert user.consumption.system_api.cards_generated == 0
         assert user.consumption.verb_lookups == 0
 
     def test_model_dump_shape(self):
-        user = UserDB(user_id="123")
+        user = make_user(user_id="123")
         dump = user.model_dump()
         assert "user_id" in dump
         assert "consumption" in dump

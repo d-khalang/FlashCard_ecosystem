@@ -21,6 +21,7 @@ from flashcard.telegram.keyboards import (
 )
 from flashcard.telegram.states.settings import SettingsPrompts
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
+from tests.helpers import make_user, TEST_LANGUAGE
 
 
 USER_ID = 777
@@ -29,14 +30,14 @@ USER_ID = 777
 def _user(**overrides) -> UserDB:
     fields = {"user_id": str(USER_ID)}
     fields.update(overrides)
-    return UserDB(**fields)
+    return make_user(**fields)
 
 
 def _deps(user=None, *, state_name=None):
     # A real UserService on the in-memory Mongo fake, so its setters' rules apply.
     doc = (user or _user()).model_dump()
     cols = make_cols(users=[doc])
-    user_service = UserService(users=cols["users"])
+    user_service = UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults)
 
     state = MagicMock()
     state.get_state = AsyncMock(return_value=state_name)

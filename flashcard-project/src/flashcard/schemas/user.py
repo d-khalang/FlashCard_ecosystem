@@ -61,17 +61,18 @@ class UserDB(BaseModel):
     current_review: Optional[CurrentReview] = Field(None, description="Ungraded delivered card, if any")
     is_active: bool = Field(True, description="If user is active for scheduler")
     
-    # Settings. UserService fills missing ones from the instance's LanguageConfig.
+    # Settings. No defaults here: UserService fills missing ones from the instance's
+    # LanguageConfig, so the config is their only source.
     primary_language: LanguageCode = Field(
-        "en",
+        ...,
         description="Primary translation language (e.g. 'en', 'fa')",
     )
     secondary_language: Optional[LanguageCode] = Field(
-        None,
+        ...,
         description="Secondary translation language",
     )
     target_level: LanguageLevel = Field(
-        "A2",
+        ...,
         description="Target CEFR level (A1-C2)",
     )
     review_mode: ReviewMode = Field("standard", description="Review mode: standard or dual")

@@ -10,7 +10,8 @@ from flashcard.app.story import (
     LONG_STORY, MAX_STORY_WORDS, SHORT_STORY, EmptyStory, NoWords, Story, StoryUseCases,
 )
 from flashcard.schemas.story import StoryParagraph, StoryResponse
-from flashcard.schemas.user import UserDB, UserTier
+from flashcard.schemas.user import UserTier
+from tests.helpers import make_user
 
 STORY = StoryResponse(paragraphs=[StoryParagraph(learning_text="Ciao.", translation="Hi.")])
 
@@ -20,7 +21,7 @@ def _use_cases(words=("andare", "fare"), *, can_generate=True, story=STORY, user
     expressions.get_all_expressions = AsyncMock(return_value=list(words))
 
     users = MagicMock()
-    users.get_user = AsyncMock(return_value=user or UserDB(
+    users.get_user = AsyncMock(return_value=user or make_user(
         user_id="888", tier=UserTier.normal, primary_language="de", target_level="A2"))
     users.can_generate_story = MagicMock(return_value=can_generate)
     users.story_limit = MagicMock(return_value=3)

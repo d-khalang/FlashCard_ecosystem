@@ -227,8 +227,9 @@ Mini App consequence: its authority DB, language exchange and second build go aw
 - [x] `LanguageConfig` (`flashcard/language.py`: code, name, flag, UI locale, validator,
   conjugation, user defaults) built once per startup path and passed through
   `build_bot_dispatcher`, `build_services`, dispatcher data (`language`) and `scheduler_loop`.
-  `UserService` fills missing user settings from it (stored values win); `ReviewUseCases`
-  gets the same defaults; the `schemas/defaults.py` constants are gone.
+  `UserService` (`defaults` required) fills missing user settings from it (stored values
+  win); `UserDB` has no defaults for them, so the config is their only source.
+  `ReviewUseCases` gets the same defaults; the `schemas/defaults.py` constants are gone.
   Guard: `tests/unit/test_language_config.py`. Exception: the `i18n` singleton still reads
   `UI_LOCALE` / `LEARNING_LANGUAGE_NAME` (#7).
   Custom validators now receive the `LanguageConfig`, not `Settings`. `VerbService` lost

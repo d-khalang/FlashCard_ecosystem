@@ -12,6 +12,7 @@ from flashcard.app.quota import QuotaExceeded
 from flashcard.schemas.expression import ExpressionCard, TranslationLine
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.language_validation import LanguageValidationResult
+from tests.helpers import make_user
 
 
 def _card(success=True) -> ExpressionCard:
@@ -26,7 +27,7 @@ def _user(**overrides) -> UserDB:
     fields = {"user_id": "222", "primary_language": "en", "secondary_language": None,
               "target_level": "B1", "tier": UserTier.normal}
     fields.update(overrides)
-    return UserDB(**fields)
+    return make_user(**fields)
 
 
 def _use_cases(*, card=None, user=None, can_generate=True, card_limit=10, validation=None, saved=True):

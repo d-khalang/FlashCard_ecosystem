@@ -7,9 +7,8 @@ from aiogram.types import Message
 
 from flashcard.app.creation import CreationUseCases
 from flashcard.telegram.handlers.creation import handle_text_message
-from flashcard.schemas.user import UserDB
 from flashcard.services.language_validation import LanguageValidationResult
-from tests.helpers import TEST_LANGUAGE
+from tests.helpers import TEST_LANGUAGE, make_user
 
 @pytest.mark.asyncio
 async def test_handle_text_message_too_long():
@@ -50,7 +49,7 @@ async def test_handle_text_message_invalid_language_skips_generation():
 
     llm_service = MagicMock()
     user_service = MagicMock()
-    user_service.get_user = AsyncMock(return_value=UserDB(user_id="123"))
+    user_service.get_user = AsyncMock(return_value=make_user(user_id="123"))
     user_service.can_generate_card.return_value = True
     consumption_service = MagicMock()
     language_validator = MagicMock()

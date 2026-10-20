@@ -7,6 +7,7 @@ from flashcard.migrations.backfill_created_at import BackfillReport, backfill_cr
 from flashcard.services.user import UserService
 from flashcard.utils.time import iso_z, now_utc
 from tests.integration.helpers import make_cols
+from tests.helpers import TEST_LANGUAGE
 
 
 def _ago(days):
@@ -22,7 +23,7 @@ def _word(created_at, user_id="42"):
 
 
 async def _run(cols, *, apply=True):
-    return await backfill_created_at(cols, UserService(users=cols["users"]), apply=apply)
+    return await backfill_created_at(cols, UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults), apply=apply)
 
 
 def _created(cols, user_id="42"):
@@ -146,5 +147,5 @@ class TestBackfillCreatedAtWrite:
     async def test_never_overwrites(self):
         cols = _cols([{"user_id": "42", "created_at": "2026-01-01T00:00:00Z"}])
 
-        assert await UserService(users=cols["users"]).backfill_created_at(42, "2025-01-01T00:00:00Z") is False
+        assert await UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults).backfill_created_at(42, "2025-01-01T00:00:00Z") is False
         assert _created(cols) == "2026-01-01T00:00:00Z"
