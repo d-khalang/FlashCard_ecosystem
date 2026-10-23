@@ -2,6 +2,7 @@
 
 import copy
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ from aiogram.methods import (
 )
 from aiogram.types import CallbackQuery, Chat, InlineQuery, Message, Update, User
 from bson import ObjectId
+from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.import_model import ImportResponse
@@ -147,9 +149,46 @@ class AsyncCursorMock:
         return item
 
 
+def _collation_fold(value: Any) -> Any:
+    """Stand-in for MongoDB's `en` strength-2 collation (case-insensitive, accent-sensitive).
+    NFKC + lower matches it on the pairs checked against MongoDB 7 (ß != ss, NFC == NFD,
+    ligatures); it is an approximation, so real-Mongo checks stay the reference."""
+    return unicodedata.normalize("NFKC", value).lower() if isinstance(value, str) else value
+
+
 class InMemoryCollection:
     def __init__(self, docs: list[dict[str, Any]] | None = None):
         self.docs = [_deepcopy_doc(doc) for doc in (docs or [])]
+        # Unique indexes as (fields, case_insensitive); collation strength 2 ignores case.
+        self.unique_indexes: list[tuple[tuple[str, ...], bool]] = []
+
+    async def create_index(self, keys, *, unique: bool = False, collation=None, name: str | None = None) -> str:
+        fields = tuple(field for field, _ in keys)
+        if unique:
+            document = collation.document if collation is not None else {}
+            index = (fields, document.get("strength") in (1, 2))
+            if index in self.unique_indexes:
+                return name or "_".join(fields)  # create_index is idempotent
+            seen = set()
+            for doc in self.docs:
+                key = self._index_key(doc, index)
+                if key in seen:
+                    raise DuplicateKeyError(f"E11000 duplicate key error building index {name}")
+                seen.add(key)
+            self.unique_indexes.append(index)
+        return name or "_".join(fields)
+
+    @staticmethod
+    def _index_key(doc: dict[str, Any], index: tuple[tuple[str, ...], bool]) -> tuple:
+        fields, case_insensitive = index
+        values = tuple(_get_nested(doc, field) for field in fields)
+        return tuple(_collation_fold(v) if case_insensitive else v for v in values)
+
+    def _check_unique(self, doc: dict[str, Any]) -> None:
+        for index in self.unique_indexes:
+            key = self._index_key(doc, index)
+            if any(self._index_key(other, index) == key for other in self.docs):
+                raise DuplicateKeyError("E11000 duplicate key error")
 
     async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None) -> dict[str, Any] | None:
         for doc in self.docs:
@@ -182,15 +221,46 @@ class InMemoryCollection:
     async def insert_one(self, doc: dict[str, Any]) -> SimpleNamespace:
         stored = _deepcopy_doc(doc)
         stored.setdefault("_id", ObjectId())
+        self._check_unique(stored)
         self.docs.append(stored)
         return SimpleNamespace(inserted_id=stored["_id"])
 
-    async def insert_many(self, docs: list[dict[str, Any]]) -> SimpleNamespace:
-        ids = []
-        for doc in docs:
-            result = await self.insert_one(doc)
+    async def insert_many(self, docs: list[dict[str, Any]], ordered: bool = True) -> SimpleNamespace:
+        ids, write_errors = [], []
+        for index, doc in enumerate(docs):
+            try:
+                result = await self.insert_one(doc)
+            except DuplicateKeyError:
+                write_errors.append({"index": index, "code": 11000})
+                if ordered:
+                    break
+                continue
             ids.append(result.inserted_id)
+        if write_errors:
+            raise BulkWriteError({"writeErrors": write_errors, "nInserted": len(ids)})
         return SimpleNamespace(inserted_ids=ids)
+
+    async def aggregate(self, pipeline: list[dict[str, Any]], collation=None) -> AsyncCursorMock:
+        """Only a single `$group` by fields, pushing `$$ROOT`, honoring a strength-2 collation."""
+        (stage,) = pipeline
+        spec = stage["$group"]
+        (out_field, push) = [(k, v) for k, v in spec.items() if k != "_id"][0]
+        assert push == {"$push": "$$ROOT"}, push
+        fields = {name: path.lstrip("$") for name, path in spec["_id"].items()}
+        fold = collation is not None and collation.document.get("strength") in (1, 2)
+        groups: dict[tuple, dict[str, Any]] = {}
+        for doc in self.docs:
+            values = {name: _get_nested(doc, path) for name, path in fields.items()}
+            key = tuple(_collation_fold(v) if fold else v for v in values.values())
+            group = groups.setdefault(key, {"_id": values, out_field: []})
+            group[out_field].append(_deepcopy_doc(doc))
+        return AsyncCursorMock(list(groups.values()))
+
+    async def delete_many(self, query: dict[str, Any]) -> SimpleNamespace:
+        kept = [doc for doc in self.docs if not _matches(doc, query)]
+        deleted = len(self.docs) - len(kept)
+        self.docs = kept
+        return SimpleNamespace(deleted_count=deleted)
 
     async def update_one(self, query: dict[str, Any], update: dict[str, Any], upsert: bool = False) -> SimpleNamespace:
         for doc in self.docs:

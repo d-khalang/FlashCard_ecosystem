@@ -10,8 +10,17 @@ from flashcard.services.algorithm.grading import calculate_new_stats
 from flashcard.utils.logger import get_logger
 from flashcard.utils.tracing import observe
 from bson import ObjectId
+from pymongo.collation import Collation, CollationStrength
+from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 logger = get_logger(__name__)
+
+# One card per user and value, ignoring case but not accents: "Ciao" == "ciao",
+# "perché" != "perche". The database enforces it once the dedupe migration
+# (flashcard.migrations.dedupe_expressions) has built the index.
+UNIQUE_VALUE_INDEX = "user_value_unique_ci"
+VALUE_COLLATION = Collation(locale="en", strength=CollationStrength.SECONDARY)
+DUPLICATE_KEY = 11000
 
 # Every read and remove uses this one definition of an active card. Documents saved
 # before `status` existed have none and count as active; nothing sets another status yet.
@@ -57,12 +66,13 @@ class ExpressionService:
         """
         Adds a new expression if it doesn't already exist.
         1. Check for duplicates (case-insensitive)
-        2. If not exists, insert the new expression document.
-        
+        2. If not exists, insert the new expression document; the unique index
+           rejects a concurrent save of the same value.
+
         Returns:
             bool: True if inserted, False if duplicate
         """
-        # 1. Check for duplicates
+        # 1. Check for duplicates. Only needed until the unique index exists (contract step).
         # Escaping regex to prevent issues with special characters in 'value'
         escaped_value = re.escape(value)
         existing = await self.expressions.find_one({
@@ -81,7 +91,11 @@ class ExpressionService:
             created_at=current_iso
         )
 
-        await self.expressions.insert_one(new_expression.model_dump())
+        try:
+            await self.expressions.insert_one(new_expression.model_dump())
+        except DuplicateKeyError:
+            # A concurrent save of the same value (double tap, retry) won the race.
+            return False
         logger.info(f"Inserted new expression for user {user_id}: {value}")
         return True
 
@@ -93,11 +107,15 @@ class ExpressionService:
         if not expressions:
             return []
 
-        # 1. Normalize input: remove duplicates within the user input inside logic if needed,        
-        # We need case-insensitive check. 
-        unique_inputs = list(set(expressions))
+        # 1. Drop repeats within the input, case-insensitively; the first spelling wins.
+        seen, unique_inputs = set(), []
+        for value in expressions:
+            if value.lower() not in seen:
+                seen.add(value.lower())
+                unique_inputs.append(value)
+        # Skip values already saved. Only needed until the unique index exists (contract step).
         regex_list = [re.compile(f"^{re.escape(v)}$", re.I) for v in unique_inputs]
-        
+
         existing_cursor = self.expressions.find({
             "user_id": str(user_id),
             "value": {"$in": regex_list}
@@ -127,12 +145,34 @@ class ExpressionService:
         if not to_insert:
             return []
             
-        # 3. Bulk Insert
-        await self.expressions.insert_many(to_insert)
-        
+        # 3. Bulk Insert. Unordered, so a value the unique index rejects (saved
+        # concurrently) does not stop the rest.
+        try:
+            await self.expressions.insert_many(to_insert, ordered=False)
+        except BulkWriteError as error:
+            write_errors = error.details.get("writeErrors", [])
+            if any(e.get("code") != DUPLICATE_KEY for e in write_errors):
+                raise
+            rejected = {e["index"] for e in write_errors}
+            new_items = [value for i, value in enumerate(new_items) if i not in rejected]
+
         logger.info(f"Bulk inserted {len(new_items)} expressions for user {user_id}")
         return new_items
 
+
+    async def ensure_unique_value_index(self) -> None:
+        """Build the unique (user_id, value) index. Fails while duplicates exist."""
+        await self.expressions.create_index(
+            [("user_id", 1), ("value", 1)],
+            name=UNIQUE_VALUE_INDEX,
+            unique=True,
+            collation=VALUE_COLLATION,
+        )
+
+    async def remove_duplicates(self, expression_ids: list) -> int:
+        """Migration only (dedupe_expressions): delete these cards. Returns how many."""
+        result = await self.expressions.delete_many({"_id": {"$in": expression_ids}})
+        return result.deleted_count
 
     async def get_all_expressions(self, user_id: Union[str, int]) -> list[str]:
         """

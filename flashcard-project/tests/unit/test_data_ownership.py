@@ -20,7 +20,8 @@ from tests.helpers import TEST_LANGUAGE
 SRC = Path(flashcard.__file__).parent
 # Composition root, DB setup, and one-off migrations (removed after the rollout).
 MAY_INDEX_COLS = {"telegram/bot.py", "db/mongo.py",
-                  "migrations/backfill_created_at.py", "migrations/backfill_current_review.py"}
+                  "migrations/backfill_created_at.py", "migrations/backfill_current_review.py",
+                  "migrations/dedupe_expressions.py"}
 
 
 def _modules():
