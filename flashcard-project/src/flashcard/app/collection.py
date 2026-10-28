@@ -7,10 +7,9 @@ and turn results into messages.
 from dataclasses import dataclass
 from typing import Literal, Optional, Union, get_args
 
-from flashcard.app.quota import QuotaExceeded
+from flashcard.app.quota import QuotaExceeded, QuotaPolicy
 from flashcard.app.shadow import shadow_write
 from flashcard.app.types import UserId
-from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.language_validation import LanguageValidityChecker
 from flashcard.services.llm.llm import LLMService
@@ -110,14 +109,14 @@ class CollectionUseCases:
         self,
         expression_service: ExpressionService,
         user_service: UserService,
-        consumption_service: ConsumptionService,
+        quota: QuotaPolicy,
         llm_service: LLMService,
         review_state: ReviewStateStore,
         language_validator: Optional[LanguageValidityChecker] = None,
     ):
         self.expressions = expression_service
         self.users = user_service
-        self.consumption = consumption_service
+        self.quota = quota
         self.llm = llm_service
         self.review_state = review_state
         self.validator = language_validator
@@ -130,14 +129,14 @@ class CollectionUseCases:
         if len(text) > MAX_IMPORT_CHARS:
             return TooLong(limit=MAX_IMPORT_CHARS)
 
-        # One import costs one card generation; the length limit bounds its size.
+        # An import that saves something costs one card generation; the length
+        # limit bounds its size. Imports that save nothing are free.
         user = await self.users.get_user(user_id)
-        uses_own_key = user.api_config is not None
-        if not self.users.can_generate_card(user, uses_own_key=uses_own_key):
-            return QuotaExceeded(tier=user.tier.value, limit=self.users.card_limit(user))
+        quota = self.quota.check(user, "cards")
+        if isinstance(quota, QuotaExceeded):
+            return quota
 
         parsed = await self.llm.parse_import_list(text)
-        await self.consumption.increment(user_id, "cards_generated", uses_own_key=uses_own_key)
         if not parsed.success:
             return ParseFailed(log=parsed.log)
         if not parsed.import_list:
@@ -155,6 +154,7 @@ class CollectionUseCases:
         inserted = await self.expressions.add_expressions_bulk(user_id, items)
         if not inserted:
             return AllDuplicates()
+        await self.quota.record(user_id, "cards", quota)
         # An active user should not be left without scheduled reviews.
         await self.review_state.clear_pending(user_id)
         return Imported(items=list(inserted))

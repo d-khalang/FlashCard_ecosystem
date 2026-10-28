@@ -1,6 +1,6 @@
 """
 The latest delivered card is stored on its expression and sent, free of quota,
-when card generation fails.
+when card generation fails or the user is over quota.
 """
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import pytest
 
 from flashcard.schemas.expression import ExpressionCard, StoredCard
 from flashcard.services.i18n import i18n
+from flashcard.utils.time import now_utc
 
 from .helpers import make_message_update
 
@@ -43,6 +44,12 @@ async def _cards_generated(env) -> int:
     user = await env["cols"]["users"].find_one({"user_id": USER_ID})
     return sum(bucket.get("cards_generated", 0) for bucket in user.get("consumption", {}).values()
                if isinstance(bucket, dict))
+
+
+async def _use_up_quota(env):
+    """More cards today than any tier allows."""
+    await env["cols"]["users"].update_one({"user_id": USER_ID}, {"$set": {"consumption": {
+        "consumption_date": now_utc().date().isoformat(), "system_api": {"cards_generated": 999}}}})
 
 
 def _fail_generation(env, failure):
@@ -92,6 +99,27 @@ class TestStoredCard:
 
         last = _sent_texts(dispatcher_env)[-1]
         assert last.startswith(f"<i>{i18n.get('messages.saved_card_older_settings')}</i>\n")
+
+    async def test_over_quota_sends_the_stored_card_without_generating(self, dispatcher_env):
+        expression_id = await _setup(dispatcher_env)
+        await _feed(dispatcher_env, make_message_update(text="/get"))
+        await _use_up_quota(dispatcher_env)
+        dispatcher_env["llm_service"].raise_card_error = True  # would fail the test if called
+
+        await _get_again(dispatcher_env, expression_id)
+
+        last = _sent_texts(dispatcher_env)[-1]
+        assert last.startswith(f"<i>{i18n.get('messages.saved_card')}</i>\n")
+        assert await _cards_generated(dispatcher_env) == 999
+
+    async def test_over_quota_without_a_stored_card_reports_the_limit(self, dispatcher_env):
+        await _setup(dispatcher_env)
+        await _use_up_quota(dispatcher_env)
+
+        await _feed(dispatcher_env, make_message_update(text="/get"))
+
+        assert "daily limit" in _sent_texts(dispatcher_env)[-1]
+        assert await _cards_generated(dispatcher_env) == 999
 
     @pytest.mark.parametrize("failure", ["provider_error", "unclear_card"])
     async def test_without_a_stored_card_nothing_is_sent_or_counted(self, dispatcher_env, failure):

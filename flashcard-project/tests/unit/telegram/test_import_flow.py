@@ -15,7 +15,8 @@ from flashcard.schemas.user import UserTier
 from flashcard.services.i18n import i18n
 from flashcard.services.language_validation import LanguageValidationResult
 from flashcard.telegram.handlers import collection
-from tests.helpers import make_user
+from flashcard.app.quota import QuotaExceeded
+from tests.helpers import make_quota, make_user
 
 
 USER_ID = 333
@@ -24,11 +25,10 @@ USER_ID = 333
 def _deps(*, parsed=None, inserted=None, validation=None, can_generate=True):
     user_service = MagicMock()
     user_service.get_user = AsyncMock(return_value=make_user(user_id=str(USER_ID), tier=UserTier.normal))
-    user_service.can_generate_card = MagicMock(return_value=can_generate)
-    user_service.card_limit = MagicMock(return_value=10)
 
     consumption_service = MagicMock()
     consumption_service.increment = AsyncMock()
+    quota = make_quota(consumption_service, None if can_generate else QuotaExceeded(tier="normal", limit=10))
 
     llm_service = MagicMock()
     llm_service.parse_import_list = AsyncMock(
@@ -46,12 +46,12 @@ def _deps(*, parsed=None, inserted=None, validation=None, can_generate=True):
         validator.validate_import_items = AsyncMock(return_value=validation)
 
     return SimpleNamespace(llm_service=llm_service, expression_service=expression_service, validator=validator,
-                           user_service=user_service, consumption_service=consumption_service)
+                           user_service=user_service, consumption_service=consumption_service, quota=quota)
 
 
 def _use_cases(d) -> CollectionUseCases:
     return CollectionUseCases(review_state=AsyncMock(), expression_service=d.expression_service, user_service=d.user_service,
-                              consumption_service=d.consumption_service, llm_service=d.llm_service,
+                              quota=d.quota, llm_service=d.llm_service,
                               language_validator=d.validator)
 
 

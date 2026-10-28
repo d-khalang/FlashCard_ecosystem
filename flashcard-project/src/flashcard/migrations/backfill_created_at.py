@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 
-from flashcard.services.user import TRIAL_DAYS, UserService
+from flashcard.app.quota import TRIAL_DAYS
+from flashcard.services.user import UserService
 from flashcard.utils.time import UTC, iso_z, now_utc, parse_iso
 
 

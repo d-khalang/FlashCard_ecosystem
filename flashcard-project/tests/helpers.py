@@ -25,6 +25,8 @@ class AsyncCursorMock:
             raise StopAsyncIteration
 
 
+from types import SimpleNamespace
+
 from flashcard.language import LanguageConfig, UserDefaults
 
 # The instance language used by tests: the shipped Italian defaults.
@@ -44,3 +46,29 @@ def make_user(**fields):
     from flashcard.schemas.user import UserDB
 
     return UserDB(**{**TEST_LANGUAGE.user_defaults.as_fields(), **fields})
+
+
+# Fixed tier limits for tests, independent of .env.
+TEST_LIMITS = SimpleNamespace(
+    TIER_LIMITS_NORMAL_CARDS=10, TIER_LIMITS_NORMAL_STORIES=2,
+    TIER_LIMITS_DIGI_CARDS=40, TIER_LIMITS_DIGI_STORIES=3,
+    TIER_LIMITS_PLUS_CARDS=50, TIER_LIMITS_PLUS_STORIES=10,
+    TIER_LIMITS_ADMIN_CARDS=999, TIER_LIMITS_ADMIN_STORIES=99,
+)
+
+
+def make_quota(consumption, exceeded=None):
+    """
+    A real QuotaPolicy that counts through `consumption` (a mock with an
+    `increment` AsyncMock). `check` is a spy; `exceeded` (a QuotaExceeded)
+    makes every check return it.
+    """
+    from unittest.mock import MagicMock
+
+    from flashcard.app.quota import QuotaPolicy
+    from flashcard.services.consumption import ConsumptionService
+
+    consumption.resolve_consumption = ConsumptionService(users=None).resolve_consumption
+    quota = QuotaPolicy(consumption, TEST_LIMITS)
+    quota.check = MagicMock(wraps=quota.check) if exceeded is None else MagicMock(return_value=exceeded)
+    return quota

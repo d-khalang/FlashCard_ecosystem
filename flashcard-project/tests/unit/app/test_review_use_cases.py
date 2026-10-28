@@ -11,7 +11,8 @@ from flashcard.app.review import (
 from flashcard.schemas.expression import (
     MAX_GRADE, MIN_GRADE, CardSettings, ExpressionCard, StoredCard, TranslationLine,
 )
-from tests.helpers import TEST_LANGUAGE, make_user
+from flashcard.app.quota import Allowed
+from tests.helpers import TEST_LANGUAGE, make_quota, make_user
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 
 
@@ -29,7 +30,7 @@ def _user(**overrides) -> UserDB:
     return make_user(**fields)
 
 
-def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
+def _use_cases(*, candidate=None, user=None, exceeded=None):
     expressions = MagicMock()
     expressions.get_review_candidate = AsyncMock(return_value=candidate)
     expressions.update_expression_sent = AsyncMock()
@@ -37,8 +38,6 @@ def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
 
     users = MagicMock()
     users.get_user = AsyncMock(return_value=user or _user())
-    users.can_generate_card = MagicMock(return_value=can_generate)
-    users.card_limit = MagicMock(return_value=card_limit)
     users.advance_onboarding = AsyncMock(return_value=True)
 
     consumption = MagicMock()
@@ -48,7 +47,7 @@ def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
     llm.generate_expression_card = AsyncMock(return_value=CARD)
 
     use_cases = ReviewUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
-                               consumption_service=consumption, llm_service=llm,
+                               quota=make_quota(consumption, exceeded), llm_service=llm,
                                user_defaults=TEST_LANGUAGE.user_defaults)
     return use_cases, expressions, users, consumption, llm
 
@@ -75,11 +74,10 @@ class TestPrepareNext:
 
     async def test_quota_exceeded_reports_tier_and_card_limit(self):
         user = _user(tier=UserTier.digi)
-        use_cases, _, users, _, llm = _use_cases(candidate=_candidate(), user=user,
-                                                 can_generate=False, card_limit=40)
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate(), user=user,
+                                             exceeded=QuotaExceeded(tier="digi", limit=40))
 
         assert await use_cases.prepare_next(111) == QuotaExceeded(tier="digi", limit=40)
-        users.card_limit.assert_called_once_with(user)
         llm.generate_expression_card.assert_not_awaited()
 
     async def test_ready_carries_everything_the_caller_needs(self):
@@ -87,7 +85,7 @@ class TestPrepareNext:
 
         assert await use_cases.prepare_next(111) == ReviewReady(
             expression_id=EXPRESSION_ID, value="andare", direction="reverse",
-            card=CARD, uses_own_key=False, settings=SETTINGS)
+            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False))
 
     async def test_missing_direction_defaults_to_forward(self):
         use_cases, *_ = _use_cases(candidate={"doc": {"_id": EXPRESSION_ID, "value": "andare"}})
@@ -116,11 +114,10 @@ class TestPrepareNext:
 
     async def test_own_api_key_is_reported_and_used_for_quota(self):
         user = _user(api_config=UserAPIConfig(api_key="test"))
-        use_cases, _, users, _, _ = _use_cases(candidate=_candidate(), user=user)
+        use_cases, *_ = _use_cases(candidate=_candidate(), user=user)
 
         result = await use_cases.prepare_next(111)
-        assert result.uses_own_key is True
-        users.can_generate_card.assert_called_once_with(user, uses_own_key=True)
+        assert result.quota == Allowed(uses_own_key=True)
 
     async def test_generation_uses_user_preferences(self):
         user = _user(primary_language="fa", secondary_language="en", target_level="A2")
@@ -163,7 +160,7 @@ class TestMarkSent:
     async def test_records_message_push_and_usage(self, uses_own_key):
         use_cases, expressions, users, consumption, _ = _use_cases()
         ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
-                            card=CARD, uses_own_key=uses_own_key, settings=SETTINGS)
+                            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=uses_own_key))
 
         await use_cases.mark_sent(111, ready, 42)
 
@@ -189,7 +186,7 @@ class TestStoredCardFallback:
 
         assert await use_cases.prepare_next(111) == ReviewReady(
             expression_id=EXPRESSION_ID, value="andare", direction="forward", card=CARD,
-            uses_own_key=False, settings=SETTINGS, from_storage=True, older_settings=False)
+            settings=SETTINGS, quota=None, older_settings=False)
 
     async def test_unclear_card_returns_the_stored_card(self):
         use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored())
@@ -229,17 +226,26 @@ class TestStoredCardFallback:
         with pytest.raises(RuntimeError, match="all providers down"):
             await use_cases.prepare_next(111)
 
-    async def test_quota_is_still_checked_first(self):
-        # A stored card is free, but over-quota users get no review yet (see #6).
-        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored(), can_generate=False)
+    async def test_over_quota_returns_the_stored_card_without_generating(self):
+        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored(),
+                                             exceeded=QuotaExceeded(tier="normal", limit=10))
 
-        assert isinstance(await use_cases.prepare_next(111), QuotaExceeded)
+        assert await use_cases.prepare_next(111) == ReviewReady(
+            expression_id=EXPRESSION_ID, value="andare", direction="forward", card=CARD,
+            settings=SETTINGS, quota=None, older_settings=False)
+        llm.generate_expression_card.assert_not_awaited()
+
+    async def test_over_quota_without_stored_card_reports_quota(self):
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate(),
+                                             exceeded=QuotaExceeded(tier="normal", limit=10))
+
+        assert await use_cases.prepare_next(111) == QuotaExceeded(tier="normal", limit=10)
         llm.generate_expression_card.assert_not_awaited()
 
     async def test_mark_sent_stores_a_fresh_card(self):
         use_cases, expressions, _, consumption, _ = _use_cases()
         ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
-                            card=CARD, uses_own_key=False, settings=SETTINGS)
+                            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False))
 
         await use_cases.mark_sent(111, ready, 42)
 
@@ -250,7 +256,7 @@ class TestStoredCardFallback:
     async def test_mark_sent_neither_stores_nor_counts_a_stored_card(self):
         use_cases, expressions, _, consumption, _ = _use_cases()
         ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
-                            card=CARD, uses_own_key=False, settings=SETTINGS, from_storage=True)
+                            card=CARD, settings=SETTINGS, quota=None)
 
         await use_cases.mark_sent(111, ready, 42)
 
@@ -297,7 +303,7 @@ class TestGrade:
                                        "created_at": "2000-01-01T00:00:00Z", "status": "active"}])
         use_cases = ReviewUseCases(review_state=AsyncMock(), user_service=MagicMock(),
                                    expression_service=ExpressionService(expressions=cols["expression"]),
-                                   consumption_service=MagicMock(), llm_service=MagicMock(),
+                                   quota=MagicMock(), llm_service=MagicMock(),
                                    user_defaults=TEST_LANGUAGE.user_defaults)
         return use_cases, str(expression_id), cols["expression"].docs
 
@@ -349,7 +355,7 @@ class TestReviewStateShadow:
 
     def _ready(self):
         return ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="reverse",
-                           card=CARD, uses_own_key=False, settings=SETTINGS)
+                           card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False))
 
     async def test_mark_sent_records_the_current_review(self):
         use_cases, _, _, _, _ = _use_cases()

@@ -18,7 +18,8 @@ from flashcard.services.language_validation import LanguageValidationResult
 from flashcard.telegram.handlers import creation
 from flashcard.telegram.keyboards import expression_action_kb
 from flashcard.telegram.ui.expression import render_expression_card
-from tests.helpers import TEST_LANGUAGE, make_user
+from flashcard.app.quota import QuotaExceeded
+from tests.helpers import TEST_LANGUAGE, make_quota, make_user
 
 
 USER_ID = 222
@@ -47,12 +48,11 @@ def _deps(*, card=None, user=None, can_generate=True, validation=None):
 
     user_service = MagicMock()
     user_service.get_user = AsyncMock(return_value=user)
-    user_service.can_generate_card = MagicMock(return_value=can_generate)
-    user_service.card_limit = MagicMock(return_value=10)
     user_service.advance_onboarding = AsyncMock()
 
     consumption_service = MagicMock()
     consumption_service.increment = AsyncMock()
+    quota = make_quota(consumption_service, None if can_generate else QuotaExceeded(tier="normal", limit=10))
 
     expression_service = MagicMock()
     expression_service.add_expression = AsyncMock(return_value=True)
@@ -63,13 +63,13 @@ def _deps(*, card=None, user=None, can_generate=True, validation=None):
         validator.validate_expression = AsyncMock(return_value=validation)
 
     return SimpleNamespace(llm_service=llm_service, user_service=user_service,
-                           consumption_service=consumption_service,
+                           consumption_service=consumption_service, quota=quota,
                            expression_service=expression_service, validator=validator, user=user)
 
 
 def _use_cases(d) -> CreationUseCases:
     return CreationUseCases(review_state=AsyncMock(), expression_service=d.expression_service, user_service=d.user_service,
-                            consumption_service=d.consumption_service, llm_service=d.llm_service,
+                            quota=d.quota, llm_service=d.llm_service,
                             language_validator=d.validator)
 
 
@@ -130,7 +130,6 @@ class TestTextMessage:
         d = _deps(user=_user(api_config=UserAPIConfig(api_key="test")))
         await _run_text(d)
 
-        d.user_service.can_generate_card.assert_called_once_with(d.user, uses_own_key=True)
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=True)
 
@@ -155,7 +154,7 @@ class TestTextMessage:
 
         expected = i18n.get("messages.errors.invalid_learning_language_input") + "\na\nb\nc"
         status.edit_text.assert_awaited_once_with(text=expected, reply_markup=None)
-        d.user_service.can_generate_card.assert_not_called()
+        d.quota.check.assert_not_called()
         d.llm_service.generate_expression_card.assert_not_awaited()
 
     async def test_validator_normalized_text_is_generated(self):

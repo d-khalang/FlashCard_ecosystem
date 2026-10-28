@@ -12,7 +12,7 @@ from flashcard.app.quota import QuotaExceeded
 from flashcard.schemas.expression import ExpressionCard, TranslationLine
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.language_validation import LanguageValidationResult
-from tests.helpers import make_user
+from tests.helpers import make_quota, make_user
 
 
 def _card(success=True) -> ExpressionCard:
@@ -30,14 +30,12 @@ def _user(**overrides) -> UserDB:
     return make_user(**fields)
 
 
-def _use_cases(*, card=None, user=None, can_generate=True, card_limit=10, validation=None, saved=True):
+def _use_cases(*, card=None, user=None, exceeded=None, validation=None, saved=True):
     expressions = MagicMock()
     expressions.add_expression = AsyncMock(return_value=saved)
 
     users = MagicMock()
     users.get_user = AsyncMock(return_value=user or _user())
-    users.can_generate_card = MagicMock(return_value=can_generate)
-    users.card_limit = MagicMock(return_value=card_limit)
     users.advance_onboarding = AsyncMock(return_value=True)
 
     consumption = MagicMock()
@@ -52,7 +50,7 @@ def _use_cases(*, card=None, user=None, can_generate=True, card_limit=10, valida
         validator.validate_expression = AsyncMock(return_value=validation)
 
     use_cases = CreationUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
-                                 consumption_service=consumption, llm_service=llm,
+                                 quota=make_quota(consumption, exceeded), llm_service=llm,
                                  language_validator=validator)
     return use_cases, expressions, users, consumption, llm
 
@@ -74,11 +72,12 @@ class TestGenerate:
         consumption.increment.assert_not_awaited()
 
     async def test_invalid_input_returns_all_suggestions_and_skips_quota(self):
-        use_cases, _, users, _, llm = _use_cases(
+        use_cases, _, _, consumption, llm = _use_cases(
             validation=LanguageValidationResult(is_valid=False, suggestions=["a", "b", "c", "d"]))
+        use_cases.quota.check = MagicMock()
 
         assert await use_cases.generate(222, "hello") == InvalidInput(suggestions=["a", "b", "c", "d"])
-        users.can_generate_card.assert_not_called()
+        use_cases.quota.check.assert_not_called()
         llm.generate_expression_card.assert_not_awaited()
 
     async def test_normalized_text_is_generated(self):
@@ -96,19 +95,18 @@ class TestGenerate:
 
     async def test_quota_exceeded_reports_tier_and_limit(self):
         user = _user(tier=UserTier.plus)
-        use_cases, _, users, consumption, llm = _use_cases(user=user, can_generate=False, card_limit=50)
+        use_cases, _, _, consumption, llm = _use_cases(user=user, exceeded=QuotaExceeded(tier="plus", limit=50))
 
         assert await use_cases.generate(222, "andare") == QuotaExceeded(tier="plus", limit=50)
-        users.card_limit.assert_called_once_with(user)
+        use_cases.quota.check.assert_called_once_with(user, "cards")
         llm.generate_expression_card.assert_not_awaited()
         consumption.increment.assert_not_awaited()
 
     async def test_own_api_key_is_used_for_quota_and_usage(self):
         user = _user(api_config=UserAPIConfig(api_key="test"))
-        use_cases, _, users, consumption, _ = _use_cases(user=user)
+        use_cases, _, _, consumption, _ = _use_cases(user=user)
 
         await use_cases.generate(222, "andare")
-        users.can_generate_card.assert_called_once_with(user, uses_own_key=True)
         consumption.increment.assert_awaited_once_with(222, "cards_generated", uses_own_key=True)
 
     async def test_generation_uses_preferences_and_fallback_notifier(self):

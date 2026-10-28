@@ -15,7 +15,8 @@ graph TD
     
     ES --> DB[(MongoDB)]
     US --> DB
-    US --> CS[ConsumptionService]
+    H --> QP[QuotaPolicy]
+    QP --> CS[ConsumptionService]
     H --> RS[ReviewStateStore]
     RS --> DB
     VS --> DB
@@ -67,7 +68,7 @@ The `get_review_candidate` method implements the core spaced repetition logic:
 
 **File:** [`services/user.py`](../src/flashcard/services/user.py)  
 **Collection:** `users`  
-**Dependencies:** `users` (the users collection), `consumption_service` ([`ConsumptionService`](../src/flashcard/services/consumption.py))
+**Dependencies:** `users` (the users collection). Quota (limits, trial, own key) lives in [`app/quota.py`](../src/flashcard/app/quota.py) (`QuotaPolicy`).
 
 Manages user profiles and settings. The only service that creates user documents.
 
@@ -142,6 +143,7 @@ Tracks resource usage (LLM tokens, API calls) with lazy daily resets.
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `increment` | `(user_id, metric, uses_own_key=False)` | Increments a daily counter. Auto-resets if day changed. |
+| `resolve_consumption` | `(consumption) → UserConsumption` | Pure, no DB call: today's counters, or zeroed ones if the stored date is stale. The single source of the daily reset; `QuotaPolicy.check` uses it. |
 | `get_consumption` | `(user_id) → UserConsumption` | Returns current usage stats. Auto-resets if stale. |
 
 ### Metrics

@@ -7,10 +7,9 @@ import random
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Optional, Union
 
-from flashcard.app.quota import QuotaExceeded
+from flashcard.app.quota import QuotaExceeded, QuotaPolicy
 from flashcard.app.types import UserId
 from flashcard.schemas.story import StoryResponse
-from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.user import UserService
@@ -49,12 +48,12 @@ class StoryUseCases:
         self,
         expression_service: ExpressionService,
         user_service: UserService,
-        consumption_service: ConsumptionService,
+        quota: QuotaPolicy,
         llm_service: LLMService,
     ):
         self.expressions = expression_service
         self.users = user_service
-        self.consumption = consumption_service
+        self.quota = quota
         self.llm = llm_service
 
     async def write(self, user_id: UserId, long: bool = False,
@@ -64,9 +63,9 @@ class StoryUseCases:
             return NoWords()
 
         user = await self.users.get_user(user_id)
-        uses_own_key = user.api_config is not None
-        if not self.users.can_generate_story(user, uses_own_key=uses_own_key):
-            return QuotaExceeded(tier=user.tier.value, limit=self.users.story_limit(user))
+        quota = self.quota.check(user, "stories")
+        if isinstance(quota, QuotaExceeded):
+            return quota
 
         if len(words) > MAX_STORY_WORDS:
             words = random.sample(words, MAX_STORY_WORDS)
@@ -82,5 +81,5 @@ class StoryUseCases:
         if not story.paragraphs:
             return EmptyStory()
 
-        await self.consumption.increment(user_id, "stories_generated", uses_own_key=uses_own_key)
+        await self.quota.record(user_id, "stories", quota)
         return Story(story=story, translation_language=user.primary_language)

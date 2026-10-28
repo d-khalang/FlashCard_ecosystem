@@ -1,49 +1,24 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Callable, Optional, Union, Dict, TYPE_CHECKING, get_args
+from typing import Callable, Optional, Union, TYPE_CHECKING, get_args
 from flashcard.utils.logger import get_logger
 from flashcard.schemas.languages import LANGUAGE_DATA, LanguageLevel
 from flashcard.schemas.user import (
-    MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE, ReviewMode, UserDB, UserTier,
+    MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE, ReviewMode, UserDB,
 )
-from flashcard.settings import settings
-from flashcard.utils.time import iso_z, now_utc, parse_iso
+from flashcard.utils.time import iso_z, now_utc
 
 if TYPE_CHECKING:
     from flashcard.language import UserDefaults
-    from flashcard.services.consumption import ConsumptionService
 
 logger = get_logger(__name__)
-
-TIER_LIMITS: Dict[UserTier, Dict[str, int]] = {
-    UserTier.normal: {
-        "cards": settings.TIER_LIMITS_NORMAL_CARDS,
-        "stories": settings.TIER_LIMITS_NORMAL_STORIES,
-    },
-    UserTier.digi: {
-        "cards": settings.TIER_LIMITS_DIGI_CARDS,
-        "stories": settings.TIER_LIMITS_DIGI_STORIES,
-    },
-    UserTier.plus: {
-        "cards": settings.TIER_LIMITS_PLUS_CARDS,
-        "stories": settings.TIER_LIMITS_PLUS_STORIES,
-    },
-    UserTier.admin: {
-        "cards": settings.TIER_LIMITS_ADMIN_CARDS,
-        "stories": settings.TIER_LIMITS_ADMIN_STORIES,
-    },  # Effectively unlimited
-}
-
-# Normal-tier users get plus limits for this many days after created_at.
-TRIAL_DAYS = 14
 
 
 class UserService:
     def __init__(
         self,
         users,
-        consumption_service: ConsumptionService | None = None,
         *,
         defaults: UserDefaults,
     ):
@@ -52,7 +27,6 @@ class UserService:
         `defaults`: this instance's settings for users who have not chosen their own.
         """
         self.users = users
-        self.consumption_service = consumption_service
         self.defaults = defaults.as_fields()
 
     def _to_user(self, doc: dict) -> UserDB:
@@ -188,64 +162,3 @@ class UserService:
             {"$set": {"created_at": created_at}},
         )
         return bool(getattr(result, "modified_count", 0))
-
-    def _get_effective_limits(self, user: UserDB) -> Dict[str, int]:
-        """
-        Returns the tier-based limits, accounting for the trial for 'normal' users.
-        """
-        if user.tier == UserTier.admin:
-            return TIER_LIMITS[UserTier.admin]
-
-        # Check for trial period if normal
-        if user.tier == UserTier.normal:
-            if user.created_at is None:
-                # Haven't saved or been pushed a card yet -> Trial is effectively starting or hasn't started
-                return TIER_LIMITS[UserTier.plus]
-                
-            created_at = parse_iso(user.created_at)
-            # Ensure it's offset-aware if needed, but parse_iso usually handles it
-            trial_delta = now_utc() - created_at
-            if trial_delta.days < TRIAL_DAYS:
-                return TIER_LIMITS[UserTier.plus]
-        
-        return TIER_LIMITS.get(user.tier, TIER_LIMITS[UserTier.normal])
-
-    def card_limit(self, user: UserDB) -> int:
-        """Daily card generation limit for the user's tier and trial state."""
-        return self._get_effective_limits(user)["cards"]
-
-    def story_limit(self, user: UserDB) -> int:
-        """Daily story generation limit for the user's tier and trial state."""
-        return self._get_effective_limits(user)["stories"]
-
-    def _get_today_usage(self, user: UserDB, metric: str) -> int:
-        """
-        Returns the user's usage for a specific metric today.
-        Delegates daily-reset logic to ConsumptionService (single source of truth).
-        """
-        resolved = self.consumption_service.resolve_consumption(user.consumption)
-        return getattr(resolved.system_api, metric, 0)
-
-    def can_generate_card(self, user: UserDB, uses_own_key: bool = False) -> bool:
-        """
-        Checks if the user can generate a card today.
-        """
-        if uses_own_key or user.tier == UserTier.admin:
-            return True
-        
-        limits = self._get_effective_limits(user)
-        current_usage = self._get_today_usage(user, "cards_generated")
-            
-        return current_usage < limits["cards"]
-
-    def can_generate_story(self, user: UserDB, uses_own_key: bool = False) -> bool:
-        """
-        Checks if the user can generate a story today.
-        """
-        if uses_own_key or user.tier == UserTier.admin:
-            return True
-            
-        limits = self._get_effective_limits(user)
-        current_usage = self._get_today_usage(user, "stories_generated")
-            
-        return current_usage < limits["stories"]

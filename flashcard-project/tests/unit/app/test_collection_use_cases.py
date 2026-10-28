@@ -16,7 +16,7 @@ from flashcard.app.quota import QuotaExceeded
 from flashcard.schemas.import_model import ImportResponse
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.language_validation import LanguageValidationResult
-from tests.helpers import make_user
+from tests.helpers import make_quota, make_user
 
 
 def _user(**overrides) -> UserDB:
@@ -25,7 +25,7 @@ def _user(**overrides) -> UserDB:
     return make_user(**fields)
 
 
-def _use_cases(*, parsed=None, inserted=None, validation=None, user=None, can_generate=True, card_limit=10):
+def _use_cases(*, parsed=None, inserted=None, validation=None, user=None, exceeded=None):
     expressions = MagicMock()
     # Default: no duplicates, so every item passed in is reported as inserted.
     expressions.add_expressions_bulk = (
@@ -34,8 +34,6 @@ def _use_cases(*, parsed=None, inserted=None, validation=None, user=None, can_ge
 
     users = MagicMock()
     users.get_user = AsyncMock(return_value=user or _user())
-    users.can_generate_card = MagicMock(return_value=can_generate)
-    users.card_limit = MagicMock(return_value=card_limit)
 
     consumption = MagicMock()
     consumption.increment = AsyncMock()
@@ -50,7 +48,7 @@ def _use_cases(*, parsed=None, inserted=None, validation=None, user=None, can_ge
         validator.validate_import_items = AsyncMock(return_value=validation)
 
     use_cases = CollectionUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
-                                   consumption_service=consumption, llm_service=llm,
+                                   quota=make_quota(consumption, exceeded), llm_service=llm,
                                    language_validator=validator)
     return use_cases, expressions, users, consumption, llm
 
@@ -151,14 +149,13 @@ class TestImportItems:
 
 
 class TestImportQuota:
-    """One import costs one card generation, counted once the LLM has answered."""
+    """An import that saves something costs one card generation; others are free."""
 
     async def test_successful_import_counts_one_generation(self):
-        use_cases, _, users, consumption, _ = _use_cases()
+        use_cases, _, _, consumption, _ = _use_cases()
 
         await use_cases.import_items(333, "andare, fare")
 
-        users.can_generate_card.assert_called_once_with(users.get_user.return_value, uses_own_key=False)
         consumption.increment.assert_awaited_once_with(333, "cards_generated", uses_own_key=False)
 
     @pytest.mark.parametrize("kwargs", [
@@ -167,28 +164,28 @@ class TestImportQuota:
         {"validation": LanguageValidationResult(is_valid=False)},
         {"inserted": []},
     ], ids=["parse_failed", "nothing_found", "invalid_language", "all_duplicates"])
-    async def test_answered_llm_call_is_counted_whatever_the_outcome(self, kwargs):
+    async def test_import_that_saves_nothing_is_not_counted(self, kwargs):
         use_cases, _, _, consumption, _ = _use_cases(**kwargs)
 
         await use_cases.import_items(333, "andare, fare")
-        consumption.increment.assert_awaited_once()
+        consumption.increment.assert_not_awaited()
 
     async def test_quota_exceeded_skips_llm_and_counts_nothing(self):
         user = _user(tier=UserTier.normal)
-        use_cases, expressions, users, consumption, llm = _use_cases(user=user, can_generate=False, card_limit=10)
+        use_cases, expressions, _, consumption, llm = _use_cases(
+            user=user, exceeded=QuotaExceeded(tier="normal", limit=10))
 
         assert await use_cases.import_items(333, "andare") == QuotaExceeded(tier="normal", limit=10)
-        users.card_limit.assert_called_once_with(user)
+        use_cases.quota.check.assert_called_once_with(user, "cards")
         llm.parse_import_list.assert_not_awaited()
         consumption.increment.assert_not_awaited()
         expressions.add_expressions_bulk.assert_not_awaited()
 
     async def test_own_api_key_is_used_for_quota_and_usage(self):
         user = _user(api_config=UserAPIConfig(api_key="test"))
-        use_cases, _, users, consumption, _ = _use_cases(user=user)
+        use_cases, _, _, consumption, _ = _use_cases(user=user)
 
         await use_cases.import_items(333, "andare")
-        users.can_generate_card.assert_called_once_with(user, uses_own_key=True)
         consumption.increment.assert_awaited_once_with(333, "cards_generated", uses_own_key=True)
 
     async def test_llm_error_is_not_counted(self):
@@ -214,7 +211,7 @@ def _saved(*, values=None, found=None, removed=True):
     expressions.search_expressions = AsyncMock(return_value=list(found or []))
     expressions.remove_expression = AsyncMock(return_value=removed)
     use_cases = CollectionUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=MagicMock(),
-                                   consumption_service=MagicMock(), llm_service=MagicMock())
+                                   quota=MagicMock(), llm_service=MagicMock())
     return use_cases, expressions
 
 

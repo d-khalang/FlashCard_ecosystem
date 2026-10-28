@@ -54,4 +54,3 @@ def test_each_service_gets_only_its_own_collection(monkeypatch):
     assert services.consumption_service.users is cols["users"]
     assert services.review_state.users is cols["users"]
     assert services.verb_service.conjugations is cols["conjugation"]
-    assert services.user_service.consumption_service is services.consumption_service

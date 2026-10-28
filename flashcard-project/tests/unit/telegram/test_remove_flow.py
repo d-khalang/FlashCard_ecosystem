@@ -29,7 +29,7 @@ def _deps(*, found=None, removed=True):
 
 def _use_cases(d) -> CollectionUseCases:
     return CollectionUseCases(review_state=AsyncMock(), expression_service=d.expression_service, user_service=AsyncMock(),
-                              consumption_service=MagicMock(), llm_service=MagicMock())
+                              quota=MagicMock(), llm_service=MagicMock())
 
 
 async def _query(d, text):

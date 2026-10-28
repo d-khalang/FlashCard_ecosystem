@@ -11,20 +11,18 @@ from flashcard.app.story import (
 )
 from flashcard.schemas.story import StoryParagraph, StoryResponse
 from flashcard.schemas.user import UserTier
-from tests.helpers import make_user
+from tests.helpers import make_quota, make_user
 
 STORY = StoryResponse(paragraphs=[StoryParagraph(learning_text="Ciao.", translation="Hi.")])
 
 
-def _use_cases(words=("andare", "fare"), *, can_generate=True, story=STORY, user=None):
+def _use_cases(words=("andare", "fare"), *, exceeded=None, story=STORY, user=None):
     expressions = MagicMock()
     expressions.get_all_expressions = AsyncMock(return_value=list(words))
 
     users = MagicMock()
     users.get_user = AsyncMock(return_value=user or make_user(
         user_id="888", tier=UserTier.normal, primary_language="de", target_level="A2"))
-    users.can_generate_story = MagicMock(return_value=can_generate)
-    users.story_limit = MagicMock(return_value=3)
 
     consumption = MagicMock()
     consumption.increment = AsyncMock()
@@ -33,7 +31,7 @@ def _use_cases(words=("andare", "fare"), *, can_generate=True, story=STORY, user
     llm.generate_story = AsyncMock(return_value=story)
 
     use_cases = StoryUseCases(expression_service=expressions, user_service=users,
-                              consumption_service=consumption, llm_service=llm)
+                              quota=make_quota(consumption, exceeded), llm_service=llm)
     return use_cases, consumption, llm
 
 
@@ -84,7 +82,7 @@ class TestWriteStops:
         llm.generate_story.assert_not_awaited()
 
     async def test_quota_exceeded_is_not_announced(self):
-        use_cases, consumption, llm = _use_cases(can_generate=False)
+        use_cases, consumption, llm = _use_cases(exceeded=QuotaExceeded(tier="normal", limit=3))
         on_writing = AsyncMock()
 
         assert await use_cases.write(888, on_writing=on_writing) == QuotaExceeded(tier="normal", limit=3)

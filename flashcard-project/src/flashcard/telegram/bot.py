@@ -14,6 +14,7 @@ from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
 from flashcard.app.collection import CollectionUseCases
 from flashcard.app.creation import CreationUseCases
+from flashcard.app.quota import QuotaPolicy
 from flashcard.app.review import ReviewUseCases
 from flashcard.app.settings import SettingsUseCases
 from flashcard.app.story import StoryUseCases
@@ -147,11 +148,7 @@ def build_services(cols: dict, http_client, language: LanguageConfig) -> Service
     consumption_service = ConsumptionService(users=cols["users"])
     return Services(
         expression_service=ExpressionService(expressions=cols["expression"]),
-        user_service=UserService(
-            users=cols["users"],
-            consumption_service=consumption_service,
-            defaults=language.user_defaults,
-        ),
+        user_service=UserService(users=cols["users"], defaults=language.user_defaults),
         consumption_service=consumption_service,
         review_state=ReviewStateStore(users=cols["users"]),
         verb_service=(
@@ -177,6 +174,7 @@ def build_dispatcher_data(
     review_state,
     language: LanguageConfig,
 ) -> dict:
+    quota = QuotaPolicy(consumption_service, settings)
     return {
         "http_client": http_client,
         "logger_bot": logger_bot,
@@ -190,7 +188,7 @@ def build_dispatcher_data(
         "review_use_cases": ReviewUseCases(
             expression_service=expression_service,
             user_service=user_service,
-            consumption_service=consumption_service,
+            quota=quota,
             llm_service=llm_service,
             review_state=review_state,
             user_defaults=language.user_defaults,
@@ -198,7 +196,7 @@ def build_dispatcher_data(
         "creation_use_cases": CreationUseCases(
             expression_service=expression_service,
             user_service=user_service,
-            consumption_service=consumption_service,
+            quota=quota,
             llm_service=llm_service,
             review_state=review_state,
             language_validator=language_validator,
@@ -207,7 +205,7 @@ def build_dispatcher_data(
         "story_use_cases": StoryUseCases(
             expression_service=expression_service,
             user_service=user_service,
-            consumption_service=consumption_service,
+            quota=quota,
             llm_service=llm_service,
         ),
         # None when conjugation is disabled; the verb router is not included then.
@@ -218,7 +216,7 @@ def build_dispatcher_data(
         "collection_use_cases": CollectionUseCases(
             expression_service=expression_service,
             user_service=user_service,
-            consumption_service=consumption_service,
+            quota=quota,
             llm_service=llm_service,
             review_state=review_state,
             language_validator=language_validator,

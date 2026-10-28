@@ -11,7 +11,8 @@ import pytest
 
 from flashcard.app.review import CardGenerationFailed, ReviewUseCases
 from flashcard.schemas.expression import CardSettings, ExpressionCard, StoredCard, TranslationLine
-from tests.helpers import TEST_LANGUAGE, make_user
+from flashcard.app.quota import QuotaExceeded
+from tests.helpers import TEST_LANGUAGE, make_quota, make_user
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.i18n import i18n
 from flashcard.telegram.handlers import review
@@ -41,8 +42,6 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
 
     user_service = MagicMock()
     user_service.get_user = AsyncMock(return_value=user)
-    user_service.can_generate_card = MagicMock(return_value=can_generate)
-    user_service.card_limit = MagicMock(return_value=10)
     user_service.advance_onboarding = AsyncMock()
 
     llm_service = MagicMock()
@@ -50,16 +49,17 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
 
     consumption_service = MagicMock()
     consumption_service.increment = AsyncMock()
+    quota = make_quota(consumption_service, None if can_generate else QuotaExceeded(tier="normal", limit=10))
 
     sent = SimpleNamespace(message_id=sent_message_id)
     return SimpleNamespace(expression_service=expression_service, user_service=user_service,
-                           llm_service=llm_service, consumption_service=consumption_service,
+                           llm_service=llm_service, consumption_service=consumption_service, quota=quota,
                            review_state=AsyncMock(), user=user, sent=sent)
 
 
 def _use_cases(d) -> ReviewUseCases:
     return ReviewUseCases(review_state=d.review_state, expression_service=d.expression_service, user_service=d.user_service,
-                          consumption_service=d.consumption_service, llm_service=d.llm_service,
+                          quota=d.quota, llm_service=d.llm_service,
                           user_defaults=TEST_LANGUAGE.user_defaults)
 
 
@@ -128,7 +128,7 @@ class TestGetCommand:
 
         message.answer.assert_awaited_once_with(i18n.get(
             "messages.errors.quota_exceeded", type="card", tier="normal", limit=10))
-        d.user_service.can_generate_card.assert_called_once_with(d.user, uses_own_key=False)
+        d.quota.check.assert_called_once_with(d.user, "cards")
         d.llm_service.generate_expression_card.assert_not_awaited()
         d.expression_service.update_expression_sent.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
@@ -159,7 +159,6 @@ class TestGetCommand:
         d = _deps(user=_user(api_config=UserAPIConfig(api_key="test")))
         await _run_get(d)
 
-        d.user_service.can_generate_card.assert_called_once_with(d.user, uses_own_key=True)
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=True)
 
@@ -263,7 +262,7 @@ class TestScheduledReview:
         await _run_scheduled(d)
 
         d.user_service.get_user.assert_not_awaited()
-        d.user_service.can_generate_card.assert_called_once_with(d.user, uses_own_key=False)
+        d.quota.check.assert_called_once_with(d.user, "cards")
 
     async def test_sends_card_and_records_delivery(self, ui):
         d = _deps(direction="reverse")

@@ -4,7 +4,7 @@ Unit tests for flashcard.services.user.UserService
 Tests get_user, the settings setters (incl. set_active), advance_onboarding. Review-state writes live in ReviewStateStore.
 All use mocked MongoDB.
 """
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import ANY, MagicMock, AsyncMock
 
 import pytest
 
@@ -153,3 +153,19 @@ class TestAdvanceOnboarding:
         call_args = cols["users"].update_one.call_args[0]
         assert call_args[0] == {"user_id": "123", "onboarding_step": 1}
         assert call_args[1] == {"$set": {"onboarding_step": 2}}
+
+
+# ===================================================================
+# record_seen
+# ===================================================================
+class TestRecordSeen:
+
+    async def test_sets_username_and_first_seen(self):
+        service, cols = _make_service()
+        await service.record_seen("123", "new_handle")
+
+        cols["users"].update_one.assert_called_once_with(
+            {"user_id": "123"},
+            {"$set": {"username": "new_handle", "last_seen_at": ANY}, "$setOnInsert": {"created_at": ANY}},
+            upsert=True
+        )

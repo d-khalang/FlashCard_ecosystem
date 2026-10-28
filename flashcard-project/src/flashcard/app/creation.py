@@ -6,11 +6,10 @@ Callers own presentation: they render the card, choose buttons and wording.
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Optional, Union
 
-from flashcard.app.quota import QuotaExceeded
+from flashcard.app.quota import QuotaExceeded, QuotaPolicy
 from flashcard.app.types import UserId
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.languages import get_language_flag
-from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.language_validation import LanguageValidityChecker
 from flashcard.services.llm.llm import LLMService
@@ -58,14 +57,14 @@ class CreationUseCases:
         self,
         expression_service: ExpressionService,
         user_service: UserService,
-        consumption_service: ConsumptionService,
+        quota: QuotaPolicy,
         llm_service: LLMService,
         review_state: ReviewStateStore,
         language_validator: Optional[LanguageValidityChecker] = None,
     ):
         self.expressions = expression_service
         self.users = user_service
-        self.consumption = consumption_service
+        self.quota = quota
         self.llm = llm_service
         self.review_state = review_state
         self.validator = language_validator
@@ -89,9 +88,9 @@ class CreationUseCases:
             if validation.normalized_text:
                 text = validation.normalized_text
 
-        uses_own_key = user.api_config is not None
-        if not self.users.can_generate_card(user, uses_own_key=uses_own_key):
-            return QuotaExceeded(tier=user.tier.value, limit=self.users.card_limit(user))
+        quota = self.quota.check(user, "cards")
+        if isinstance(quota, QuotaExceeded):
+            return quota
 
         lang1_code = user.primary_language
         lang2_code = user.secondary_translation
@@ -108,7 +107,7 @@ class CreationUseCases:
         if not card.success:
             return Unclear(card=card)
 
-        await self.consumption.increment(user_id, "cards_generated", uses_own_key=uses_own_key)
+        await self.quota.record(user_id, "cards", quota)
         return CardReady(card=card)
 
     async def save(self, user_id: UserId, norm: str) -> SaveResult:

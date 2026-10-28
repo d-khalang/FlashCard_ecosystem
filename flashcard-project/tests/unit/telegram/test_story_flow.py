@@ -14,7 +14,8 @@ from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 from flashcard.services.i18n import i18n
 from flashcard.telegram.handlers import story
 from flashcard.telegram.ui.story import format_story_messages
-from tests.helpers import make_user
+from flashcard.app.quota import QuotaExceeded
+from tests.helpers import make_quota, make_user
 
 
 USER_ID = 888
@@ -36,11 +37,10 @@ def _deps(words=("andare", "fare"), *, user=None, can_generate=True, story_respo
 
     user_service = MagicMock()
     user_service.get_user = AsyncMock(return_value=user or _user())
-    user_service.can_generate_story = MagicMock(return_value=can_generate)
-    user_service.story_limit = MagicMock(return_value=3)
 
     consumption_service = MagicMock()
     consumption_service.increment = AsyncMock()
+    quota = make_quota(consumption_service, None if can_generate else QuotaExceeded(tier="normal", limit=3))
 
     llm_service = MagicMock()
     llm_service.generate_story = (
@@ -48,7 +48,7 @@ def _deps(words=("andare", "fare"), *, user=None, can_generate=True, story_respo
         else AsyncMock(return_value=story_response))
 
     return SimpleNamespace(expression_service=expression_service, user_service=user_service,
-                           consumption_service=consumption_service, llm_service=llm_service)
+                           consumption_service=consumption_service, quota=quota, llm_service=llm_service)
 
 
 async def _run(d, text="/story"):
@@ -57,7 +57,7 @@ async def _run(d, text="/story"):
     message.from_user.id = USER_ID
     message.answer = AsyncMock()
     use_cases = StoryUseCases(expression_service=d.expression_service, user_service=d.user_service,
-                              consumption_service=d.consumption_service, llm_service=d.llm_service)
+                              quota=d.quota, llm_service=d.llm_service)
     await story.cmd_story(message, story_use_cases=use_cases)
     return message
 
@@ -107,8 +107,6 @@ class TestStory:
         d = _deps(user=_user(api_config=UserAPIConfig(provider="gemini", api_key="k")))
         await _run(d)
 
-        d.user_service.can_generate_story.assert_called_once()
-        assert d.user_service.can_generate_story.call_args.kwargs == {"uses_own_key": True}
         d.consumption_service.increment.assert_awaited_once_with(USER_ID, "stories_generated", uses_own_key=True)
 
 
