@@ -85,6 +85,13 @@ class UserDB(BaseModel):
     # Consumption Tracking
     consumption: UserConsumption = Field(UserConsumption(), description="User Consumption per day")
 
+    @property
+    def secondary_translation(self) -> Optional[str]:
+        """The secondary language to translate into; None when unset or turned off."""
+        if self.secondary_language in (None, NO_LANGUAGE):
+            return None
+        return self.secondary_language
+
     @field_validator("review_mode", mode="before")
     @classmethod
     def _unknown_review_mode_reads_as_standard(cls, value):

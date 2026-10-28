@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from flashcard.schemas.expression import ExpressionCard
 
 LINE_SEP = "\u2508" * 12
@@ -37,12 +39,15 @@ def format_review_message(
     direction: str = "forward",
     *,
     learning_flag: str,
+    label: Optional[str] = None,
 ) -> str:
     """
     Formats the review message for the /get command.
 
     Direction: 'forward' (standard) or 'reverse' (dual mode).
+    `label` (e.g. "Saved version") is shown in italics on the first line.
     """
+    header = f"<i>{label}</i>\n" if label else ""
     translations_str = ""
     for trans in card.translations:
         translations_str += f"{trans.label}: {trans.text}\n"
@@ -69,7 +74,7 @@ def format_review_message(
 """.strip()
 
         return (
-            f"🔄 Reverse Review 🔄\n{LINE_SEP}\n{question_part}\n"
+            f"{header}🔄 Reverse Review 🔄\n{LINE_SEP}\n{question_part}\n"
             f"{LINE_SEP}\n<tg-spoiler>{spoiler_content}</tg-spoiler>"
         )
 
@@ -80,6 +85,6 @@ def format_review_message(
 """.strip()
 
     return (
-        f"Your picked expression: <b>{value}</b>\n{LINE_SEP}\n"
+        f"{header}Your picked expression: <b>{value}</b>\n{LINE_SEP}\n"
         f"<tg-spoiler>{spoiler_content}</tg-spoiler>"
     )

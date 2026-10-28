@@ -126,6 +126,8 @@
     "messages": {
         "working": "Ci sto lavorando...",
         "llm_fallback": "Questo motore intelligente non e disponibile adesso, quindi ne provo un altro...",
+        "saved_card": "🗂 Versione salvata",
+        "saved_card_older_settings": "🗂 Versione salvata · impostazioni precedenti",
         "collection": {
             "empty": "<b>📚 Collezione Flashcard</b>\n\nSembra che tu non abbia ancora nessuna flashcard! 😅\nScrivi una parola o espressione per aggiungerla.",
             "header": "<b>📚 La Tua Collezione Flashcard</b>\n<i>{count} elementi salvati</i>\n"

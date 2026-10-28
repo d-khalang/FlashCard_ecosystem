@@ -477,6 +477,21 @@ class TestUpdateExpressionSent:
         assert "last_sent_at" in set_dict
         assert "last_activity_at" in set_dict
         assert set_dict["pending_message_id"] == 42
+        assert "last_card" not in set_dict
+
+    async def test_stores_the_given_card_in_the_same_write(self):
+        from flashcard.schemas.expression import CardSettings, ExpressionCard, StoredCard
+        service, cols = _make_service()
+        card = ExpressionCard(success=True, norm="andare", learning_definition="muoversi", translations=[],
+                              learning_example="Vado.", note=None, suggestions=[])
+        stored = StoredCard(card=card, settings=CardSettings(level="B1", primary_language="en"),
+                            generated_at="2026-10-01T10:00:00Z")
+
+        await service.update_expression_sent(str(ObjectId()), 42, last_card=stored)
+
+        cols["expression"].update_one.assert_called_once()
+        saved = cols["expression"].update_one.call_args[0][1]["$set"]["last_card"]
+        assert StoredCard.model_validate(saved) == stored
 
 
 class TestRemoveExpression:

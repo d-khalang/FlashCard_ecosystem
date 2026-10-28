@@ -94,7 +94,7 @@ class CreationUseCases:
             return QuotaExceeded(tier=user.tier.value, limit=self.users.card_limit(user))
 
         lang1_code = user.primary_language
-        lang2_code = user.secondary_language
+        lang2_code = user.secondary_translation
         card = await self.llm.generate_expression_card(
             raw=text,
             level=user.target_level,

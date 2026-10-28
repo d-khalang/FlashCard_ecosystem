@@ -10,6 +10,7 @@ from flashcard.settings import settings
 from flashcard.language import LanguageConfig
 from flashcard.services.i18n import i18n
 from flashcard.telegram.ui.expression import format_review_message
+from flashcard.telegram.ui.review_label import review_label
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback, safe_call
@@ -42,7 +43,8 @@ async def cmd_get(message: Message, review_use_cases: ReviewUseCases, language: 
         return
 
     text = format_review_message(
-        result.card, result.value, direction=result.direction, learning_flag=language.flag)
+        result.card, result.value, direction=result.direction, learning_flag=language.flag,
+        label=review_label(result))
     keyboard = get_review_keyboard(result.expression_id, direction=result.direction)
     sent_msg = await message.answer(text, reply_markup=keyboard)
     await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)

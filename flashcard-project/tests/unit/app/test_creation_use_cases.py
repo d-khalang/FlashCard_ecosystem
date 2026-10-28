@@ -127,6 +127,13 @@ class TestGenerate:
         await use_cases.generate(222, "andare")
         assert llm.generate_expression_card.await_args.kwargs["lang2_label"] is None
 
+    async def test_turned_off_secondary_language_asks_for_no_translation(self):
+        use_cases, _, _, _, llm = _use_cases(user=_user(secondary_language="none"))
+
+        await use_cases.generate(222, "andare")
+        kwargs = llm.generate_expression_card.await_args.kwargs
+        assert (kwargs["lang2_code"], kwargs["lang2_label"]) == (None, None)
+
     async def test_generation_failure_propagates_without_usage(self):
         use_cases, _, _, consumption, llm = _use_cases()
         llm.generate_expression_card.side_effect = RuntimeError("provider down")

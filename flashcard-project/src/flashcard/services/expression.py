@@ -4,7 +4,7 @@ from typing import Optional, Union, get_args
 
 from flashcard.utils.time import iso_z, now_utc
 
-from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE, Direction, ExpressionDB
+from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE, Direction, ExpressionDB, StoredCard
 from flashcard.services.algorithm.priority import calculate_priority
 from flashcard.services.algorithm.grading import calculate_new_stats
 from flashcard.utils.logger import get_logger
@@ -284,20 +284,22 @@ class ExpressionService:
             }
         return None
 
-    async def update_expression_sent(self, expression_id: str, message_id: int):
+    async def update_expression_sent(
+        self, expression_id: str, message_id: int, last_card: Optional[StoredCard] = None,
+    ):
         """
         Updates the expression after it has been sent to the user.
+        `last_card` (a freshly generated card) replaces the stored one in the same write.
         """
-        await self.expressions.update_one(
-            {"_id": ObjectId(expression_id)},
-            {
-                "$set": {
-                    "last_sent_at": iso_z(now_utc()),
-                    "last_activity_at": iso_z(now_utc()),
-                    "pending_message_id": message_id
-                }
-            }
-        )
+        now = iso_z(now_utc())
+        fields = {
+            "last_sent_at": now,
+            "last_activity_at": now,
+            "pending_message_id": message_id,
+        }
+        if last_card is not None:
+            fields["last_card"] = last_card.model_dump(mode="json")
+        await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": fields})
 
     async def grade_expression(self, user_id: str, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
         """

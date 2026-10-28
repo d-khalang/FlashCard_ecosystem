@@ -39,6 +39,20 @@ class ExpressionCard(BaseModel):
     suggestions: List[str] = Field(description="Candidate intended tokens")
 
 
+class CardSettings(BaseModel):
+    """User settings a card was generated with."""
+    level: str
+    primary_language: str
+    secondary_language: Optional[str] = None
+
+
+class StoredCard(BaseModel):
+    """The latest successful card of an expression: the fallback when all providers fail."""
+    card: ExpressionCard
+    settings: CardSettings
+    generated_at: str
+
+
 class ExpressionStats(BaseModel):
     """
     Stats for a specific direction (Forward or Reverse).
@@ -71,3 +85,6 @@ class ExpressionDB(BaseModel):
     
     pending_message_id: Optional[str] = None
     status: str = "active"
+
+    # Overwritten by each successful review; one card, no history.
+    last_card: Optional[StoredCard] = None

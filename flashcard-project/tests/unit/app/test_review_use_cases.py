@@ -6,14 +6,20 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from flashcard.app.review import (
-    CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
+    CardGenerationFailed, CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
 )
-from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE
+from flashcard.schemas.expression import (
+    MAX_GRADE, MIN_GRADE, CardSettings, ExpressionCard, StoredCard, TranslationLine,
+)
 from tests.helpers import TEST_LANGUAGE, make_user
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 
 
 EXPRESSION_ID = "65f000000000000000000001"
+CARD = ExpressionCard(success=True, norm="andare", learning_definition="muoversi",
+                      translations=[TranslationLine(label="🇬🇧 EN", text="to go")],
+                      learning_example="Vado a casa.", note=None, suggestions=[])
+SETTINGS = CardSettings(level="B1", primary_language="en", secondary_language=None)
 
 
 def _user(**overrides) -> UserDB:
@@ -39,7 +45,7 @@ def _use_cases(*, candidate=None, user=None, can_generate=True, card_limit=10):
     consumption.increment = AsyncMock()
 
     llm = MagicMock()
-    llm.generate_expression_card = AsyncMock(return_value="CARD")
+    llm.generate_expression_card = AsyncMock(return_value=CARD)
 
     use_cases = ReviewUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
                                consumption_service=consumption, llm_service=llm,
@@ -81,7 +87,7 @@ class TestPrepareNext:
 
         assert await use_cases.prepare_next(111) == ReviewReady(
             expression_id=EXPRESSION_ID, value="andare", direction="reverse",
-            card="CARD", uses_own_key=False)
+            card=CARD, uses_own_key=False, settings=SETTINGS)
 
     async def test_missing_direction_defaults_to_forward(self):
         use_cases, *_ = _use_cases(candidate={"doc": {"_id": EXPRESSION_ID, "value": "andare"}})
@@ -157,13 +163,100 @@ class TestMarkSent:
     async def test_records_message_push_and_usage(self, uses_own_key):
         use_cases, expressions, users, consumption, _ = _use_cases()
         ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
-                            card="CARD", uses_own_key=uses_own_key)
+                            card=CARD, uses_own_key=uses_own_key, settings=SETTINGS)
 
         await use_cases.mark_sent(111, ready, 42)
 
-        expressions.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42)
+        expressions.update_expression_sent.assert_awaited_once()
+        assert expressions.update_expression_sent.await_args.args == (EXPRESSION_ID, 42)
         use_cases.review_state.mark_pending.assert_awaited_once_with(111)
         consumption.increment.assert_awaited_once_with(111, "cards_generated", uses_own_key=uses_own_key)
+
+
+class TestStoredCardFallback:
+    """The latest delivered card is the fallback when generation fails."""
+
+    STORED = StoredCard(card=CARD, settings=SETTINGS, generated_at="2026-10-01T10:00:00Z")
+    UNCLEAR = ExpressionCard(success=False, norm="andare", learning_definition=None, translations=[],
+                             learning_example=None, note="Not clear", suggestions=[])
+
+    def _with_stored(self, raw=None):
+        return _candidate(last_card=raw if raw is not None else self.STORED.model_dump(mode="json"))
+
+    async def test_provider_failure_returns_the_stored_card(self):
+        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored())
+        llm.generate_expression_card.side_effect = RuntimeError("all providers down")
+
+        assert await use_cases.prepare_next(111) == ReviewReady(
+            expression_id=EXPRESSION_ID, value="andare", direction="forward", card=CARD,
+            uses_own_key=False, settings=SETTINGS, from_storage=True, older_settings=False)
+
+    async def test_unclear_card_returns_the_stored_card(self):
+        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored())
+        llm.generate_expression_card.return_value = self.UNCLEAR
+
+        result = await use_cases.prepare_next(111)
+        assert result.from_storage is True
+        assert result.card == CARD
+
+    async def test_unclear_card_without_stored_card_raises(self):
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate())
+        llm.generate_expression_card.return_value = self.UNCLEAR
+
+        with pytest.raises(CardGenerationFailed):
+            await use_cases.prepare_next(111)
+
+    @pytest.mark.parametrize("change", [{"target_level": "C1"}, {"primary_language": "fa"},
+                                        {"secondary_language": "fa"}])
+    async def test_changed_settings_are_flagged(self, change):
+        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored(), user=_user(**change))
+        llm.generate_expression_card.side_effect = RuntimeError("all providers down")
+
+        assert (await use_cases.prepare_next(111)).older_settings is True
+
+    async def test_turned_off_secondary_language_matches_an_unset_one(self):
+        # SETTINGS has no secondary language; "none" is how /settings stores "off".
+        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored(), user=_user(secondary_language="none"))
+        llm.generate_expression_card.side_effect = RuntimeError("all providers down")
+
+        assert (await use_cases.prepare_next(111)).older_settings is False
+        assert llm.generate_expression_card.await_args.kwargs["lang2_code"] is None
+
+    async def test_unreadable_stored_card_is_ignored(self):
+        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored(raw={"card": "broken"}))
+        llm.generate_expression_card.side_effect = RuntimeError("all providers down")
+
+        with pytest.raises(RuntimeError, match="all providers down"):
+            await use_cases.prepare_next(111)
+
+    async def test_quota_is_still_checked_first(self):
+        # A stored card is free, but over-quota users get no review yet (see #6).
+        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored(), can_generate=False)
+
+        assert isinstance(await use_cases.prepare_next(111), QuotaExceeded)
+        llm.generate_expression_card.assert_not_awaited()
+
+    async def test_mark_sent_stores_a_fresh_card(self):
+        use_cases, expressions, _, consumption, _ = _use_cases()
+        ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
+                            card=CARD, uses_own_key=False, settings=SETTINGS)
+
+        await use_cases.mark_sent(111, ready, 42)
+
+        stored = expressions.update_expression_sent.await_args.kwargs["last_card"]
+        assert (stored.card, stored.settings) == (CARD, SETTINGS)
+        consumption.increment.assert_awaited_once()
+
+    async def test_mark_sent_neither_stores_nor_counts_a_stored_card(self):
+        use_cases, expressions, _, consumption, _ = _use_cases()
+        ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
+                            card=CARD, uses_own_key=False, settings=SETTINGS, from_storage=True)
+
+        await use_cases.mark_sent(111, ready, 42)
+
+        expressions.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42, last_card=None)
+        use_cases.review_state.mark_pending.assert_awaited_once_with(111)
+        consumption.increment.assert_not_awaited()
 
 
 class TestGrade:
@@ -256,7 +349,7 @@ class TestReviewStateShadow:
 
     def _ready(self):
         return ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="reverse",
-                           card="CARD", uses_own_key=False)
+                           card=CARD, uses_own_key=False, settings=SETTINGS)
 
     async def test_mark_sent_records_the_current_review(self):
         use_cases, _, _, _, _ = _use_cases()

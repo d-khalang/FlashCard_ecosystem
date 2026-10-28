@@ -95,6 +95,18 @@ class TestRenderExpressionCard:
 # ===================================================================
 class TestFormatReviewMessage:
 
+    def test_no_label_by_default(self):
+        msg = format_review_message(_make_card(), "parlare", direction="forward", learning_flag=TEST_LANGUAGE.flag)
+
+        assert msg.startswith("Your picked expression:")
+
+    def test_label_is_the_first_line_in_both_directions(self):
+        for direction in ("forward", "reverse"):
+            msg = format_review_message(_make_card(), "parlare", direction=direction,
+                                        learning_flag=TEST_LANGUAGE.flag, label="Saved version")
+
+            assert msg.split("\n")[0] == "<i>Saved version</i>"
+
     def test_forward_shows_word_prominently(self):
         card = _make_card()
         msg = format_review_message(card, "parlare", direction="forward", learning_flag=TEST_LANGUAGE.flag)

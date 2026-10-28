@@ -12,6 +12,7 @@ from flashcard.schemas.user import UserDB
 from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
 from flashcard.services.user import UserService
 from flashcard.telegram.ui.expression import format_review_message
+from flashcard.telegram.ui.review_label import review_label
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
 from flashcard.settings import settings
@@ -144,7 +145,8 @@ async def send_scheduled_review(
         return False
 
     text = format_review_message(
-        result.card, result.value, direction=result.direction, learning_flag=language.flag)
+        result.card, result.value, direction=result.direction, learning_flag=language.flag,
+        label=review_label(result))
     keyboard = get_review_keyboard(result.expression_id, direction=result.direction)
     sent_msg = await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
     await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
