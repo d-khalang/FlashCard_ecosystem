@@ -54,31 +54,20 @@ dp.include_router(errors.router)
 
 ## Dependency Injection
 
-aiogram injects services into handler functions by matching parameter names. Services are passed to the dispatcher in `bot.py`:
-
-```python
-dp.start_polling(
-    bot,
-    expression_service=expression_service,
-    user_service=user_service,
-    llm_service=llm_service,
-    verb_service=verb_service,
-    logger_bot=logger_bot,
-    # ... other kwargs
-)
-```
-
-Then in any handler, just declare the parameter:
+aiogram injects dependencies into handler functions by matching parameter names. The data comes
+from `Core.handler_data(logger_bot)` in [`composition.py`](../src/flashcard/composition.py): the use
+cases, `language` and `logger_bot`. Handlers call use cases, never services (guarded by
+`tests/unit/test_composition_root.py`).
 
 ```python
 @router.message(Command("get"))
-async def cmd_get(message: Message, expression_service: ExpressionService, user_service: UserService):
-    # expression_service and user_service are injected automatically
+async def cmd_get(message: Message, review_use_cases: ReviewUseCases):
+    # review_use_cases is injected automatically
     ...
 ```
 
 > [!NOTE]
-> The parameter name must exactly match the keyword argument name passed to `start_polling()`.
+> The parameter name must exactly match a key of `Core.handler_data`.
 
 ## UI Layer
 

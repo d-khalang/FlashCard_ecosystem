@@ -133,35 +133,44 @@ async def start_telegram(core: Core, settings, mode: str) -> TelegramRuntime:
         handler_data=core.handler_data(logger_bot), mode=mode,
     )
 
-    if mode == "webhook":
-        await bot.set_webhook(
-            url=settings.webhook_url,
-            secret_token=settings.WEBHOOK_SECRET,
-            allowed_updates=get_allowed_updates(dp),
-        )
-    else:
-        # Polling cannot run while a webhook is active.
-        await bot.delete_webhook(drop_pending_updates=False)
-        runtime.polling_task = asyncio.create_task(
-            dp.start_polling(
-                bot,
+    try:
+        if mode == "webhook":
+            await bot.set_webhook(
+                url=settings.webhook_url,
+                secret_token=settings.WEBHOOK_SECRET,
                 allowed_updates=get_allowed_updates(dp),
-                **runtime.handler_data,
+            )
+        else:
+            # Polling cannot run while a webhook is active.
+            await bot.delete_webhook(drop_pending_updates=False)
+            runtime.polling_task = asyncio.create_task(
+                dp.start_polling(
+                    bot,
+                    allowed_updates=get_allowed_updates(dp),
+                    # Signals belong to the host (uvicorn, or asyncio.run in dev_poll):
+                    # aiogram's loop handlers would replace uvicorn's, so SIGTERM would
+                    # stop polling but leave the server running. stop_telegram cancels polling.
+                    handle_signals=False,
+                    **runtime.handler_data,
+                )
+            )
+
+        from flashcard.scheduler.scheduler import scheduler_loop
+        runtime.scheduler_task = asyncio.create_task(
+            scheduler_loop(
+                bot=bot,
+                logger_bot=logger_bot,
+                user_service=core.user_service,
+                review_use_cases=core.review_use_cases,
+                language=core.language,
+                admin_id=settings.ADMIN_ID,
+                pause_rule=settings.REVIEW_PAUSE_RULE,
             )
         )
-
-    from flashcard.scheduler.scheduler import scheduler_loop
-    runtime.scheduler_task = asyncio.create_task(
-        scheduler_loop(
-            bot=bot,
-            logger_bot=logger_bot,
-            user_service=core.user_service,
-            review_use_cases=core.review_use_cases,
-            language=core.language,
-            admin_id=settings.ADMIN_ID,
-            pause_rule=settings.REVIEW_PAUSE_RULE,
-        )
-    )
+    except BaseException:
+        # A failed start (e.g. Telegram unreachable) must not leave both bot sessions open.
+        await stop_telegram(runtime)
+        raise
     return runtime
 
 
@@ -175,11 +184,15 @@ async def stop_telegram(runtime: TelegramRuntime) -> None:
     if runtime.mode == "webhook":
         with contextlib.suppress(Exception):
             await runtime.bot.delete_webhook(drop_pending_updates=False)
-    await runtime.bot.session.close()
-    await runtime.logger_bot.session.close()
-
-    # Mongo and the HTTP client belong to open_resources, which closes them after this.
-    get_trace_logger().shutdown()
+    # Each close runs even if an earlier one fails.
+    try:
+        await runtime.bot.session.close()
+    finally:
+        try:
+            await runtime.logger_bot.session.close()
+        finally:
+            # Mongo and the HTTP client belong to open_resources, which closes them after this.
+            get_trace_logger().shutdown()
 
 
 @asynccontextmanager

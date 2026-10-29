@@ -283,6 +283,11 @@ One root, `flashcard/composition.py`, shared by every runtime; the Mini App will
 - [x] Integration tests build their dispatcher data with the real `build_core` (LLM and
   validator swapped). Guards: `tests/unit/test_composition_root.py` (only the root builds
   services/use cases and opens clients; handlers take no raw service; handler data keys).
+- [x] Review fixes: a failed `start_telegram` closes both bot sessions; `stop_telegram` closes
+  each session and the trace logger even if one close fails; polling runs with
+  `handle_signals=False` (aiogram's loop handlers replaced uvicorn's, so in FastAPI + polling
+  mode SIGTERM stopped polling but not the server, which then waited for SIGKILL; pre-existing).
+  Secondary docs (`architecture`, `handlers`, `services`, `contributing`) describe the root.
 - Left for #7: `build_bot_dispatcher` still reads `settings.BOT_TOKEN` from the global, and
   modules still import `settings` / `i18n` at module level.
 

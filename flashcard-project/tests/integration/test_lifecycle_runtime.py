@@ -91,7 +91,9 @@ async def test_start_telegram_polling_mode_deletes_webhook_and_polls_with_the_ha
 
     assert any(call.method == "DeleteWebhook" for call in bot_session.calls)
     await asyncio.sleep(0)
-    assert polling_kwargs == {"allowed_updates": ["message", "callback_query"], "logger_bot": logger_bot, "x": 1}
+    # Signals stay with uvicorn; aiogram's own handlers would stop polling but not the server.
+    assert polling_kwargs == {"allowed_updates": ["message", "callback_query"], "handle_signals": False,
+                              "logger_bot": logger_bot, "x": 1}
     runtime.polling_task.cancel()
     runtime.scheduler_task.cancel()
 
@@ -115,6 +117,43 @@ async def test_stop_telegram_cancels_tasks_removes_the_webhook_and_closes_both_b
     assert runtime.polling_task.cancelled()
     assert any(call.method == "DeleteWebhook" for call in bot_session.calls)
     bot.session.close.assert_awaited_once()
+    logger_bot.session.close.assert_awaited_once()
+    assert trace_logger.shutdown_called is True
+
+
+async def test_start_telegram_closes_both_bots_when_the_webhook_cannot_be_set(monkeypatch):
+    bot, _ = make_bot()
+    logger_bot, _ = make_bot()
+    bot.set_webhook = AsyncMock(side_effect=RuntimeError("telegram down"))
+    bot.session.close = AsyncMock()
+    logger_bot.session.close = AsyncMock()
+    dp = SimpleNamespace(resolve_used_update_types=lambda: ["message"])
+    _patch_bots(monkeypatch, bot, logger_bot, dp)
+    monkeypatch.setattr(bot_module, "get_trace_logger", lambda: DummyTraceLogger())
+    scheduler = AsyncMock()
+    monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", scheduler)
+
+    with pytest.raises(RuntimeError, match="telegram down"):
+        await bot_module.start_telegram(_core(), _settings(), "webhook")
+
+    bot.session.close.assert_awaited_once()
+    logger_bot.session.close.assert_awaited_once()
+    scheduler.assert_not_called()
+
+
+async def test_stop_telegram_still_closes_the_logger_bot_when_the_bot_close_fails(monkeypatch):
+    bot, _ = make_bot()
+    logger_bot, _ = make_bot()
+    bot.session.close = AsyncMock(side_effect=RuntimeError("close failed"))
+    logger_bot.session.close = AsyncMock()
+    trace_logger = DummyTraceLogger()
+    monkeypatch.setattr(bot_module, "get_trace_logger", lambda: trace_logger)
+    runtime = bot_module.TelegramRuntime(
+        bot=bot, logger_bot=logger_bot, dispatcher=None, handler_data={}, mode="polling")
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        await bot_module.stop_telegram(runtime)
+
     logger_bot.session.close.assert_awaited_once()
     assert trace_logger.shutdown_called is True
 

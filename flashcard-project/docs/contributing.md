@@ -129,30 +129,39 @@ from flashcard.utils.logger import get_logger
 logger = get_logger(__name__)
 
 class QuizService:
-    def __init__(self, cols: dict):
-        self.cols = cols
+    def __init__(self, quizzes):
+        # Only its own collection, never the whole `cols` dict (tests/unit/test_data_ownership.py)
+        self.quizzes = quizzes
 
     async def get_random_quiz(self, user_id: str):
         """Your business logic here."""
         ...
 ```
 
-### 2. Wire it up in bot.py
+### 2. Call it from a use case
 
-In both `init_telegram_bot()` and `init_telegram_without_fastapi()`:
+Handlers never call services directly; add a use case in `src/flashcard/app/` (e.g.
+`QuizUseCases(quiz_service=...)`) that holds the flow.
+
+### 3. Wire it up in composition.py
+
+[`build_core`](../src/flashcard/composition.py) is the only place that builds services and use
+cases (guarded by `tests/unit/test_composition_root.py`). Build both there, add the use case to
+`Core`, and expose it in `Core.handler_data`:
 
 ```python
-quiz_service = QuizService(cols=cols)
-
-# Pass to start_polling or dispatcher
-dp.start_polling(bot, ..., quiz_service=quiz_service)
+quiz_service = QuizService(quizzes=cols["quiz"])
+...
+quiz_use_cases=QuizUseCases(quiz_service=quiz_service),
 ```
 
-### 3. Use in handlers
+Every runtime (FastAPI, dev polling) picks it up from there.
+
+### 4. Use in handlers
 
 ```python
-async def cmd_quiz(message: Message, quiz_service: QuizService):
-    result = await quiz_service.get_random_quiz(str(message.from_user.id))
+async def cmd_quiz(message: Message, quiz_use_cases: QuizUseCases):
+    result = await quiz_use_cases.random_quiz(str(message.from_user.id))
 ```
 
 ---

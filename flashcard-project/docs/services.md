@@ -30,9 +30,9 @@ graph TD
     ALG --> GRD[grading.py]
 ```
 
-All services are built by `build_services` in [`bot.py`](../src/flashcard/telegram/bot.py), the only
+All services are built by `build_core` in [`composition.py`](../src/flashcard/composition.py), the only
 place that hands out collections: each service receives only its own collection, never the
-whole `cols` dict (guarded by `tests/unit/test_data_ownership.py`). They are injected into handlers via aiogram's DI system. See [Architecture — Dependency Injection](./architecture.md#dependency-injection).
+whole `cols` dict (guarded by `tests/unit/test_data_ownership.py`). Handlers do not receive services: they call use cases (`flashcard/app/`), which `build_core` wires to the services. See [Architecture — Dependency Injection](./architecture.md#dependency-injection).
 
 ---
 
