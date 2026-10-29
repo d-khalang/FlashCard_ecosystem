@@ -2,7 +2,7 @@
 Contract: each collection is reachable only by its owners (docs/bot-architecture-refactor.md).
 
 Services receive only their own collection, never the `cols` dict, so a service
-cannot read or write another's data. `build_services` in the composition root is
+cannot read or write another's data. `build_core` in the composition root is
 the only place that hands collections out.
 
 `users` field groups: profile/settings/onboarding/last_seen_at (UserService),
@@ -12,14 +12,14 @@ import ast
 from pathlib import Path
 
 import flashcard
-from flashcard.telegram import bot as bot_module
-from flashcard.telegram.bot import build_services
+from flashcard import composition
+from flashcard.composition import build_core
 from tests.integration.helpers import make_cols
 from tests.helpers import TEST_LANGUAGE
 
 SRC = Path(flashcard.__file__).parent
 # Composition root, DB setup, and one-off migrations (removed after the rollout).
-MAY_INDEX_COLS = {"telegram/bot.py", "db/mongo.py",
+MAY_INDEX_COLS = {"composition.py", "db/mongo.py",
                   "migrations/backfill_created_at.py", "migrations/backfill_current_review.py",
                   "migrations/dedupe_expressions.py"}
 
@@ -44,10 +44,10 @@ def test_no_module_keeps_the_cols_dict():
 
 def test_each_service_gets_only_its_own_collection(monkeypatch):
     # The LLM client and language validator hold no collections; keep them (and the key file) out.
-    monkeypatch.setattr(bot_module, "LLMService", lambda **_: object())
-    monkeypatch.setattr(bot_module, "get_language_validator", lambda language: object())
+    monkeypatch.setattr(composition, "LLMService", lambda **_: object())
+    monkeypatch.setattr(composition, "get_language_validator", lambda language: object())
     cols = make_cols()
-    services = build_services(cols, http_client=None, language=TEST_LANGUAGE)
+    services = build_core(cols, http_client=None, settings=object(), language=TEST_LANGUAGE)
 
     assert services.expression_service.expressions is cols["expression"]
     assert services.user_service.users is cols["users"]

@@ -1,26 +1,16 @@
 import asyncio
 import contextlib
-from dataclasses import dataclass, fields
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Optional
 import socket
-import aiohttp
 from aiogram import Bot, Dispatcher
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.chat_action import ChatActionMiddleware
-from fastapi import FastAPI
 
-from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
-from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
-from flashcard.app.collection import CollectionUseCases
-from flashcard.app.creation import CreationUseCases
-from flashcard.app.quota import QuotaPolicy
-from flashcard.app.review import ReviewUseCases
-from flashcard.app.settings import SettingsUseCases
-from flashcard.app.story import StoryUseCases
-from flashcard.app.verb import VerbUseCases
+from flashcard.composition import Core, build_core, open_resources
 from flashcard.language import LanguageConfig
-from flashcard.services.llm.llm import LLMService
 from flashcard.settings import settings
 from flashcard.telegram.handlers import (
     user_settings, 
@@ -38,13 +28,7 @@ from flashcard.telegram.handlers import (
 )
 from flashcard.telegram.middlewares.trace_middleware import TraceMiddleware
 from flashcard.telegram.middlewares.timeout_middleware import HandlerTimeoutMiddleware
-from flashcard.services.expression import ExpressionService
-from flashcard.services.verb import VerbService
-from flashcard.services.user import UserService
-from flashcard.services.consumption import ConsumptionService
-from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.trace_logger import get_trace_logger
-from flashcard.services.language_validation import get_language_validator
 from flashcard.utils.asyncio_errors import install_asyncio_exception_handler
 
 def _build_ipv4_session() -> "AiohttpSession":
@@ -124,136 +108,32 @@ def get_allowed_updates(dp: Dispatcher) -> list[str]:
     return dp.resolve_used_update_types()
 
 
-@dataclass(frozen=True)
-class Services:
-    expression_service: ExpressionService
-    user_service: UserService
-    consumption_service: ConsumptionService
-    review_state: ReviewStateStore
-    verb_service: Optional[VerbService]
-    llm_service: LLMService
-    language_validator: object
-    language: LanguageConfig
-
-    def as_kwargs(self) -> dict:
-        return {field.name: getattr(self, field.name) for field in fields(self)}
+@dataclass
+class TelegramRuntime:
+    bot: Bot
+    logger_bot: Bot
+    dispatcher: Dispatcher
+    handler_data: dict
+    mode: str
+    polling_task: Optional[asyncio.Task] = None
+    scheduler_task: Optional[asyncio.Task] = None
 
 
-def build_services(cols: dict, http_client, language: LanguageConfig) -> Services:
-    """
-    The only place that hands out collections: each service gets just its own,
-    so no service can reach another's data. Services get the instance's language
-    from here, never from global settings.
-    """
-    consumption_service = ConsumptionService(users=cols["users"])
-    return Services(
-        expression_service=ExpressionService(expressions=cols["expression"]),
-        user_service=UserService(users=cols["users"], defaults=language.user_defaults),
-        consumption_service=consumption_service,
-        review_state=ReviewStateStore(users=cols["users"]),
-        verb_service=(
-            VerbService(conjugations=cols["conjugation"], http_client=http_client)
-            if language.conjugation
-            else None
-        ),
-        llm_service=LLMService(learning_language_name=language.name),
-        language_validator=get_language_validator(language),
-        language=language,
-    )
-
-
-def build_dispatcher_data(
-    http_client,
-    logger_bot,
-    verb_service,
-    expression_service,
-    user_service,
-    consumption_service,
-    llm_service,
-    language_validator,
-    review_state,
-    language: LanguageConfig,
-) -> dict:
-    quota = QuotaPolicy(consumption_service, settings)
-    return {
-        "http_client": http_client,
-        "logger_bot": logger_bot,
-        "verb_service": verb_service,
-        "expression_service": expression_service,
-        "user_service": user_service,
-        "consumption_service": consumption_service,
-        "llm_service": llm_service,
-        "language_validator": language_validator,
-        "language": language,
-        "review_use_cases": ReviewUseCases(
-            expression_service=expression_service,
-            user_service=user_service,
-            quota=quota,
-            llm_service=llm_service,
-            review_state=review_state,
-            user_defaults=language.user_defaults,
-        ),
-        "creation_use_cases": CreationUseCases(
-            expression_service=expression_service,
-            user_service=user_service,
-            quota=quota,
-            llm_service=llm_service,
-            review_state=review_state,
-            language_validator=language_validator,
-        ),
-        "settings_use_cases": SettingsUseCases(user_service=user_service),
-        "story_use_cases": StoryUseCases(
-            expression_service=expression_service,
-            user_service=user_service,
-            quota=quota,
-            llm_service=llm_service,
-        ),
-        # None when conjugation is disabled; the verb router is not included then.
-        "verb_use_cases": (
-            VerbUseCases(verb_service=verb_service, consumption_service=consumption_service)
-            if verb_service is not None else None
-        ),
-        "collection_use_cases": CollectionUseCases(
-            expression_service=expression_service,
-            user_service=user_service,
-            quota=quota,
-            llm_service=llm_service,
-            review_state=review_state,
-            language_validator=language_validator,
-        ),
-    }
-
-
-async def init_telegram_bot(app: FastAPI, settings):
-    language = LanguageConfig.from_settings(settings)
-    bot, dp = build_bot_dispatcher(language)
-    app.state.bot = bot
-    app.state.dispatcher = dp
-
+async def start_telegram(core: Core, settings, mode: str) -> TelegramRuntime:
+    """Start the bot (webhook or polling) and the review scheduler on top of the core."""
+    bot, dp = build_bot_dispatcher(core.language)
     logger_bot = Bot(
         token=settings.LOGGER_BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=_build_ipv4_session(),
     )
-    app.state.logger_bot = logger_bot
     install_asyncio_exception_handler(logger_bot=logger_bot)
+    runtime = TelegramRuntime(
+        bot=bot, logger_bot=logger_bot, dispatcher=dp,
+        handler_data=core.handler_data(logger_bot), mode=mode,
+    )
 
-    # The FastAPI lifespan opens (and closes) Mongo and the HTTP client; the bot only uses them.
-    cols = app.state.cols
-    http_client = app.state.http_client
-
-    services = build_services(cols, http_client, language)
-    app.state.expression_service = services.expression_service
-    app.state.user_service = services.user_service
-    app.state.consumption_service = services.consumption_service
-    app.state.llm_service = services.llm_service
-
-    dispatcher_data = build_dispatcher_data(
-        http_client=http_client, logger_bot=logger_bot, **services.as_kwargs())
-    app.state.dispatcher_data = dispatcher_data
-
-    # Run either webhook or polling, based on explicit mode.
-    if settings.TELEGRAM_DELIVERY_MODE == "webhook":
+    if mode == "webhook":
         await bot.set_webhook(
             url=settings.webhook_url,
             secret_token=settings.WEBHOOK_SECRET,
@@ -262,133 +142,54 @@ async def init_telegram_bot(app: FastAPI, settings):
     else:
         # Polling cannot run while a webhook is active.
         await bot.delete_webhook(drop_pending_updates=False)
-        app.state.polling_task = asyncio.create_task(
+        runtime.polling_task = asyncio.create_task(
             dp.start_polling(
                 bot,
                 allowed_updates=get_allowed_updates(dp),
-                **dispatcher_data,
+                **runtime.handler_data,
             )
         )
-    
-    # Start scheduler in background
+
     from flashcard.scheduler.scheduler import scheduler_loop
-    app.state.scheduler_task = asyncio.create_task(
+    runtime.scheduler_task = asyncio.create_task(
         scheduler_loop(
             bot=bot,
             logger_bot=logger_bot,
-            user_service=services.user_service,
-            review_use_cases=dispatcher_data["review_use_cases"],
-            language=language,
+            user_service=core.user_service,
+            review_use_cases=core.review_use_cases,
+            language=core.language,
             admin_id=settings.ADMIN_ID,
             pause_rule=settings.REVIEW_PAUSE_RULE,
         )
     )
+    return runtime
 
 
-async def close_telegram_bot(app: FastAPI):
-    # Stop scheduler task
-    scheduler_task = getattr(app.state, "scheduler_task", None)
-    if scheduler_task:
-        scheduler_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await scheduler_task
+async def stop_telegram(runtime: TelegramRuntime) -> None:
+    for task in (runtime.scheduler_task, runtime.polling_task):
+        if task:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
-    # Stop polling task
-    task = getattr(app.state, "polling_task", None)
-    if task:
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-        
-    bot: Bot = app.state.bot
-    if settings.TELEGRAM_DELIVERY_MODE == "webhook":
+    if runtime.mode == "webhook":
         with contextlib.suppress(Exception):
-            await bot.delete_webhook(drop_pending_updates=False)
-    await bot.session.close()
+            await runtime.bot.delete_webhook(drop_pending_updates=False)
+    await runtime.bot.session.close()
+    await runtime.logger_bot.session.close()
 
-    logger_bot: Bot = app.state.logger_bot
-    await logger_bot.session.close()
-
-    # Mongo and the HTTP client belong to the FastAPI lifespan, which closes them after this.
+    # Mongo and the HTTP client belong to open_resources, which closes them after this.
     get_trace_logger().shutdown()
 
 
-async def init_telegram_without_fastapi(settings):
+@asynccontextmanager
+async def running_bot(settings, mode: str):
+    """The whole bot: shared clients, the core, then Telegram. Closed in reverse order."""
     language = LanguageConfig.from_settings(settings)
-    bot, dp = build_bot_dispatcher(language)
-
-    logger_bot = Bot(
-        token=settings.LOGGER_BOT_TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-        session=_build_ipv4_session(),
-    )
-    install_asyncio_exception_handler(logger_bot=logger_bot)
-
-    # Initialize Services
-    # May later be removed from app.state if not needed globally as they are passed to handlers
-    mongo_client, db, cols = await init_and_get_mongo(settings)
-
-    http_client = await init_and_get_http_client()
-
-    services = build_services(cols, http_client, language)
-
-    # Polling cannot run while a webhook is active.
-    await bot.delete_webhook(drop_pending_updates=False)
-
-    dispatcher_data = build_dispatcher_data(
-        http_client=http_client, logger_bot=logger_bot, **services.as_kwargs())
-
-    # Run polling in background
-    polling_task = asyncio.create_task(
-        dp.start_polling(
-            bot,
-            allowed_updates=get_allowed_updates(dp),
-            **dispatcher_data,
-        )
-    )
-    
-    # Start scheduler in background
-    from flashcard.scheduler.scheduler import scheduler_loop
-    scheduler_task = asyncio.create_task(
-        scheduler_loop(
-            bot=bot,
-            logger_bot=logger_bot,
-            user_service=services.user_service,
-            review_use_cases=dispatcher_data["review_use_cases"],
-            language=language,
-            admin_id=settings.ADMIN_ID,
-            pause_rule=settings.REVIEW_PAUSE_RULE,
-        )
-    )
-
-    return {
-        "mongo_client": mongo_client,
-        "bot": bot,
-        "logger_bot": logger_bot,
-        "http_client": http_client,
-        "polling_task": polling_task,
-        "scheduler_task": scheduler_task
-    }
-
-async def close_telegram_without_fastapi(resources: dict):
-    # Stop scheduler task
-    if "scheduler_task" in resources:
-        task = resources["scheduler_task"]
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-    
-    # Stop polling task
-    if "polling_task" in resources:
-        task = resources["polling_task"]
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-
-    await close_mongo_on_client(resources["mongo_client"])
-    
-    await close_http_client_on_client(resources["http_client"])
-    await resources["bot"].session.close()
-    await resources["logger_bot"].session.close()
-    
-    get_trace_logger().shutdown()
+    async with open_resources(settings) as resources:
+        core = build_core(resources.cols, resources.http_client, settings, language)
+        runtime = await start_telegram(core, settings, mode)
+        try:
+            yield resources, runtime
+        finally:
+            await stop_telegram(runtime)

@@ -17,7 +17,7 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 | 7 | Global singletons (`settings`, `i18n`) imported at module level | Runtime-mode explosion, separate runners | Open |
 | 8 | Writes are not idempotent (regex de-duplication, no unique index) | `action_id` required on every call | Code done for card saves; rollout pending (step 3) |
 | 9 | Loose types: `user_id` is `str` or `int`, dicts instead of models, ISO strings compared as text | BSON Int64 session bug | Open |
-| 10 | No shared composition root: dispatcher data dict; startup wiring duplicated in `bot.py` | `MiniappRuntime` built its own composition | Open |
+| 10 | No shared composition root: dispatcher data dict; startup wiring duplicated in `bot.py` | `MiniappRuntime` built its own composition | Done |
 
 ## Production rollout (one update after the full refactor)
 
@@ -174,10 +174,10 @@ Migration (each step deployable and reversible):
 - [x] **Each service gets only its own collection.** Services took the whole `cols`
   dict, so any service could reach any collection. Now `ExpressionService(expressions)`,
   `UserService(users)`, `ConsumptionService(users)`, `ReviewStateStore(users)`,
-  `VerbService(conjugations)`. `build_services` in `bot.py` is the only place that
+  `VerbService(conjugations)`. `build_core` in `composition.py` is the only place that
   hands collections out (both startup paths use it); `cols` is no longer injected into
   handlers. Guarded by `tests/unit/test_data_ownership.py` (only the composition root,
-  `db/mongo.py` and the migrations index `cols`; no `self.cols`; `build_services` wiring).
+  `db/mongo.py` and the migrations index `cols`; no `self.cols`; `build_core` wiring).
 - [x] **No reads of `users` outside its owners.** `ExpressionService.get_review_candidate`
   takes `review_mode` from the use case (which loads the user first; same number of
   reads, one fewer for the scheduler). The scheduler's queries moved into
@@ -231,7 +231,7 @@ Mini App consequence: its authority DB, language exchange and second build go aw
 
 - [x] `LanguageConfig` (`flashcard/language.py`: code, name, flag, UI locale, validator,
   conjugation, user defaults) built once per startup path and passed through
-  `build_bot_dispatcher`, `build_services`, dispatcher data (`language`) and `scheduler_loop`.
+  `build_bot_dispatcher`, `build_core`, handler data (`language`) and `scheduler_loop`.
   `UserService` (`defaults` required) fills missing user settings from it (stored values
   win); `UserDB` has no defaults for them, so the config is their only source.
   `ReviewUseCases` gets the same defaults; the `schemas/defaults.py` constants are gone.
@@ -259,6 +259,32 @@ Mini App consequence: its authority DB, language exchange and second build go aw
   on save). Verified on a disposable MongoDB 7.
 
 Out of scope: per-user interface locale (new feature, own item later).
+
+## #10 Composition root: progress
+
+One root, `flashcard/composition.py`, shared by every runtime; the Mini App will build on
+`open_resources` + `build_core` without any Telegram code.
+
+- [x] `open_resources(settings)`: opens Mongo and the HTTP client once, closes each once
+  (reverse order), also when startup fails. The FastAPI-bound `init_mongo` /
+  `init_http_client` (and their `close_*`) are gone.
+- [x] `build_core(cols, http_client, settings, language) -> Core`: services, `QuotaPolicy` and
+  every use case (was `build_services` + the use-case half of `build_dispatcher_data`).
+  `QuotaPolicy` gets `settings` from here.
+- [x] `Core.handler_data(logger_bot)`: what Telegram handlers receive: the use cases,
+  `language`, `logger_bot`, and `user_service` (only for `TraceMiddleware`). The seven raw
+  services and the HTTP client are no longer in the dispatcher data.
+- [x] `telegram/bot.py`: `start_telegram(core, settings, mode)` / `stop_telegram(runtime)` on a
+  `TelegramRuntime` (bot, logger bot, dispatcher, handler data, tasks); `running_bot(settings,
+  mode)` composes clients → core → Telegram. The FastAPI lifespan and `dev_poll` both use it
+  (`init_telegram_bot`, `init_telegram_without_fastapi` and their `close_*` are gone).
+- [x] `app.state` holds only `mongo_client` (readiness check) and `telegram` (webhook route);
+  the unused `app.state.*_service` writes are gone.
+- [x] Integration tests build their dispatcher data with the real `build_core` (LLM and
+  validator swapped). Guards: `tests/unit/test_composition_root.py` (only the root builds
+  services/use cases and opens clients; handlers take no raw service; handler data keys).
+- Left for #7: `build_bot_dispatcher` still reads `settings.BOT_TOKEN` from the global, and
+  modules still import `settings` / `i18n` at module level.
 
 ## #5 Latest card as fallback: progress
 
@@ -375,8 +401,7 @@ user receives are counted; the trial stays derived from `created_at` (no migrati
 - **Dates stored as text hide bad values (#9).** A `last_reviewed_at` that is not an
   ISO date can sort after real dates, so the scheduler's DB prefilter never returns
   that user: they silently never get reviews. Real dates would fix it.
-- **Duplicated startup** in `bot.py` (#10): both startup paths now share
-  `build_services`, but still duplicate the bot/logger-bot/Mongo/HTTP setup.
+- [x] **Duplicated startup** in `bot.py` (#10). Done: both paths use `running_bot`.
 - [x] **One Mongo and one HTTP client under FastAPI (#10).** `init_telegram_bot` opened
   a second pair and overwrote `app.state`: the first pair was never closed, the second
   closed twice. Now the `lifespan` owns both (opens and closes them); the bot only uses

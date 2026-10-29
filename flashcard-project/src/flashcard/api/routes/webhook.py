@@ -28,26 +28,21 @@ async def webhook_handler(
         logger.warning("Invalid webhook update payload", exc_info=e)
         raise HTTPException(status_code=400, detail="Invalid update payload")
 
-    # Get bot and dispatcher from app state (set during init_telegram_bot)
-    bot = request.app.state.bot
-    dp = request.app.state.dispatcher
-    dispatcher_data = getattr(request.app.state, "dispatcher_data", {})
+    # Set by the FastAPI lifespan (running_bot)
+    telegram = request.app.state.telegram
 
     try:
-        # Feed update to dispatcher
-        await dp.feed_update(bot, update, **dispatcher_data)
+        await telegram.dispatcher.feed_update(telegram.bot, update, **telegram.handler_data)
     except Exception as e:
         logger.exception("Webhook update processing failed")
-        logger_bot = getattr(request.app.state, "logger_bot", None)
-        if logger_bot is not None:
-            try:
-                error_text = html.escape(f"{type(e).__name__}: {str(e)}")[:1000]
-                await notify_admin_with_trace(
-                    logger_bot,
-                    text=f"<b>Webhook Processing Error</b>\n{error_text}",
-                )
-            except Exception as notify_error:
-                logger.warning(f"Failed to notify admin about webhook error: {notify_error}")
+        try:
+            error_text = html.escape(f"{type(e).__name__}: {str(e)}")[:1000]
+            await notify_admin_with_trace(
+                telegram.logger_bot,
+                text=f"<b>Webhook Processing Error</b>\n{error_text}",
+            )
+        except Exception as notify_error:
+            logger.warning(f"Failed to notify admin about webhook error: {notify_error}")
         raise HTTPException(status_code=500, detail="Failed to process update")
 
     return {"ok": True}

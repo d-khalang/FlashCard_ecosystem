@@ -5,7 +5,7 @@ import warnings
 from flashcard.settings import settings
 
 import asyncio
-from flashcard.telegram.bot import init_telegram_without_fastapi, close_telegram_without_fastapi
+from flashcard.telegram.bot import running_bot
 
 def main():
     """Entry point for production run"""
@@ -26,14 +26,12 @@ def dev():
     )
 
 async def _run_poll():
-    resources = await init_telegram_without_fastapi(settings)
-    try:
-        # Keep the script running by awaiting the polling task
-        await resources["polling_task"]
-    except (KeyboardInterrupt, SystemExit):
-        pass
-    finally:
-        await close_telegram_without_fastapi(resources)
+    async with running_bot(settings, "polling") as (_, telegram):
+        try:
+            # Keep the script running by awaiting the polling task
+            await telegram.polling_task
+        except (KeyboardInterrupt, SystemExit):
+            pass
 
 def main_poll():
     """

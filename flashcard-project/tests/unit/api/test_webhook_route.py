@@ -44,10 +44,9 @@ class TestWebhookHandler:
         logger_bot = MagicMock()
         dispatcher = SimpleNamespace(feed_update=AsyncMock(side_effect=RuntimeError("boom")))
         state = {
-            "bot": bot,
-            "dispatcher": dispatcher,
-            "dispatcher_data": {"x": 1},
-            "logger_bot": logger_bot,
+            "telegram": SimpleNamespace(
+                bot=bot, dispatcher=dispatcher, handler_data={"x": 1}, logger_bot=logger_bot,
+            ),
         }
         request = _DummyRequest(payload={"update_id": 1}, state_values=state)
 
@@ -67,9 +66,9 @@ class TestWebhookHandler:
         bot = MagicMock()
         dispatcher = SimpleNamespace(feed_update=AsyncMock(return_value=None))
         state = {
-            "bot": bot,
-            "dispatcher": dispatcher,
-            "dispatcher_data": {},
+            "telegram": SimpleNamespace(
+                bot=bot, dispatcher=dispatcher, handler_data={}, logger_bot=MagicMock(),
+            ),
         }
         request = _DummyRequest(payload={"invalid": "update"}, state_values=state)
 
@@ -85,9 +84,9 @@ class TestWebhookHandler:
         bot = MagicMock()
         dispatcher = SimpleNamespace(feed_update=AsyncMock(return_value=None))
         state = {
-            "bot": bot,
-            "dispatcher": dispatcher,
-            "dispatcher_data": {"x": 2},
+            "telegram": SimpleNamespace(
+                bot=bot, dispatcher=dispatcher, handler_data={"x": 2}, logger_bot=MagicMock(),
+            ),
         }
         request = _DummyRequest(payload={"update_id": 7}, state_values=state)
 
