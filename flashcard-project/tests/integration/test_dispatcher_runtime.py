@@ -270,3 +270,18 @@ async def test_verb_header_button_is_answered(dispatcher_env):
 
     answers = [call for call in dispatcher_env["session"].calls if call.method == "AnswerCallbackQuery"]
     assert len(answers) == 1
+
+
+async def test_reply_buttons_match_the_injected_i18n_and_beat_creation(dispatcher_env):
+    """ButtonText reads `i18n` from the handler data; the button text never reaches card creation."""
+    i18n = dispatcher_env["dispatcher_data"]["i18n"]
+    for update_id, key in enumerate(["messages.buttons.pause_learning", "messages.buttons.close_settings"], start=1):
+        await dispatcher_env["dp"].feed_update(
+            dispatcher_env["bot"],
+            make_message_update(text=i18n.get(key), update_id=update_id, message_id=update_id),
+            **dispatcher_env["dispatcher_data"],
+        )
+
+    sent = [call.payload["text"] for call in dispatcher_env["session"].calls if call.method == "SendMessage"]
+    assert sent == [i18n.get("messages.notifications.paused"), i18n.get("commands.settings.closed")]
+    assert dispatcher_env["llm_service"].card_calls == []

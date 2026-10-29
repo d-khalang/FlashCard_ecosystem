@@ -11,7 +11,6 @@ from aiogram.utils.chat_action import ChatActionMiddleware
 
 from flashcard.composition import Core, build_core, open_resources
 from flashcard.language import LanguageConfig
-from flashcard.settings import settings
 from flashcard.telegram.handlers import (
     user_settings, 
     feedback, 
@@ -51,9 +50,9 @@ def _build_ipv4_session() -> "AiohttpSession":
     return session
 
 
-def build_bot_dispatcher(language: LanguageConfig) -> tuple[Bot, Dispatcher]:
+def build_bot_dispatcher(bot_token: str, language: LanguageConfig) -> tuple[Bot, Dispatcher]:
     bot = Bot(
-        token=settings.BOT_TOKEN,
+        token=bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=_build_ipv4_session(),
     )
@@ -115,22 +114,24 @@ class TelegramRuntime:
     dispatcher: Dispatcher
     handler_data: dict
     mode: str
+    admin_id: int
     polling_task: Optional[asyncio.Task] = None
     scheduler_task: Optional[asyncio.Task] = None
 
 
 async def start_telegram(core: Core, settings, mode: str) -> TelegramRuntime:
     """Start the bot (webhook or polling) and the review scheduler on top of the core."""
-    bot, dp = build_bot_dispatcher(core.language)
+    bot, dp = build_bot_dispatcher(settings.BOT_TOKEN, core.language)
     logger_bot = Bot(
         token=settings.LOGGER_BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=_build_ipv4_session(),
     )
-    install_asyncio_exception_handler(logger_bot=logger_bot)
+    install_asyncio_exception_handler(logger_bot=logger_bot, admin_id=settings.ADMIN_ID)
     runtime = TelegramRuntime(
         bot=bot, logger_bot=logger_bot, dispatcher=dp,
-        handler_data=core.handler_data(logger_bot), mode=mode,
+        handler_data=core.handler_data(logger_bot, settings.ADMIN_ID), mode=mode,
+        admin_id=settings.ADMIN_ID,
     )
 
     try:
@@ -163,7 +164,9 @@ async def start_telegram(core: Core, settings, mode: str) -> TelegramRuntime:
                 user_service=core.user_service,
                 review_use_cases=core.review_use_cases,
                 language=core.language,
+                i18n=core.i18n,
                 admin_id=settings.ADMIN_ID,
+                check_interval_seconds=settings.SCHEDULER_CHECK_INTERVAL_SECONDS,
                 pause_rule=settings.REVIEW_PAUSE_RULE,
             )
         )

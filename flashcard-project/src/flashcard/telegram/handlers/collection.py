@@ -7,7 +7,7 @@ from flashcard.app.collection import (
     AllDuplicates, CollectionUseCases, Imported, InvalidLanguage, NothingFound, ParseFailed, TooLong,
 )
 from flashcard.app.quota import QuotaExceeded
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.ui.expression_lists import format_expression_list
 from flashcard.utils.logger import get_logger
 
@@ -17,7 +17,7 @@ router = Router()
 
 @router.message(Command("remove"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_remove(message: Message):
+async def cmd_remove(message: Message, i18n: I18nService):
     bot_username = getattr(message.bot, "username", None)
     inline_name = f"@{bot_username}" if bot_username else "@italian_assist_bot"
     await message.answer(
@@ -27,7 +27,7 @@ async def cmd_remove(message: Message):
 
 @router.message(Command("import"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_import(message: Message, command: CommandObject, collection_use_cases: CollectionUseCases):
+async def cmd_import(message: Message, command: CommandObject, collection_use_cases: CollectionUseCases, i18n: I18nService):
     # aiogram strips the command and any @botname; args is None when empty or whitespace.
     if not command.args:
         await message.answer(i18n.get("commands.import.usage_guide"))
@@ -55,7 +55,7 @@ async def cmd_import(message: Message, command: CommandObject, collection_use_ca
 
 @router.message(Command("list_my_flashcards"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_list_my_flashcards(message: Message, collection_use_cases: CollectionUseCases):
+async def cmd_list_my_flashcards(message: Message, collection_use_cases: CollectionUseCases, i18n: I18nService):
     # Flags: -p plain list, -t creation order; combinable as -pt, -tp or -p -t.
     plain = sort_by_time = False
     for arg in (message.text or "").split()[1:]:
@@ -67,5 +67,5 @@ async def cmd_list_my_flashcards(message: Message, collection_use_cases: Collect
     values = await collection_use_cases.list_items(message.from_user.id, order=order)
 
     # Letter headings only make sense for an alphabetical list.
-    for msg in format_expression_list(values, plain=plain, sort_alphabetical=order == "alphabetical"):
+    for msg in format_expression_list(i18n, values, plain=plain, sort_alphabetical=order == "alphabetical"):
         await message.answer(msg)

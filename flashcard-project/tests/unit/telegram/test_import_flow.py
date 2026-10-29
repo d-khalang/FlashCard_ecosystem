@@ -12,7 +12,7 @@ from aiogram.filters import Command
 from flashcard.app.collection import MAX_IMPORT_CHARS, CollectionUseCases
 from flashcard.schemas.import_model import ImportResponse
 from flashcard.schemas.user import UserTier
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.services.language_validation import LanguageValidationResult
 from flashcard.telegram.handlers import collection
 from flashcard.app.quota import QuotaExceeded
@@ -58,7 +58,7 @@ def _use_cases(d) -> CollectionUseCases:
 async def _run(d, text="/import andare, fare", message=None):
     message = message or _message(text)
     await collection.cmd_import(message, command=Command("import").extract_command(text),
-                                collection_use_cases=_use_cases(d))
+                                collection_use_cases=_use_cases(d), i18n=i18n)
     return message
 
 

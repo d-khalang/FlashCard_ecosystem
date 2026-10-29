@@ -4,14 +4,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import ForceReply
 
 from flashcard.telegram.states.feedback import FeedbackStates
-from flashcard.services.i18n import i18n
-from flashcard.settings import settings
+from flashcard.services.i18n import I18nService
 from flashcard.utils.logger import notify_admin_with_trace
 
 router = Router()
 
 @router.message(Command("feedback"))
-async def cmd_feedback(message: types.Message, state: FSMContext):
+async def cmd_feedback(message: types.Message, state: FSMContext, i18n: I18nService):
     """
     Initiates feedback flow.
     """
@@ -26,7 +25,7 @@ async def cmd_feedback(message: types.Message, state: FSMContext):
     )
 
 @router.message(FeedbackStates.waiting_message)
-async def process_feedback(message: types.Message, state: FSMContext, logger_bot: Bot):
+async def process_feedback(message: types.Message, state: FSMContext, logger_bot: Bot, admin_id: int, i18n: I18nService):
     """
     Process the feedback message.
     """
@@ -48,7 +47,7 @@ async def process_feedback(message: types.Message, state: FSMContext, logger_bot
     )
     
     try:
-        await notify_admin_with_trace(logger_bot, admin_msg)
+        await notify_admin_with_trace(logger_bot, admin_msg, admin_id=admin_id)
         await message.answer(i18n.get("commands.feedback.success"), reply_markup=types.ReplyKeyboardRemove())
     except Exception as e:
         await message.answer(i18n.get("messages.errors.feedback_failed", error=str(e)))

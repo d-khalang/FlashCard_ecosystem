@@ -11,7 +11,7 @@ import pytest
 from flashcard.app.story import StoryUseCases
 from flashcard.schemas.story import StoryParagraph, StoryResponse
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.telegram.handlers import story
 from flashcard.telegram.ui.story import format_story_messages
 from flashcard.app.quota import QuotaExceeded
@@ -58,7 +58,7 @@ async def _run(d, text="/story"):
     message.answer = AsyncMock()
     use_cases = StoryUseCases(expression_service=d.expression_service, user_service=d.user_service,
                               quota=d.quota, llm_service=d.llm_service)
-    await story.cmd_story(message, story_use_cases=use_cases)
+    await story.cmd_story(message, story_use_cases=use_cases, i18n=i18n)
     return message
 
 

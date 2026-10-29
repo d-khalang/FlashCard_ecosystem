@@ -5,7 +5,7 @@ from aiogram.enums import ChatAction
 
 from flashcard.app.quota import QuotaExceeded
 from flashcard.app.story import EmptyStory, NoWords, Story, StoryUseCases
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.ui.story import format_story_messages
 from flashcard.utils.logger import get_logger
 
@@ -15,7 +15,7 @@ router = Router()
 
 @router.message(Command("story"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_story(message: Message, story_use_cases: StoryUseCases):
+async def cmd_story(message: Message, story_use_cases: StoryUseCases, i18n: I18nService):
     # Flag: -l for a longer story.
     long = "-l" in (message.text or "").split()[1:]
 

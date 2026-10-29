@@ -76,9 +76,9 @@ class TestIsoZ:
 class TestSettingsWebhookUrl:
 
     def test_combines_base_and_path(self):
-        from flashcard.settings import settings
+        from flashcard.settings import get_setting
 
-        url = settings.webhook_url
+        url = get_setting().webhook_url
 
         # Should be a valid URL combining base + path
         assert url.startswith("http")
@@ -86,9 +86,9 @@ class TestSettingsWebhookUrl:
 
     def test_no_double_slashes(self):
         """Base trailing slash + path leading slash should not produce '//'."""
-        from flashcard.settings import settings
+        from flashcard.settings import get_setting
 
-        url = settings.webhook_url
+        url = get_setting().webhook_url
         # Remove protocol ://
         after_protocol = url.split("://", 1)[1]
         assert "//" not in after_protocol

@@ -13,7 +13,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from flashcard.app.creation import CreationUseCases
 from flashcard.schemas.expression import ExpressionCard, TranslationLine
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.services.language_validation import LanguageValidationResult
 from flashcard.telegram.handlers import creation
 from flashcard.telegram.keyboards import expression_action_kb
@@ -86,7 +86,7 @@ async def _run_text(d, text="andare"):
     message.text = text
     message.from_user.id = USER_ID
     message.answer = AsyncMock(return_value=status)
-    await creation.handle_text_message(message, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+    await creation.handle_text_message(message, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
     return message, status
 
 
@@ -98,7 +98,7 @@ class TestTextMessage:
 
         message.answer.assert_awaited_once_with(i18n.get("messages.working"))
         status.edit_text.assert_awaited_once_with(
-            text=render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"], reply_markup=expression_action_kb("andare"))
+            text=render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"], reply_markup=expression_action_kb(i18n, "andare"))
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=False)
 
@@ -196,8 +196,8 @@ def _callback(data, markup=None, text="CARD TEXT"):
 
 
 async def _run_regen(d, data="regen:andare"):
-    callback = _callback(data, markup=expression_action_kb("andare"))
-    await creation.handle_regen(callback, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+    callback = _callback(data, markup=expression_action_kb(i18n, "andare"))
+    await creation.handle_regen(callback, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
     return callback
 
 
@@ -209,7 +209,7 @@ class TestRegenerate:
 
         assert callback.message.edit_text.await_args_list[0].args == (i18n.get("callbacks.regen.working"),)
         assert callback.message.edit_text.await_args_list[-1].kwargs == {
-            "text": render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"], "reply_markup": expression_action_kb("andare")}
+            "text": render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"], "reply_markup": expression_action_kb(i18n, "andare")}
         assert d.llm_service.generate_expression_card.await_args.kwargs["raw"] == "andare"
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=False)
@@ -234,7 +234,7 @@ class TestRegenerate:
 # ===================================================================
 async def _run_save(d, data="save:andare", markup=None):
     callback = _callback(data, markup=markup)
-    await creation.handle_save(callback, creation_use_cases=_use_cases(d))
+    await creation.handle_save(callback, creation_use_cases=_use_cases(d), i18n=i18n)
     return callback
 
 
@@ -261,7 +261,7 @@ class TestSave:
     async def test_duplicate_alerts_and_removes_only_save_button(self):
         d = _deps()
         d.expression_service.add_expression.return_value = False
-        callback = await _run_save(d, markup=expression_action_kb("andare"))
+        callback = await _run_save(d, markup=expression_action_kb(i18n, "andare"))
 
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.save.already_exists"), show_alert=True)
         markup = callback.message.edit_reply_markup.await_args.kwargs["reply_markup"]

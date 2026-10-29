@@ -6,7 +6,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from google.genai.errors import APIError as GeminiAPIError
 from pymongo.errors import PyMongoError
 
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger
 
@@ -28,7 +28,7 @@ def _user_message_key(exception: BaseException) -> str:
     return "messages.errors.service_unavailable"
 
 @router.error()
-async def error_handler(event: ErrorEvent, logger_bot: Bot, trace_id: str | None = None):
+async def error_handler(event: ErrorEvent, logger_bot: Bot, admin_id: int, i18n: I18nService, trace_id: str | None = None):
     """
     Global error handler.
     """
@@ -48,7 +48,8 @@ async def error_handler(event: ErrorEvent, logger_bot: Bot, trace_id: str | None
                 f"Update Type: {event.update.event_type}\n"
                 f"Exception: {exception_text}"
             ),
-            trace_id=resolved_trace_id
+            trace_id=resolved_trace_id,
+            admin_id=admin_id,
         )
     except Exception as e:
         logger.error(f"Failed to send error notification to logger bot: {e}")

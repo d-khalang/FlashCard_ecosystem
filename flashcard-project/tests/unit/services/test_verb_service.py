@@ -8,7 +8,7 @@ get_verb_data orchestration uses mocked DB + HTTP.
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from flashcard.services.verb import VerbService
+from flashcard.services.verb import ScraperConfig, VerbService
 
 
 # ---------------------------------------------------------------------------
@@ -21,7 +21,11 @@ def _make_service():
     mock_cols["conjugation"].replace_one = AsyncMock()
     mock_http = MagicMock()
     mock_http.get = AsyncMock()
-    return VerbService(conjugations=mock_cols["conjugation"], http_client=mock_http), mock_cols, mock_http
+    return VerbService(
+        conjugations=mock_cols["conjugation"],
+        http_client=mock_http,
+        scraper=ScraperConfig(url="http://localhost", port=5000, api_key="test-key"),
+    ), mock_cols, mock_http
 
 
 # ===================================================================

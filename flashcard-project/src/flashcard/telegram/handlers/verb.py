@@ -8,7 +8,7 @@ from aiogram.exceptions import TelegramBadRequest
 from flashcard.app.verb import Found, InvalidVerb, NoVerb, VerbUseCases
 from flashcard.telegram.ui.verb import format_verb_conjugation, format_verb_message
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.keyboards import get_verb_keyboard
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
@@ -19,7 +19,7 @@ router = Router()
 
 @router.message(Command("verb"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_verb(message: Message, command: CommandObject, verb_use_cases: VerbUseCases, logger_bot: Bot):
+async def cmd_verb(message: Message, command: CommandObject, verb_use_cases: VerbUseCases, logger_bot: Bot, admin_id: int, i18n: I18nService):
     """
     Handle /verb command.
     """
@@ -40,18 +40,18 @@ async def cmd_verb(message: Message, command: CommandObject, verb_use_cases: Ver
         result = await verb_use_cases.lookup(message.from_user.id, verb)
     except Exception as e:
         logger.error(f"Verb data retrieval error for '{verb}': {e}")
-        await notify_admin_with_trace(logger_bot, f"Verb data error for '{verb}' (user {message.from_user.id}): {str(e)}")
+        await notify_admin_with_trace(logger_bot, f"Verb data error for '{verb}' (user {message.from_user.id}): {str(e)}", admin_id=admin_id)
         await status_msg.edit_text(text=error_text, reply_markup=None)
         return
 
     if isinstance(result, Found):
-        await status_msg.edit_text(text=format_verb_message(result.data), reply_markup=get_verb_keyboard(result.data))
+        await status_msg.edit_text(text=format_verb_message(result.data), reply_markup=get_verb_keyboard(i18n, result.data))
     else:
         await status_msg.edit_text(text=error_text, reply_markup=None)
 
 
 @router.callback_query(VerbCallback.filter())
-async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallback, verb_use_cases: VerbUseCases):
+async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallback, verb_use_cases: VerbUseCases, i18n: I18nService):
     """
     Handle verb conjugation navigation callbacks.
     """

@@ -14,7 +14,7 @@ from aiogram.types import (
 )
 
 from flashcard.app.collection import CollectionUseCases, Matches, QueryTooShort, Removed
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback, safe_call
 from flashcard.telegram.ui.factories.inline_remove_callback import InlineRemoveCallback
 from flashcard.utils.logger import get_logger
@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 router = Router()
 
 
-def _build_initial_remove_markup(expression_id: str) -> InlineKeyboardMarkup:
+def _build_initial_remove_markup(i18n: I18nService, expression_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -39,7 +39,7 @@ def _build_initial_remove_markup(expression_id: str) -> InlineKeyboardMarkup:
     )
 
 
-def _build_confirmation_markup(expression_id: str) -> InlineKeyboardMarkup:
+def _build_confirmation_markup(i18n: I18nService, expression_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -84,7 +84,7 @@ async def _edit_inline_reply_markup(
 @router.inline_query()
 async def handle_inline_remove_query(
     inline_query: InlineQuery,
-    collection_use_cases: CollectionUseCases,
+    collection_use_cases: CollectionUseCases, i18n: I18nService,
 ):
     result = await collection_use_cases.search(inline_query.from_user.id, inline_query.query or "")
     if not isinstance(result, Matches):
@@ -98,7 +98,7 @@ async def handle_inline_remove_query(
             title=item.value,
             description=i18n.get("callbacks.inline_remove.result_description"),
             input_message_content=InputTextMessageContent(message_text=item.value),
-            reply_markup=_build_initial_remove_markup(item.id),
+            reply_markup=_build_initial_remove_markup(i18n, item.id),
         )
         for item in result.items
     ]
@@ -109,7 +109,7 @@ async def handle_inline_remove_query(
 async def handle_inline_remove_callback(
     callback: CallbackQuery,
     callback_data: InlineRemoveCallback,
-    collection_use_cases: CollectionUseCases,
+    collection_use_cases: CollectionUseCases, i18n: I18nService,
 ):
     expression_id = callback_data.expression_id
 
@@ -117,7 +117,7 @@ async def handle_inline_remove_callback(
         if callback_data.action == "prompt":
             await _edit_inline_reply_markup(
                 callback,
-                reply_markup=_build_confirmation_markup(expression_id),
+                reply_markup=_build_confirmation_markup(i18n, expression_id),
             )
             await safe_answer_callback(
                 callback,
@@ -129,7 +129,7 @@ async def handle_inline_remove_callback(
         if callback_data.action == "cancel":
             await _edit_inline_reply_markup(
                 callback,
-                reply_markup=_build_initial_remove_markup(expression_id),
+                reply_markup=_build_initial_remove_markup(i18n, expression_id),
             )
             await safe_answer_callback(
                 callback,

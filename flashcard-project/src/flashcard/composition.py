@@ -20,12 +20,13 @@ from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.language import LanguageConfig
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
+from flashcard.services.i18n import I18nService
 from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
 from flashcard.services.language_validation import get_language_validator
-from flashcard.services.llm.llm import LLMService
+from flashcard.services.llm.llm import LLMConfig, LLMService
 from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.user import UserService
-from flashcard.services.verb import VerbService
+from flashcard.services.verb import ScraperConfig, VerbService
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ async def open_resources(settings):
 @dataclass(frozen=True)
 class Core:
     language: LanguageConfig
+    i18n: I18nService
     expression_service: ExpressionService
     user_service: UserService
     consumption_service: ConsumptionService
@@ -68,11 +70,14 @@ class Core:
     verb_use_cases: Optional[VerbUseCases]
     collection_use_cases: CollectionUseCases
 
-    def handler_data(self, logger_bot) -> dict:
+    def handler_data(self, logger_bot, admin_id: int) -> dict:
         """What Telegram handlers and middlewares receive: use cases, not services."""
         return {
             "logger_bot": logger_bot,
+            # Chat that receives logger_bot's admin notifications.
+            "admin_id": admin_id,
             "language": self.language,
+            "i18n": self.i18n,
             # TraceMiddleware records every user as seen (the only upsert on `users`).
             "user_service": self.user_service,
             "review_use_cases": self.review_use_cases,
@@ -95,15 +100,22 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
     consumption_service = ConsumptionService(users=cols["users"])
     review_state = ReviewStateStore(users=cols["users"])
     verb_service = (
-        VerbService(conjugations=cols["conjugation"], http_client=http_client)
+        VerbService(
+            conjugations=cols["conjugation"],
+            http_client=http_client,
+            scraper=ScraperConfig.from_settings(settings),
+        )
         if language.conjugation
         else None
     )
-    llm_service = LLMService(learning_language_name=language.name)
+    llm_service = LLMService(
+        learning_language_name=language.name, config=LLMConfig.from_settings(settings)
+    )
     language_validator = get_language_validator(language)
     quota = QuotaPolicy(consumption_service, settings)
     return Core(
         language=language,
+        i18n=I18nService.for_language(language),
         expression_service=expression_service,
         user_service=user_service,
         consumption_service=consumption_service,

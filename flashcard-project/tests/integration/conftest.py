@@ -19,7 +19,7 @@ from flashcard.telegram.handlers import (
     verb,
 )
 from flashcard import composition
-from flashcard.settings import settings
+from flashcard.settings import get_setting
 from flashcard.telegram.bot import build_bot_dispatcher
 from .helpers import (
     DummyTraceLogger,
@@ -108,18 +108,18 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
         module.router._parent_router = None
 
     bot, session = bot_and_session
-    _, dp = build_bot_dispatcher(TEST_LANGUAGE)
+    _, dp = build_bot_dispatcher("123456:test-token", TEST_LANGUAGE)
     logger_bot, _ = make_bot()
     # The real composition root, with the LLM and validator swapped for test doubles.
     monkeypatch.setattr(composition, "LLMService", lambda **_: llm_service)
     monkeypatch.setattr(composition, "get_language_validator", lambda language: BaseLanguageValidityChecker())
-    core = composition.build_core(cols, fake_http_client, settings, TEST_LANGUAGE)
+    core = composition.build_core(cols, fake_http_client, get_setting(), TEST_LANGUAGE)
     yield {
         "bot": bot,
         "dp": dp,
         "session": session,
         "logger_bot": logger_bot,
-        "dispatcher_data": core.handler_data(logger_bot),
+        "dispatcher_data": core.handler_data(logger_bot, admin_id=0),
         "llm_service": llm_service,
         "cols": cols,  # for tests that seed or inspect the in-memory DB directly
         "expression_service": core.expression_service,

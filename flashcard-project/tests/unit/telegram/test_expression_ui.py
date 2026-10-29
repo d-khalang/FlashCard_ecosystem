@@ -5,6 +5,7 @@ Tests format_expression_list: alphabetical grouping, plain mode,
 no-sort mode, message splitting at 4000 chars, and empty list.
 """
 from flashcard.telegram.ui.expression_lists import format_expression_list
+from tests.helpers import TEST_I18N
 
 
 # ===================================================================
@@ -13,26 +14,26 @@ from flashcard.telegram.ui.expression_lists import format_expression_list
 class TestExpressionListFormatting:
 
     def test_empty_list_shows_onboarding_message(self):
-        result = format_expression_list([])
+        result = format_expression_list(TEST_I18N, [])
         assert len(result) == 1
         assert "📇 Your Deck" in result[0]
         assert "quiet in here" in result[0]
 
     def test_default_mode_sorts_alphabetically(self):
-        result = format_expression_list(["banana", "apple"])
+        result = format_expression_list(TEST_I18N, ["banana", "apple"])
         content = result[0]
 
         assert content.find("apple") < content.find("banana")
 
     def test_default_mode_adds_letter_headers(self):
-        result = format_expression_list(["banana", "apple"])
+        result = format_expression_list(TEST_I18N, ["banana", "apple"])
         content = result[0]
 
         assert "<b>A</b>" in content
         assert "<b>B</b>" in content
 
     def test_plain_mode_no_fancy_elements(self):
-        result = format_expression_list(["banana", "apple"], plain=True)
+        result = format_expression_list(TEST_I18N, ["banana", "apple"], plain=True)
         content = result[0]
 
         # Still sorted
@@ -42,7 +43,7 @@ class TestExpressionListFormatting:
         assert "apple\n" in content
 
     def test_no_sort_preserves_insertion_order(self):
-        result = format_expression_list(
+        result = format_expression_list(TEST_I18N, 
             ["banana", "apple"], sort_alphabetical=False
         )
         content = result[0]
@@ -53,7 +54,7 @@ class TestExpressionListFormatting:
 
     def test_large_list_splits_at_4000_chars(self):
         expressions = [f"word_{i:04d}" for i in range(500)]
-        result = format_expression_list(expressions)
+        result = format_expression_list(TEST_I18N, expressions)
 
         assert len(result) > 1
         total = "".join(result)
@@ -63,11 +64,11 @@ class TestExpressionListFormatting:
     def test_each_chunk_under_4100_chars(self):
         """No single message should exceed Telegram's ~4096 char limit."""
         expressions = [f"expression_{i:04d}" for i in range(500)]
-        result = format_expression_list(expressions)
+        result = format_expression_list(TEST_I18N, expressions)
 
         for chunk in result:
             assert len(chunk) < 4100
 
     def test_item_count_in_header(self):
-        result = format_expression_list(["a", "b", "c"])
+        result = format_expression_list(TEST_I18N, ["a", "b", "c"])
         assert "3 words growing strong" in result[0]

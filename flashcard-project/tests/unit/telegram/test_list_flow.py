@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from flashcard.app.collection import CollectionUseCases
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.telegram.handlers import collection
 from flashcard.telegram.ui.expression_lists import format_expression_list
 
@@ -34,7 +34,7 @@ async def _run(d, text="/list_my_flashcards"):
     message.text = text
     message.from_user.id = USER_ID
     message.answer = AsyncMock()
-    await collection.cmd_list_my_flashcards(message, collection_use_cases=_use_cases(d))
+    await collection.cmd_list_my_flashcards(message, collection_use_cases=_use_cases(d), i18n=i18n)
     return message
 
 
@@ -48,7 +48,7 @@ class TestListOrder:
         message = await _run(_deps(["fare", "Andare", "bere"]))
 
         sent = _sent(message)
-        assert sent == format_expression_list(["Andare", "bere", "fare"])
+        assert sent == format_expression_list(i18n, ["Andare", "bere", "fare"])
         assert "<b>A</b>" in sent[0] and "<b>F</b>" in sent[0]
         assert sent[0].index("Andare") < sent[0].index("bere") < sent[0].index("fare")
 
@@ -75,7 +75,7 @@ class TestListFormat:
     async def test_p_flag_is_plain_alphabetical_without_headings(self):
         message = await _run(_deps(["fare", "andare"]), text="/list_my_flashcards -p")
 
-        assert _sent(message) == format_expression_list(["andare", "fare"], plain=True)
+        assert _sent(message) == format_expression_list(i18n, ["andare", "fare"], plain=True)
         assert "<b>A</b>" not in _sent(message)[0]
 
     async def test_header_counts_items(self):

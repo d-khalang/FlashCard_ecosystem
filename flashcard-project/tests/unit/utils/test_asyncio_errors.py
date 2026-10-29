@@ -17,7 +17,7 @@ class TestInstallAsyncioExceptionHandler:
                 patch("flashcard.utils.asyncio_errors.logger", mock_logger),
                 patch("flashcard.utils.asyncio_errors.notify_admin_with_trace", new_callable=AsyncMock) as mock_notify,
             ):
-                install_asyncio_exception_handler(logger_bot=mock_logger_bot)
+                install_asyncio_exception_handler(logger_bot=mock_logger_bot, admin_id=1)
                 handler = loop.get_exception_handler()
 
                 err = RuntimeError("boom")
@@ -52,7 +52,7 @@ class TestInstallAsyncioExceptionHandler:
                 patch("flashcard.utils.asyncio_errors.logger", mock_logger),
                 patch("flashcard.utils.asyncio_errors.notify_admin_with_trace", new_callable=AsyncMock) as mock_notify,
             ):
-                install_asyncio_exception_handler(logger_bot=mock_logger_bot)
+                install_asyncio_exception_handler(logger_bot=mock_logger_bot, admin_id=1)
                 handler = loop.get_exception_handler()
 
                 handler(
@@ -87,7 +87,7 @@ class TestInstallAsyncioExceptionHandler:
                 patch("flashcard.utils.asyncio_errors.logger", mock_logger),
                 patch("flashcard.utils.asyncio_errors.notify_admin_with_trace", new_callable=AsyncMock) as mock_notify,
             ):
-                install_asyncio_exception_handler(logger_bot=mock_logger_bot)
+                install_asyncio_exception_handler(logger_bot=mock_logger_bot, admin_id=1)
                 handler = loop.get_exception_handler()
 
                 handler(
@@ -122,7 +122,7 @@ class TestInstallAsyncioExceptionHandler:
                 patch("flashcard.utils.asyncio_errors.logger", mock_logger),
                 patch("flashcard.utils.asyncio_errors.notify_admin_with_trace", new_callable=AsyncMock),
             ):
-                install_asyncio_exception_handler(logger_bot=mock_logger_bot)
+                install_asyncio_exception_handler(logger_bot=mock_logger_bot, admin_id=1)
                 handler = loop.get_exception_handler()
 
                 handler(

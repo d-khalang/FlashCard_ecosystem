@@ -43,6 +43,6 @@ def test_only_record_seen_creates_users():
 
 
 def test_telegram_entry_point_records_the_user_first():
-    _, dp = build_bot_dispatcher(TEST_LANGUAGE)
+    _, dp = build_bot_dispatcher("123456:test-token", TEST_LANGUAGE)
 
     assert any(isinstance(middleware, TraceMiddleware) for middleware in dp.update.middleware)

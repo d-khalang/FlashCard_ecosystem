@@ -1,7 +1,7 @@
 from typing import List
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 
-def format_expression_list(expressions: List[str], plain: bool = False, sort_alphabetical: bool = True) -> List[str]:
+def format_expression_list(i18n: I18nService, expressions: List[str], plain: bool = False, sort_alphabetical: bool = True) -> List[str]:
     """
     Formats a list of expressions into one or more Telegram messages.
     Telegram limit is 4096 chars. We stay safer with ~4000.

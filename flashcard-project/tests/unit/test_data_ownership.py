@@ -12,6 +12,7 @@ import ast
 from pathlib import Path
 
 import flashcard
+from flashcard.settings import get_setting
 from flashcard import composition
 from flashcard.composition import build_core
 from tests.integration.helpers import make_cols
@@ -47,7 +48,7 @@ def test_each_service_gets_only_its_own_collection(monkeypatch):
     monkeypatch.setattr(composition, "LLMService", lambda **_: object())
     monkeypatch.setattr(composition, "get_language_validator", lambda language: object())
     cols = make_cols()
-    services = build_core(cols, http_client=None, settings=object(), language=TEST_LANGUAGE)
+    services = build_core(cols, http_client=None, settings=get_setting(), language=TEST_LANGUAGE)
 
     assert services.expression_service.expressions is cols["expression"]
     assert services.user_service.users is cols["users"]

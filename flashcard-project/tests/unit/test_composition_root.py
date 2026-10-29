@@ -9,6 +9,7 @@ import ast
 from pathlib import Path
 
 import flashcard
+from flashcard.settings import get_setting
 from flashcard import composition
 from flashcard.composition import build_core
 from tests.helpers import TEST_LANGUAGE
@@ -59,15 +60,17 @@ def test_handlers_take_use_cases_not_services():
 def test_handler_data_exposes_use_cases_and_no_raw_service(monkeypatch):
     monkeypatch.setattr(composition, "LLMService", lambda **_: object())
     monkeypatch.setattr(composition, "get_language_validator", lambda language: object())
-    core = build_core(make_cols(), http_client=None, settings=object(), language=TEST_LANGUAGE)
+    core = build_core(make_cols(), http_client=None, settings=get_setting(), language=TEST_LANGUAGE)
     logger_bot = object()
 
-    data = core.handler_data(logger_bot)
+    data = core.handler_data(logger_bot, admin_id=7)
 
     assert set(data) == {
-        "logger_bot", "language", "user_service",
+        "logger_bot", "admin_id", "language", "i18n", "user_service",
         "review_use_cases", "creation_use_cases", "settings_use_cases",
         "story_use_cases", "verb_use_cases", "collection_use_cases",
     }
     assert data["logger_bot"] is logger_bot
+    assert data["admin_id"] == 7
+    assert data["i18n"] is core.i18n
     assert data["review_use_cases"] is core.review_use_cases

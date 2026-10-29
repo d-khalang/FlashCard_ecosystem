@@ -10,7 +10,7 @@ from aiogram.exceptions import TelegramBadRequest
 from bson import ObjectId
 
 from flashcard.app.collection import CollectionUseCases
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.telegram.handlers import inline_remove
 from flashcard.telegram.ui.factories.inline_remove_callback import InlineRemoveCallback
 
@@ -37,7 +37,7 @@ async def _query(d, text):
     inline_query.query = text
     inline_query.from_user.id = USER_ID
     inline_query.answer = AsyncMock()
-    await inline_remove.handle_inline_remove_query(inline_query, collection_use_cases=_use_cases(d))
+    await inline_remove.handle_inline_remove_query(inline_query, collection_use_cases=_use_cases(d), i18n=i18n)
     return inline_query
 
 
@@ -61,7 +61,7 @@ def _stale_callback():
 async def _press(d, action, callback=None, expression_id=EXPRESSION_ID):
     callback = callback or _callback()
     data = InlineRemoveCallback(action=action, expression_id=expression_id)
-    await inline_remove.handle_inline_remove_callback(callback, data, collection_use_cases=_use_cases(d))
+    await inline_remove.handle_inline_remove_callback(callback, data, collection_use_cases=_use_cases(d), i18n=i18n)
     return callback
 
 

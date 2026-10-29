@@ -8,7 +8,7 @@ from bson import ObjectId
 import pytest
 
 from flashcard.schemas.expression import ExpressionCard, StoredCard
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.utils.time import now_utc
 
 from .helpers import make_message_update

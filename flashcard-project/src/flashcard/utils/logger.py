@@ -1,6 +1,5 @@
 import logging
 import sys
-from flashcard.settings import settings
 
 APP_LOGGER_NAME = "flashcard"
 
@@ -33,14 +32,11 @@ class FlashCardLogger:
         if cls._initialized:
             return
 
-        # 1. Determine Log Level
-        level_str = settings.LOG_LEVEL.upper()
-        log_level = getattr(logging, level_str, logging.INFO)
-
-        # 2. Configure the specific Application Logger
+        # 1. Configure the specific Application Logger
         # This logger will handle everything under "flashcard.*"
+        # INFO until an entry point calls configure_log_level with LOG_LEVEL.
         app_logger = logging.getLogger(APP_LOGGER_NAME)
-        app_logger.setLevel(log_level)
+        app_logger.setLevel(logging.INFO)
         app_logger.propagate = False  # Isolate from Root Logger
 
         # Windows consoles default to cp1252, which cannot encode the ⚡ in our format.
@@ -57,7 +53,7 @@ class FlashCardLogger:
             handler.setFormatter(formatter)
             app_logger.addHandler(handler)
 
-        # 3. Configure Root Logger (Third-party libraries)
+        # 2. Configure Root Logger (Third-party libraries)
         # External libs (like aiogram) will log to Root. We ensure it has a handler.
         # We use a standard format for them.
         logging.basicConfig(
@@ -87,6 +83,12 @@ class FlashCardLogger:
         return logging.getLogger(APP_LOGGER_NAME).getChild(name)
 
 
+def configure_log_level(level: str) -> None:
+    """Set the app logger's level (`LOG_LEVEL`); entry points call this at startup."""
+    FlashCardLogger.setup()
+    logging.getLogger(APP_LOGGER_NAME).setLevel(getattr(logging, level.upper(), logging.INFO))
+
+
 def get_logger(name: str) -> logging.Logger:
     """
     Convenience function to get a logger. 
@@ -95,13 +97,12 @@ def get_logger(name: str) -> logging.Logger:
     return FlashCardLogger.get_logger(name)
 
 
-async def notify_admin_with_trace(bot, text: str, trace_id: str | None = None):
+async def notify_admin_with_trace(bot, text: str, trace_id: str | None = None, *, admin_id: int):
     """
     Sends a message to the bot Admin, safely checking if there is an active Trace ID.
     If yes, injects it at the bottom to allow easy crossing-referencing with JSON lines logs.
     """
     from flashcard.utils.tracing import get_current_trace
-    from flashcard.settings import settings
     
     trace_id_str = ""
     try:
@@ -118,6 +119,6 @@ async def notify_admin_with_trace(bot, text: str, trace_id: str | None = None):
     final_text = f"{text}{trace_id_str}"
     
     try:
-        await bot.send_message(chat_id=settings.ADMIN_ID, text=final_text, parse_mode="HTML")
+        await bot.send_message(chat_id=admin_id, text=final_text, parse_mode="HTML")
     except Exception as e:
         get_logger(__name__).error(f"Failed to send admin notification: {e}")

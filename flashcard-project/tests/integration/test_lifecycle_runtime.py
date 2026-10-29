@@ -10,8 +10,9 @@ from fastapi.testclient import TestClient
 
 from flashcard import composition
 from flashcard.api.routes import health
+from flashcard.settings import get_setting
 from flashcard.telegram import bot as bot_module
-from tests.helpers import TEST_LANGUAGE
+from tests.helpers import TEST_I18N, TEST_LANGUAGE
 
 from .helpers import (
     DummyTraceLogger,
@@ -25,11 +26,13 @@ from .helpers import (
 
 def _settings(**overrides):
     return SimpleNamespace(
+        BOT_TOKEN="123:TEST",
         LOGGER_BOT_TOKEN="456:TEST",
         WEBHOOK_SECRET="secret",
         webhook_url="https://bot.example.com/webhook",
         ADMIN_ID=1,
         REVIEW_PAUSE_RULE="legacy",
+        SCHEDULER_CHECK_INTERVAL_SECONDS=600,
         **overrides,
     )
 
@@ -37,16 +40,17 @@ def _settings(**overrides):
 def _core():
     return SimpleNamespace(
         language=TEST_LANGUAGE,
+        i18n=TEST_I18N,
         user_service=object(),
         review_use_cases=object(),
-        handler_data=lambda logger_bot: {"logger_bot": logger_bot, "x": 1},
+        handler_data=lambda logger_bot, admin_id: {"logger_bot": logger_bot, "x": 1},
     )
 
 
 def _patch_bots(monkeypatch, bot, logger_bot, dp):
-    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda language: (bot, dp))
+    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda bot_token, language: (bot, dp))
     monkeypatch.setattr(bot_module, "Bot", lambda *args, **kwargs: logger_bot)
-    monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot: None)
+    monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot, admin_id: None)
 
 
 async def test_start_telegram_webhook_mode_sets_webhook_and_starts_the_scheduler(monkeypatch):
@@ -106,7 +110,7 @@ async def test_stop_telegram_cancels_tasks_removes_the_webhook_and_closes_both_b
     trace_logger = DummyTraceLogger()
     monkeypatch.setattr(bot_module, "get_trace_logger", lambda: trace_logger)
     runtime = bot_module.TelegramRuntime(
-        bot=bot, logger_bot=logger_bot, dispatcher=None, handler_data={}, mode="webhook",
+        bot=bot, logger_bot=logger_bot, dispatcher=None, handler_data={}, mode="webhook", admin_id=1,
         polling_task=asyncio.create_task(asyncio.sleep(3600)),
         scheduler_task=asyncio.create_task(asyncio.sleep(3600)),
     )
@@ -149,7 +153,7 @@ async def test_stop_telegram_still_closes_the_logger_bot_when_the_bot_close_fail
     trace_logger = DummyTraceLogger()
     monkeypatch.setattr(bot_module, "get_trace_logger", lambda: trace_logger)
     runtime = bot_module.TelegramRuntime(
-        bot=bot, logger_bot=logger_bot, dispatcher=None, handler_data={}, mode="polling")
+        bot=bot, logger_bot=logger_bot, dispatcher=None, handler_data={}, mode="polling", admin_id=1)
 
     with pytest.raises(RuntimeError, match="close failed"):
         await bot_module.stop_telegram(runtime)
@@ -225,15 +229,16 @@ async def test_lifespan_opens_one_mongo_and_one_http_client_and_closes_each_once
     dp = SimpleNamespace(resolve_used_update_types=lambda: ["message"], start_polling=fake_start_polling)
     monkeypatch.setattr(mongo_module, "AsyncMongoClient", FakeMongoClient)
     monkeypatch.setattr(http_module.httpx, "AsyncClient", FakeHTTPXClient)
-    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda language: (bot, dp))
+    monkeypatch.setattr(bot_module, "build_bot_dispatcher", lambda bot_token, language: (bot, dp))
     monkeypatch.setattr(bot_module.LanguageConfig, "from_settings", lambda settings: TEST_LANGUAGE)
     monkeypatch.setattr(bot_module, "Bot", lambda *args, **kwargs: logger_bot)
-    monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot: None)
+    monkeypatch.setattr(bot_module, "install_asyncio_exception_handler", lambda logger_bot, admin_id: None)
     monkeypatch.setattr(composition, "LLMService", lambda **_: object())
     monkeypatch.setattr(bot_module, "get_trace_logger", lambda: DummyTraceLogger())
     monkeypatch.setattr("flashcard.scheduler.scheduler.scheduler_loop", AsyncMock())
 
     app = FastAPI()
+    app.state.settings = get_setting()  # what create_app sets
     async with lifecycle.lifespan(app):
         assert len(opened["mongo"]) == 1 and len(opened["http"]) == 1
         # The readiness check uses the same Mongo client; the webhook route gets the runtime.
@@ -258,7 +263,7 @@ async def test_running_bot_closes_the_clients_when_telegram_fails_to_start(monke
     monkeypatch.setattr(bot_module, "start_telegram", AsyncMock(side_effect=RuntimeError("telegram down")))
 
     with pytest.raises(RuntimeError, match="telegram down"):
-        async with bot_module.running_bot(_settings(), "polling"):
+        async with bot_module.running_bot(get_setting(), "polling"):
             pass
 
     assert closed == ["http", "mongo"]

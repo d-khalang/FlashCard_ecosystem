@@ -1,8 +1,9 @@
 """
 Locale file consistency: every locale matches en.json, and every key the code uses exists.
 
-A missing key is not a soft failure: i18n.get returns the raw key when it is
-missing from the configured UI locale, so users would see e.g. "commands.import.success".
+A missing key is not a soft failure: i18n.get falls back to English when the UI locale
+lacks it (users of that locale see English), and returns the raw key when en.json lacks
+it too, so users would see e.g. "commands.import.success".
 """
 import json
 import re

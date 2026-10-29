@@ -44,17 +44,14 @@ def test_provider_accepts_external_key_file(tmp_path):
     assert provider.get_core_key("primary") == "test-key"
 
 
-def test_provider_uses_configured_key_file(monkeypatch, tmp_path):
-    key_file = tmp_path / "llm_key.json"
-    key_file.write_text(json.dumps(_valid_config()), encoding="utf-8")
-    monkeypatch.setattr(
-        "flashcard.services.llm.llm_key.settings.LLM_KEY_FILE",
-        str(key_file),
-    )
+def test_llm_config_carries_the_configured_key_file(tmp_path):
+    from flashcard.services.llm.llm import LLMConfig
+    from flashcard.settings import get_setting
 
-    provider = LLMKeyProvider()
+    key_file = str(tmp_path / "llm_key.json")
+    settings = get_setting().model_copy(update={"LLM_KEY_FILE": key_file})
 
-    assert provider.get_core_key("primary") == "test-key"
+    assert LLMConfig.from_settings(settings).key_file == key_file
 
 
 def test_missing_external_file_reports_configured_path(tmp_path):

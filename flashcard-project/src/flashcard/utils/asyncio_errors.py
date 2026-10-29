@@ -9,7 +9,7 @@ from flashcard.utils.logger import get_logger, notify_admin_with_trace
 logger = get_logger(__name__)
 
 
-def install_asyncio_exception_handler(logger_bot: Bot | None = None) -> None:
+def install_asyncio_exception_handler(logger_bot: Bot | None = None, admin_id: int | None = None) -> None:
     """
     Install a loop-level handler so background task errors are logged by app logger.
 
@@ -47,7 +47,7 @@ def install_asyncio_exception_handler(logger_bot: Bot | None = None) -> None:
         else:
             logger.error(f"Asyncio background task error: {message} | future={future_repr}")
 
-        if logger_bot is None:
+        if logger_bot is None or admin_id is None:
             _call_previous_handler()
             return
 
@@ -62,6 +62,7 @@ def install_asyncio_exception_handler(logger_bot: Bot | None = None) -> None:
         notify_coro = notify_admin_with_trace(
             logger_bot,
             text=f"<b>Async Task Error</b>\n{error_text}",
+            admin_id=admin_id,
         )
         try:
             _loop.create_task(notify_coro)

@@ -103,6 +103,7 @@ flashcard-project/src/flashcard/
 │   │   ├── trace_middleware.py   # Trace context per update; records the user as seen
 │   │   └── timeout_middleware.py # Per-handler timeout
 │   ├── keyboards.py         # Reply keyboard builder
+│   ├── filters.py           # ButtonText: reply-button filter using the injected i18n
 │   ├── handlers/            # Command, callback & message handlers
 │   ├── helpers/             # Telegram-specific utilities
 │   │   └── callback_utils.py

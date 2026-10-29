@@ -94,7 +94,7 @@ Callback factories define structured callback data patterns using aiogram's `Cal
 
 Central keyboard builder for inline and reply keyboards:
 - `get_review_keyboard()` — grade buttons (0–5)
-- `get_verb_keyboard()` — tense selection buttons
+- `get_verb_keyboard(i18n, data)` — tense selection buttons and the web table link
 - Reply keyboard for quick command access
 
 ### FSM States (`telegram/states/`)
@@ -143,7 +143,7 @@ Examples:
        }
    }
    ```
-2. Use in handler:
+2. Use in handler (declare `i18n: I18nService` as a parameter; it comes from the handler data):
    ```python
    await message.answer(i18n.get("commands.your_command.your_key", variable="value"))
    ```

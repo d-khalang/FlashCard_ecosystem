@@ -129,8 +129,10 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_setting() -> Settings:
+    """
+    Load settings from the environment. Only entry points call this (`__main__`,
+    `api.main.create_app`, migration `main`s); everything else receives what it
+    needs from the composition root (docs/bot-architecture-refactor.md, #7).
+    """
     secrets_dir = Path("/run/secrets")
     return Settings(_secrets_dir=secrets_dir if secrets_dir.is_dir() else None)
-
-
-settings = get_setting()

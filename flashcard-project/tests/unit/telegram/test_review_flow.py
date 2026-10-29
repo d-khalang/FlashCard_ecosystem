@@ -14,7 +14,7 @@ from flashcard.schemas.expression import CardSettings, ExpressionCard, StoredCar
 from flashcard.app.quota import QuotaExceeded
 from tests.helpers import TEST_LANGUAGE, make_quota, make_user
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.telegram.handlers import review
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.scheduler import scheduler
@@ -82,14 +82,14 @@ def _message(sent):
 
 async def _run_get(d):
     message = _message(d.sent)
-    await review.cmd_get(message, review_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+    await review.cmd_get(message, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
     return message
 
 
 async def _run_scheduled(d):
     bot = MagicMock()
     bot.send_message = AsyncMock(return_value=d.sent)
-    result = await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+    result = await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
     return bot, result
 
 
@@ -140,7 +140,7 @@ class TestGetCommand:
         assert d.llm_service.generate_expression_card.await_args == EXPECTED_LLM_CALL
         ui.fmt_get.assert_called_once_with(
             CARD, "andare", direction="forward", learning_flag=TEST_LANGUAGE.flag, label=None)
-        ui.kb_get.assert_called_once_with(EXPRESSION_ID, direction="forward")
+        ui.kb_get.assert_called_once_with(i18n, EXPRESSION_ID, direction="forward")
         message.answer.assert_awaited_once_with("TEXT", reply_markup="KB")
         d.expression_service.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42, last_card=ANY)
         d.review_state.mark_pending.assert_awaited_once_with(USER_ID)
@@ -153,7 +153,7 @@ class TestGetCommand:
 
         ui.fmt_get.assert_called_once_with(
             CARD, "andare", direction="reverse", learning_flag=TEST_LANGUAGE.flag, label=None)
-        ui.kb_get.assert_called_once_with(EXPRESSION_ID, direction="reverse")
+        ui.kb_get.assert_called_once_with(i18n, EXPRESSION_ID, direction="reverse")
 
     async def test_own_api_key_is_passed_to_quota_and_consumption(self, ui):
         d = _deps(user=_user(api_config=UserAPIConfig(api_key="test")))
@@ -168,7 +168,7 @@ class TestGetCommand:
         message.answer = AsyncMock(side_effect=RuntimeError("telegram down"))
 
         with pytest.raises(RuntimeError):
-            await review.cmd_get(message, review_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+            await review.cmd_get(message, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
         d.expression_service.update_expression_sent.assert_not_awaited()
         d.review_state.mark_pending.assert_not_awaited()
@@ -180,7 +180,7 @@ class TestGetCommand:
         message = _message(d.sent)
 
         with pytest.raises(RuntimeError):
-            await review.cmd_get(message, review_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+            await review.cmd_get(message, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
         message.answer.assert_not_awaited()
         d.expression_service.update_expression_sent.assert_not_awaited()
@@ -192,7 +192,7 @@ class TestGetCommand:
         message = _message(d.sent)
 
         with pytest.raises(CardGenerationFailed):
-            await review.cmd_get(message, review_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+            await review.cmd_get(message, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
         message.answer.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
@@ -272,7 +272,7 @@ class TestScheduledReview:
         assert d.llm_service.generate_expression_card.await_args == EXPECTED_LLM_CALL
         ui.fmt_sched.assert_called_once_with(
             CARD, "andare", direction="reverse", learning_flag=TEST_LANGUAGE.flag, label=None)
-        ui.kb_sched.assert_called_once_with(EXPRESSION_ID, direction="reverse")
+        ui.kb_sched.assert_called_once_with(i18n, EXPRESSION_ID, direction="reverse")
         bot.send_message.assert_awaited_once_with(chat_id=str(USER_ID), text="TEXT", reply_markup="KB")
         d.expression_service.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42, last_card=ANY)
         d.review_state.mark_pending.assert_awaited_once_with(str(USER_ID))
@@ -285,7 +285,7 @@ class TestScheduledReview:
         bot.send_message = AsyncMock(side_effect=RuntimeError("telegram down"))
 
         with pytest.raises(RuntimeError):
-            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
         d.expression_service.update_expression_sent.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
@@ -297,7 +297,7 @@ class TestScheduledReview:
         bot.send_message = AsyncMock(return_value=d.sent)
 
         with pytest.raises(RuntimeError):
-            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
         bot.send_message.assert_not_awaited()
         d.expression_service.update_expression_sent.assert_not_awaited()
@@ -310,7 +310,7 @@ class TestScheduledReview:
         bot.send_message = AsyncMock(return_value=d.sent)
 
         with pytest.raises(CardGenerationFailed):
-            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE)
+            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
         bot.send_message.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
@@ -345,7 +345,7 @@ async def _run_grade(d, *, grade=4, direction="fwd", logger_bot=None):
     callback = _callback()
     data = GradeCallback(expression_id=EXPRESSION_ID, grade=grade, direction=direction)
     await review.handle_grade(callback, data, review_use_cases=_use_cases(d),
-                              logger_bot=logger_bot or MagicMock())
+                              logger_bot=logger_bot or MagicMock(), admin_id=1, i18n=i18n)
     return callback
 
 

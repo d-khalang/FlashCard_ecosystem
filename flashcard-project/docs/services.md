@@ -224,7 +224,7 @@ Handles verb conjugation lookup with DB caching.
 | `get_verb_data` | `(verb) → ConjugationResponse?` | Orchestrates: check DB → check API → cache to DB. |
 | `get_verb_from_db` | `(verb) → dict?` | Direct DB lookup. |
 | `get_verb_from_api` | `(verb) → ConjugationResponse?` | Calls WR Scraper API. |
-| `get_verb_keyboard` | `(data) → InlineKeyboardMarkup` | Builds tense selection keyboard. |
+| `get_verb_keyboard` | `(i18n, data) → InlineKeyboardMarkup` | Builds tense selection keyboard. |
 
 ### Lookup Strategy
 
@@ -244,7 +244,10 @@ graph LR
 **File:** [`services/i18n.py`](../src/flashcard/services/i18n.py)  
 **Resources:** [`resources/locales/en.json`](../src/flashcard/resources/locales/en.json)
 
-Manages bot UI strings with dot-notation key access and variable interpolation.
+Manages bot UI strings with dot-notation key access and variable interpolation. One instance per
+runtime, built by the composition root from `LanguageConfig` (`ui_locale`, `name`); handlers receive
+it as `i18n: I18nService`, keyboards and UI helpers take it as their first argument. A key missing
+from the UI locale falls back to English, then to the key itself.
 
 ```python
 # Usage examples

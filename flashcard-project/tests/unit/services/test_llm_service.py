@@ -7,7 +7,7 @@ and test prompt construction, client rotation, and response parsing.
 LLMKeyProvider is tested with a mock API key config.
 """
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -272,15 +272,15 @@ class TestLLMServiceMocked:
         service.groq_providers = {"groq": MagicMock()}
         service._generate_groq = slow_groq
         service._generate_google = google
+        service.groq_fallback_delay_seconds = 0.001
 
-        with patch("flashcard.services.llm.llm.GROQ_TIMEOUT_SECONDS", 0.001):
-            result = await service.generate_expression_card(
-                raw="parlare",
-                level="B1",
-                lang1_code="en",
-                lang1_label="🇬🇧 EN",
-                on_fallback=notify,
-            )
+        result = await service.generate_expression_card(
+            raw="parlare",
+            level="B1",
+            lang1_code="en",
+            lang1_label="🇬🇧 EN",
+            on_fallback=notify,
+        )
 
         assert result == mock_card
         assert notified is True

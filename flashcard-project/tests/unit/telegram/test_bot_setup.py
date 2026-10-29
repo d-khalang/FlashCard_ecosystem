@@ -2,7 +2,6 @@
 Unit tests for Telegram bot wiring.
 """
 from dataclasses import replace
-from unittest.mock import patch
 
 from flashcard.telegram.bot import build_bot_dispatcher, get_allowed_updates
 from flashcard.telegram.handlers import verb
@@ -11,8 +10,7 @@ from tests.helpers import TEST_LANGUAGE
 
 class TestAllowedUpdates:
     def test_includes_inline_query_after_router_registration(self):
-        with patch("flashcard.telegram.bot.settings.BOT_TOKEN", "123456:test-token"):
-            bot, dp = build_bot_dispatcher(TEST_LANGUAGE)
+        bot, dp = build_bot_dispatcher("123456:test-token", TEST_LANGUAGE)
 
         try:
             allowed_updates = get_allowed_updates(dp)
@@ -27,8 +25,7 @@ class TestAllowedUpdates:
         assert "message" in allowed_updates
 
     def test_verb_router_not_registered_when_conjugation_disabled(self):
-        with patch("flashcard.telegram.bot.settings.BOT_TOKEN", "123456:test-token"):
-            bot, dp = build_bot_dispatcher(replace(TEST_LANGUAGE, conjugation=False))
+        bot, dp = build_bot_dispatcher("123456:test-token", replace(TEST_LANGUAGE, conjugation=False))
 
         try:
             routers = list(dp.sub_routers)
@@ -40,8 +37,7 @@ class TestAllowedUpdates:
         assert verb.router not in routers
 
     def test_verb_router_registered_when_conjugation_enabled(self):
-        with patch("flashcard.telegram.bot.settings.BOT_TOKEN", "123456:test-token"):
-            bot, dp = build_bot_dispatcher(replace(TEST_LANGUAGE, conjugation=True))
+        bot, dp = build_bot_dispatcher("123456:test-token", replace(TEST_LANGUAGE, conjugation=True))
 
         try:
             routers = list(dp.sub_routers)

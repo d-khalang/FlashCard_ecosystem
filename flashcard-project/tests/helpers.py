@@ -28,6 +28,7 @@ class AsyncCursorMock:
 from types import SimpleNamespace
 
 from flashcard.language import LanguageConfig, UserDefaults
+from flashcard.services.i18n import I18nService
 
 # The instance language used by tests: the shipped Italian defaults.
 TEST_LANGUAGE = LanguageConfig(
@@ -39,6 +40,9 @@ TEST_LANGUAGE = LanguageConfig(
     conjugation=True,
     user_defaults=UserDefaults(primary_language="en", secondary_language=None, target_level="A2"),
 )
+
+# What the composition root injects as `i18n` for TEST_LANGUAGE.
+TEST_I18N = I18nService.for_language(TEST_LANGUAGE)
 
 
 def make_user(**fields):

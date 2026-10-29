@@ -6,9 +6,8 @@ from aiogram.enums import ChatAction
 import asyncio
 
 from flashcard.app.review import CardNotFound, NoCandidate, QuotaExceeded, ReviewUseCases
-from flashcard.settings import settings
 from flashcard.language import LanguageConfig
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.ui.review_label import review_label
 from flashcard.telegram.keyboards import get_review_keyboard
@@ -22,7 +21,7 @@ router = Router()
 
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_get(message: Message, review_use_cases: ReviewUseCases, language: LanguageConfig):
+async def cmd_get(message: Message, review_use_cases: ReviewUseCases, language: LanguageConfig, i18n: I18nService):
     """
     Handle /get command to review a flashcard.
     """
@@ -44,14 +43,14 @@ async def cmd_get(message: Message, review_use_cases: ReviewUseCases, language: 
 
     text = format_review_message(
         result.card, result.value, direction=result.direction, learning_flag=language.flag,
-        label=review_label(result))
-    keyboard = get_review_keyboard(result.expression_id, direction=result.direction)
+        label=review_label(i18n, result))
+    keyboard = get_review_keyboard(i18n, result.expression_id, direction=result.direction)
     sent_msg = await message.answer(text, reply_markup=keyboard)
     await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
 
 
 @router.callback_query(GradeCallback.filter())
-async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, review_use_cases: ReviewUseCases, logger_bot: Bot):
+async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, review_use_cases: ReviewUseCases, logger_bot: Bot, admin_id: int, i18n: I18nService):
     """
     Handle grading callbacks: grade:{expression_id}:{grade}:{direction_code}
     direction_code: 'fwd' | 'rev' (optional, defaults to 'fwd' for backward compat)
@@ -81,9 +80,9 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, re
     except ValueError:
         #TODO: Have a consistent schema for logging errors to logger bot
         await safe_call(safe_answer_callback(callback, i18n.get("callbacks.grade.invalid_data"), show_alert=True))
-        await safe_call(notify_admin_with_trace(logger_bot, f"Invalid callback data: {callback.data}"))
+        await safe_call(notify_admin_with_trace(logger_bot, f"Invalid callback data: {callback.data}", admin_id=admin_id))
 
     except Exception as e:
         logger.error(f"Error handling grade callback: {e}", exc_info=True)
         await safe_call(safe_answer_callback(callback, i18n.get("callbacks.grade.error_generic"), show_alert=True))
-        await safe_call(notify_admin_with_trace(logger_bot, f"Error handling grade callback: {e}"))
+        await safe_call(notify_admin_with_trace(logger_bot, f"Error handling grade callback: {e}", admin_id=admin_id))

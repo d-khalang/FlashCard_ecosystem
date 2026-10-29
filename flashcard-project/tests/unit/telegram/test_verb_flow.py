@@ -11,7 +11,7 @@ from aiogram.filters import Command
 
 from flashcard.app.verb import VerbUseCases
 from flashcard.schemas.conjugations import ConjugationResponse
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.services.verb import VerbService
 from flashcard.telegram.handlers import verb
 from flashcard.telegram.keyboards import get_verb_keyboard
@@ -56,7 +56,7 @@ async def _run(d, text="/verb parlare"):
     status = MagicMock(edit_text=AsyncMock())
     message.answer = AsyncMock(return_value=status)
     await verb.cmd_verb(message, command=Command("verb").extract_command(text),
-                        verb_use_cases=_use_cases(d), logger_bot=d.logger_bot)
+                        verb_use_cases=_use_cases(d), logger_bot=d.logger_bot, admin_id=1, i18n=i18n)
     return message, status
 
 
@@ -66,7 +66,7 @@ async def _press(d, mood="indicativo", tense="imperfetto", callback=None):
     if not isinstance(callback.message.edit_text, AsyncMock):
         callback.message.edit_text = AsyncMock()
     data = VerbCallback(mood=mood, tense=tense, verb="parlare")
-    await verb.handle_conjugation(callback, data, verb_use_cases=_use_cases(d))
+    await verb.handle_conjugation(callback, data, verb_use_cases=_use_cases(d), i18n=i18n)
     return callback
 
 
@@ -81,7 +81,7 @@ class TestVerbLookup:
         message, status = await _run(d)
 
         assert _sent(message) == [i18n.get("commands.verb.searching", verb="parlare")]
-        status.edit_text.assert_awaited_once_with(text=format_verb_message(DATA), reply_markup=get_verb_keyboard(DATA))
+        status.edit_text.assert_awaited_once_with(text=format_verb_message(DATA), reply_markup=get_verb_keyboard(i18n, DATA))
         d.verb_service.get_verb_data.assert_awaited_once_with("parlare")
 
     async def test_found_verb_is_counted(self):

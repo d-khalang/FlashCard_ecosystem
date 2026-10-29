@@ -1,15 +1,15 @@
 """
 The language-change confirmation uses the localized 'primary'/'secondary' label.
 """
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from flashcard.app.settings import SettingsUseCases
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.handlers import user_settings
 from flashcard.telegram.handlers.user_settings import SettingsPrompts
-from tests.helpers import make_user
+from tests.helpers import TEST_LANGUAGE, make_user
 
 
 def _message(text):
@@ -42,10 +42,10 @@ async def test_confirmation_uses_localized_language_label(locale, prompt, label)
     state, user_service = _deps(prompt.state)
     message = _message("English")
 
-    with patch.object(i18n, "default_lang", locale):
-        await user_settings.answer_setting_prompt(
-            message, state=state, settings_use_cases=SettingsUseCases(user_service=user_service))
-        expected = i18n.get("commands.settings.prompts.success_lang", type=label, lang="English", flag="🇬🇧")
+    i18n = I18nService(locale=locale, language_name=TEST_LANGUAGE.name)
+    await user_settings.answer_setting_prompt(
+        message, state=state, settings_use_cases=SettingsUseCases(user_service=user_service), i18n=i18n)
+    expected = i18n.get("commands.settings.prompts.success_lang", type=label, lang="English", flag="🇬🇧")
 
     message.reply.assert_awaited_once_with(expected)
     setting = "primary_language" if prompt == SettingsPrompts.waiting_primary_lang else "secondary_language"

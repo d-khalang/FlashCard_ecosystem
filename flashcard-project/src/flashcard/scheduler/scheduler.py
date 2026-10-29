@@ -7,6 +7,7 @@ from aiogram import Bot
 
 from flashcard.app.review_schedule import PauseComparison, PauseRule, interval_elapsed, paused
 from flashcard.language import LanguageConfig
+from flashcard.services.i18n import I18nService
 from flashcard.schemas.trace import TraceData
 from flashcard.schemas.user import UserDB
 from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
@@ -15,14 +16,10 @@ from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.ui.review_label import review_label
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
-from flashcard.settings import settings
 from flashcard.utils.time import now_utc, iso_z
 from flashcard.utils.tracing import set_current_trace, finalize_trace, observe
 
 logger = get_logger(__name__)
-
-# Scheduler configuration
-SCHEDULER_CHECK_INTERVAL_SECONDS = settings.SCHEDULER_CHECK_INTERVAL_SECONDS
 
 from flashcard.schemas.defaults import DEFAULT_SCHEDULER_INTERVAL_MINUTES
 
@@ -123,6 +120,7 @@ async def send_scheduled_review(
     user: UserDB,
     review_use_cases: ReviewUseCases,
     language: LanguageConfig,
+    i18n: I18nService,
 ) -> bool:
     """
     Sends a scheduled review to a user.
@@ -146,8 +144,8 @@ async def send_scheduled_review(
 
     text = format_review_message(
         result.card, result.value, direction=result.direction, learning_flag=language.flag,
-        label=review_label(result))
-    keyboard = get_review_keyboard(result.expression_id, direction=result.direction)
+        label=review_label(i18n, result))
+    keyboard = get_review_keyboard(i18n, result.expression_id, direction=result.direction)
     sent_msg = await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
     await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
 
@@ -218,7 +216,7 @@ async def send_admin_metrics(
 
     # Send all messages
     for msg in messages:
-        await notify_admin_with_trace(logger_bot, msg)
+        await notify_admin_with_trace(logger_bot, msg, admin_id=admin_id)
 
     logger.info(f"Admin metrics sent: {len(successful_ids)} successful, {len(failed_details)} failed")
 
@@ -253,13 +251,15 @@ async def scheduler_loop(
     user_service: UserService,
     review_use_cases: ReviewUseCases,
     language: LanguageConfig,
+    i18n: I18nService,
     admin_id: int,
+    check_interval_seconds: int,
     pause_rule: PauseRule = "legacy",
 ) -> None:
     """
     Main scheduler loop that runs indefinitely.
 
-    Every SCHEDULER_CHECK_INTERVAL_SECONDS:
+    Every `check_interval_seconds` (SCHEDULER_CHECK_INTERVAL_SECONDS):
     1. Finds users due for review
     2. Sends scheduled reviews with per-user error isolation
     3. Sends admin metrics report
@@ -267,7 +267,7 @@ async def scheduler_loop(
     On consecutive failures: backs off exponentially (30s → 60s → 120s → 5min cap).
     On success: resets to normal interval.
     """
-    logger.info(f"Scheduler started. Check interval: {SCHEDULER_CHECK_INTERVAL_SECONDS}s, pause rule: {pause_rule}")
+    logger.info(f"Scheduler started. Check interval: {check_interval_seconds}s, pause rule: {pause_rule}")
 
     consecutive_failures = 0
     PER_USER_TIMEOUT = 20  # seconds — don't let one user block the cycle
@@ -278,7 +278,7 @@ async def scheduler_loop(
             trace_id=str(uuid.uuid4()),
             timestamp=iso_z(cycle_start),
             update_type="scheduler",
-            text=f"interval_seconds={SCHEDULER_CHECK_INTERVAL_SECONDS}",
+            text=f"interval_seconds={check_interval_seconds}",
             spans=[],
         )
         token = set_current_trace(trace)
@@ -303,6 +303,7 @@ async def scheduler_loop(
                             user=user,
                             review_use_cases=review_use_cases,
                             language=language,
+                            i18n=i18n,
                         ),
                         timeout=PER_USER_TIMEOUT,
                     )
@@ -355,7 +356,7 @@ async def scheduler_loop(
             logger.error(f"Scheduler loop error: {e}", exc_info=True)
             try:
                 error_text = html.escape(f"{type(e).__name__}: {str(e)[:300]}")
-                await notify_admin_with_trace(logger_bot, f"🚨 <b>Scheduler Loop Error</b>\n\n{error_text}")
+                await notify_admin_with_trace(logger_bot, f"🚨 <b>Scheduler Loop Error</b>\n\n{error_text}", admin_id=admin_id)
             except Exception as notify_error:
                 logger.error(f"Failed to notify admin about scheduler error: {notify_error}")
 
@@ -368,4 +369,4 @@ async def scheduler_loop(
             logger.warning(f"Scheduler backing off: {backoff}s (failure #{consecutive_failures})")
             await asyncio.sleep(backoff)
         else:
-            await asyncio.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
+            await asyncio.sleep(check_interval_seconds)

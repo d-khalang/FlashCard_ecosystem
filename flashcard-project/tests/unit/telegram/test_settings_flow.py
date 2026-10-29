@@ -13,7 +13,7 @@ from flashcard.services.user import UserService
 from tests.integration.helpers import make_cols
 from flashcard.schemas.languages import get_language_flag, get_language_name
 from flashcard.schemas.user import UserDB
-from flashcard.services.i18n import i18n
+from tests.helpers import TEST_I18N as i18n
 from flashcard.telegram.handlers import reply_commands, user_settings
 from flashcard.telegram.keyboards import (
     get_interval_settings_keyboard, get_language_settings_keyboard, get_level_selection_keyboard,
@@ -71,7 +71,7 @@ async def _nav(d, section):
     callback = _callback()
     await user_settings.handle_settings_nav(
         callback, SettingsCallback(action="nav", section=section), settings_use_cases=d.settings_use_cases,
-        state=d.state)
+        state=d.state, i18n=i18n)
     return callback
 
 
@@ -79,18 +79,18 @@ async def _select(d, section, value=None):
     callback = _callback()
     await user_settings.handle_settings_select(
         callback, SettingsCallback(action="select", section=section, value=value),
-        settings_use_cases=d.settings_use_cases)
+        settings_use_cases=d.settings_use_cases, i18n=i18n)
     return callback
 
 
 async def _answer_prompt(d, text):
     message = _message(text)
-    await user_settings.answer_setting_prompt(message, state=d.state, settings_use_cases=d.settings_use_cases)
+    await user_settings.answer_setting_prompt(message, state=d.state, settings_use_cases=d.settings_use_cases, i18n=i18n)
     return message
 
 
 def _menu_text(user):
-    return user_settings._get_settings_menu_text(user)
+    return user_settings._get_settings_menu_text(i18n, user)
 
 
 class TestSettingsMenu:
@@ -99,20 +99,20 @@ class TestSettingsMenu:
         user = _user(target_level="B1", review_interval_minutes=60)
         d = _deps(user)
         message = _message()
-        await user_settings.cmd_settings(message, settings_use_cases=d.settings_use_cases)
+        await user_settings.cmd_settings(message, settings_use_cases=d.settings_use_cases, i18n=i18n)
 
         first, second = message.answer.await_args_list
         assert first.args == (_menu_text(user),)
-        assert first.kwargs == {"reply_markup": get_main_settings_keyboard(user)}
+        assert first.kwargs == {"reply_markup": get_main_settings_keyboard(i18n, user)}
         assert second.args == (i18n.get("commands.settings.controls"),)
-        assert second.kwargs == {"reply_markup": get_reply_settings_keyboard(True)}
+        assert second.kwargs == {"reply_markup": get_reply_settings_keyboard(i18n, True)}
 
     async def test_paused_user_gets_resume_button(self):
         d = _deps(_user(is_active=False))
         message = _message()
-        await user_settings.cmd_settings(message, settings_use_cases=d.settings_use_cases)
+        await user_settings.cmd_settings(message, settings_use_cases=d.settings_use_cases, i18n=i18n)
 
-        assert message.answer.await_args_list[1].kwargs == {"reply_markup": get_reply_settings_keyboard(False)}
+        assert message.answer.await_args_list[1].kwargs == {"reply_markup": get_reply_settings_keyboard(i18n, False)}
 
     async def test_menu_text_lists_current_settings(self):
         text = _menu_text(_user(primary_language="fa", secondary_language="de", target_level="C1",
@@ -136,7 +136,7 @@ class TestSettingsMenu:
         assert _menu_text(_user(review_mode=mode)).endswith(
             i18n.get("commands.settings.menu.review_mode", review_mode=label))
         assert i18n.get("commands.settings.menu_options.review_mode", mode=label) in [
-            b.text for row in get_main_settings_keyboard(_user(review_mode=mode)).inline_keyboard for b in row]
+            b.text for row in get_main_settings_keyboard(i18n, _user(review_mode=mode)).inline_keyboard for b in row]
 
 
 class TestSettingsNavigation:
@@ -147,7 +147,7 @@ class TestSettingsNavigation:
         callback = await _nav(d, "main")
 
         callback.message.edit_text.assert_awaited_once_with(
-            text=_menu_text(user), reply_markup=get_main_settings_keyboard(user))
+            text=_menu_text(user), reply_markup=get_main_settings_keyboard(i18n, user))
         callback.answer.assert_awaited_once()
 
     async def test_language_menu(self):
@@ -156,21 +156,21 @@ class TestSettingsNavigation:
         callback = await _nav(d, "lang_menu")
 
         callback.message.edit_text.assert_awaited_once_with(
-            text=i18n.get("commands.settings.sections.language"), reply_markup=get_language_settings_keyboard(user))
+            text=i18n.get("commands.settings.sections.language"), reply_markup=get_language_settings_keyboard(i18n, user))
 
     async def test_level_menu_marks_current_level(self):
         d = _deps(_user(target_level="B2"))
         callback = await _nav(d, "set_level")
 
         callback.message.edit_text.assert_awaited_once_with(
-            text=i18n.get("commands.settings.prompts.level_select"), reply_markup=get_level_selection_keyboard("B2"))
+            text=i18n.get("commands.settings.prompts.level_select"), reply_markup=get_level_selection_keyboard(i18n, "B2"))
 
     async def test_interval_menu_marks_current_interval(self):
         d = _deps(_user(review_interval_minutes=90))
         callback = await _nav(d, "interval")
 
         callback.message.edit_text.assert_awaited_once_with(
-            text=i18n.get("commands.settings.sections.interval"), reply_markup=get_interval_settings_keyboard(90),
+            text=i18n.get("commands.settings.sections.interval"), reply_markup=get_interval_settings_keyboard(i18n, 90),
             parse_mode="Markdown")
 
     @pytest.mark.parametrize("section, prompt, key", [
@@ -209,7 +209,7 @@ class TestSettingsSelect:
         callback = await _select(d, "target_level", "C1")
 
         assert d.saved()["target_level"] == "C1"
-        callback.message.edit_reply_markup.assert_awaited_once_with(reply_markup=get_level_selection_keyboard("C1"))
+        callback.message.edit_reply_markup.assert_awaited_once_with(reply_markup=get_level_selection_keyboard(i18n, "C1"))
         callback.answer.assert_awaited_once_with(i18n.get("commands.settings.saved"), show_alert=False)
 
     async def test_interval_is_saved_as_int_and_marked(self):
@@ -217,7 +217,7 @@ class TestSettingsSelect:
         callback = await _select(d, "interval", "120")
 
         assert d.saved()["review_interval_minutes"] == 120
-        callback.message.edit_reply_markup.assert_awaited_once_with(reply_markup=get_interval_settings_keyboard(120))
+        callback.message.edit_reply_markup.assert_awaited_once_with(reply_markup=get_interval_settings_keyboard(i18n, 120))
         callback.answer.assert_awaited_once_with(i18n.get("commands.settings.saved"), show_alert=False)
 
     @pytest.mark.parametrize("current, new", [("standard", "dual"), ("dual", "standard")])
@@ -228,7 +228,7 @@ class TestSettingsSelect:
         assert d.saved()["review_mode"] == new
         updated = _user(review_mode=new)
         callback.message.edit_text.assert_awaited_once_with(
-            text=_menu_text(updated), reply_markup=get_main_settings_keyboard(updated))
+            text=_menu_text(updated), reply_markup=get_main_settings_keyboard(i18n, updated))
         callback.answer.assert_awaited_once_with(i18n.get(
             "commands.settings.switched_mode", mode=i18n.get(f"commands.settings.mode_{new}")), show_alert=False)
 
@@ -249,7 +249,7 @@ class TestSettingsSelect:
 
     @pytest.mark.parametrize("current", ["standard", "dual"])
     def test_review_mode_button_names_the_other_mode(self, current):
-        markup = get_main_settings_keyboard(_user(review_mode=current))
+        markup = get_main_settings_keyboard(i18n, _user(review_mode=current))
         data = [b.callback_data for row in markup.inline_keyboard for b in row if "review_mode" in b.callback_data]
 
         other = "dual" if current == "standard" else "standard"
@@ -305,7 +305,7 @@ class TestLanguagePrompt:
         # The menu shows the language just chosen.
         message.answer.assert_awaited_once_with(
             i18n.get("commands.settings.sections.language"),
-            reply_markup=get_language_settings_keyboard(user.model_copy(update={field: code})))
+            reply_markup=get_language_settings_keyboard(i18n, user.model_copy(update={field: code})))
 
     async def test_secondary_none_is_confirmed_with_localized_none(self):
         d = _deps(state_name=SettingsPrompts.waiting_secondary_lang.state)
@@ -331,7 +331,7 @@ class TestLanguagePrompt:
 
         assert d.saved() == d.initial  # nothing written
         message.reply.assert_awaited_once_with(
-            i18n.get("commands.settings.prompts.invalid_lang"), reply_markup=get_language_settings_keyboard(user))
+            i18n.get("commands.settings.prompts.invalid_lang"), reply_markup=get_language_settings_keyboard(i18n, user))
         d.state.clear.assert_awaited_once()
 
 
@@ -344,11 +344,11 @@ class TestReplyButtons:
     async def test_pause_resume_toggles_and_swaps_button(self, was_active, button, key):
         d = _deps(_user(is_active=was_active))
         message = _message(i18n.get(button))
-        await reply_commands.handle_status_change(message, settings_use_cases=d.settings_use_cases)
+        await reply_commands.handle_status_change(message, settings_use_cases=d.settings_use_cases, i18n=i18n)
 
         assert d.saved()["is_active"] is not was_active
         message.answer.assert_awaited_once_with(
-            i18n.get(key), reply_markup=get_reply_settings_keyboard(not was_active))
+            i18n.get(key), reply_markup=get_reply_settings_keyboard(i18n, not was_active))
 
     @pytest.mark.parametrize("active, button", [
         (False, "messages.buttons.pause_learning"),
@@ -357,13 +357,13 @@ class TestReplyButtons:
     async def test_repeated_tap_changes_nothing(self, active, button):
         """Pause when already paused (double tap, stale keyboard) stays paused."""
         d = _deps(_user(is_active=active))
-        await reply_commands.handle_status_change(_message(i18n.get(button)), settings_use_cases=d.settings_use_cases)
+        await reply_commands.handle_status_change(_message(i18n.get(button)), settings_use_cases=d.settings_use_cases, i18n=i18n)
 
         assert d.saved()["is_active"] is active
 
     async def test_close_removes_the_reply_keyboard(self):
         message = _message(i18n.get("messages.buttons.close_settings"))
-        await reply_commands.handle_close_settings(message)
+        await reply_commands.handle_close_settings(message, i18n=i18n)
 
         call = message.answer.await_args
         assert call.args == (i18n.get("commands.settings.closed"),)

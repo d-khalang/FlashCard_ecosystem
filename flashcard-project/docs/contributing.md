@@ -48,7 +48,7 @@ from aiogram.types import Message
 from aiogram.enums import ChatAction
 
 from flashcard.services.expression import ExpressionService
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -57,7 +57,7 @@ router = Router()
 
 @router.message(Command("quiz"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_quiz(message: Message, expression_service: ExpressionService):
+async def cmd_quiz(message: Message, expression_service: ExpressionService, i18n: I18nService):
     """Handle /quiz command."""
     user_id = message.from_user.id
     # Your logic here...
@@ -195,7 +195,7 @@ try:
 except Exception as e:
     logger.error(f"Error: {e}")
     error_text = html.escape(str(e)[:300])
-    await logger_bot.send_message(settings.ADMIN_ID, f"Error: {error_text}")
+    await notify_admin_with_trace(logger_bot, f"Error: {error_text}", admin_id=admin_id)
     await message.answer(i18n.get("messages.errors.service_unavailable"))
     return
 ```

@@ -72,7 +72,8 @@ async def _latest_pending_card(cols: dict, user_id: str):
 
 async def _main(apply: bool) -> None:
     from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
-    from flashcard.settings import settings
+    from flashcard.settings import get_setting
+    settings = get_setting()
 
     client, _, cols = await init_and_get_mongo(settings)
     try:

@@ -484,7 +484,8 @@ class FakeTelegramSession(BaseSession):
             "chat": {"id": int(chat_id), "type": "private"},
             "text": text,
         }
-        if reply_markup is not None:
+        # Like Telegram, a sent message carries only inline keyboards; reply keyboards stay client-side.
+        if isinstance(reply_markup, dict) and "inline_keyboard" in reply_markup:
             data["reply_markup"] = reply_markup
         return Message.model_validate(data, context={"bot": bot})
 

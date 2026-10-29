@@ -5,14 +5,15 @@ import pytest
 from fastapi import HTTPException
 
 from flashcard.api.routes.webhook import webhook_handler
-from flashcard.settings import settings
+
+SECRET = "test-secret"
 
 
 class _DummyRequest:
     def __init__(self, payload=None, json_error=None, state_values=None):
         self._payload = payload
         self._json_error = json_error
-        self.app = SimpleNamespace(state=SimpleNamespace(**(state_values or {})))
+        self.app = SimpleNamespace(state=SimpleNamespace(**{"webhook_secret": SECRET, **(state_values or {})}))
 
     async def json(self):
         if self._json_error is not None:
@@ -30,11 +31,25 @@ class TestWebhookHandler:
 
         assert exc.value.status_code == 403
 
+    @pytest.mark.parametrize("configured, received", [
+        (SECRET, None),        # header missing
+        ("", ""),              # no secret configured (polling mode): nothing matches
+        ("", None),
+        (SECRET, "tëst-secret"),  # non-ASCII header is rejected, not a 500
+    ])
+    async def test_rejects_missing_or_unconfigured_secret(self, configured, received):
+        request = _DummyRequest(payload={}, state_values={"webhook_secret": configured})
+
+        with pytest.raises(HTTPException) as exc:
+            await webhook_handler(request, x_telegram_bot_api_secret_token=received)
+
+        assert exc.value.status_code == 403
+
     async def test_returns_400_on_invalid_json_payload(self):
         request = _DummyRequest(json_error=ValueError("bad json"))
 
         with pytest.raises(HTTPException) as exc:
-            await webhook_handler(request, x_telegram_bot_api_secret_token=settings.WEBHOOK_SECRET)
+            await webhook_handler(request, x_telegram_bot_api_secret_token=SECRET)
 
         assert exc.value.status_code == 400
         assert exc.value.detail == "Invalid JSON payload"
@@ -45,7 +60,7 @@ class TestWebhookHandler:
         dispatcher = SimpleNamespace(feed_update=AsyncMock(side_effect=RuntimeError("boom")))
         state = {
             "telegram": SimpleNamespace(
-                bot=bot, dispatcher=dispatcher, handler_data={"x": 1}, logger_bot=logger_bot,
+                bot=bot, dispatcher=dispatcher, handler_data={"x": 1}, logger_bot=logger_bot, admin_id=1,
             ),
         }
         request = _DummyRequest(payload={"update_id": 1}, state_values=state)
@@ -55,7 +70,7 @@ class TestWebhookHandler:
             patch("flashcard.api.routes.webhook.notify_admin_with_trace", new_callable=AsyncMock) as mock_notify,
         ):
             with pytest.raises(HTTPException) as exc:
-                await webhook_handler(request, x_telegram_bot_api_secret_token=settings.WEBHOOK_SECRET)
+                await webhook_handler(request, x_telegram_bot_api_secret_token=SECRET)
 
         assert exc.value.status_code == 500
         assert exc.value.detail == "Failed to process update"
@@ -67,14 +82,14 @@ class TestWebhookHandler:
         dispatcher = SimpleNamespace(feed_update=AsyncMock(return_value=None))
         state = {
             "telegram": SimpleNamespace(
-                bot=bot, dispatcher=dispatcher, handler_data={}, logger_bot=MagicMock(),
+                bot=bot, dispatcher=dispatcher, handler_data={}, logger_bot=MagicMock(), admin_id=1,
             ),
         }
         request = _DummyRequest(payload={"invalid": "update"}, state_values=state)
 
         with patch("flashcard.api.routes.webhook.Update", side_effect=ValueError("invalid update")):
             with pytest.raises(HTTPException) as exc:
-                await webhook_handler(request, x_telegram_bot_api_secret_token=settings.WEBHOOK_SECRET)
+                await webhook_handler(request, x_telegram_bot_api_secret_token=SECRET)
 
         assert exc.value.status_code == 400
         assert exc.value.detail == "Invalid update payload"
@@ -85,7 +100,7 @@ class TestWebhookHandler:
         dispatcher = SimpleNamespace(feed_update=AsyncMock(return_value=None))
         state = {
             "telegram": SimpleNamespace(
-                bot=bot, dispatcher=dispatcher, handler_data={"x": 2}, logger_bot=MagicMock(),
+                bot=bot, dispatcher=dispatcher, handler_data={"x": 2}, logger_bot=MagicMock(), admin_id=1,
             ),
         }
         request = _DummyRequest(payload={"update_id": 7}, state_values=state)
@@ -93,7 +108,7 @@ class TestWebhookHandler:
         with patch("flashcard.api.routes.webhook.Update", return_value=MagicMock()) as mock_update:
             response = await webhook_handler(
                 request,
-                x_telegram_bot_api_secret_token=settings.WEBHOOK_SECRET,
+                x_telegram_bot_api_secret_token=SECRET,
             )
 
         assert response == {"ok": True}
