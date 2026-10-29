@@ -39,39 +39,56 @@ graph LR
 flashcard-project/src/flashcard/
 ├── __main__.py              # Entry points (FastAPI app + local dev polling shortcut)
 ├── settings.py              # Pydantic settings (env vars)
+├── language.py              # LanguageConfig: the instance's language, built once per startup
 ├── composition.py           # Composition root: shared clients, services, use cases
 │
-├── app/                     # Use cases (review, creation, collection, settings, story, verb, quota)
+├── app/                     # Use cases: the flows handlers and the scheduler call
+│   ├── review.py            # Prepare, send and grade reviews (+ stored-card fallback)
+│   ├── review_schedule.py   # Pure scheduler rules (interval, pause, shadow compare)
+│   ├── creation.py          # Text-to-card, regenerate, save
+│   ├── collection.py        # /import, list, search, remove
+│   ├── settings.py          # /settings, pause/resume
+│   ├── story.py             # /story
+│   ├── verb.py              # /verb lookups
+│   ├── quota.py             # QuotaPolicy: tier limits, trial, own key
+│   ├── shadow.py            # Shadow writes for the review-state migration (temporary)
+│   └── types.py             # Types shared across use cases
 │
 ├── api/                     # FastAPI layer
-│   ├── main.py              # App factory & lifespan
-│   ├── lifecycle/           # Startup & shutdown hooks
+│   ├── main.py              # App and routers
+│   ├── lifecycle/           # Lifespan: runs the bot via running_bot
 │   ├── routes/              # HTTP endpoints (health, webhook)
 │   └── schemas/             # API request/response models
 │
 ├── db/                      # Database
-│   └── mongo.py             # MongoDB connection management
+│   └── mongo.py             # MongoDB client, collections, pool monitoring
+│
+├── migrations/              # One-off data migrations for the rollout (removed after)
 │
 ├── scheduler/               # Background scheduler
 │   └── scheduler.py         # Periodic review push loop
 │
 ├── schemas/                 # Shared data models
-│   ├── defaults.py          # Centralized constants
+│   ├── defaults.py          # Scheduler interval constant
 │   ├── user.py              # UserDB model
-│   ├── expression.py        # ExpressionDB / ExpressionCard
+│   ├── expression.py        # ExpressionDB / ExpressionCard / StoredCard
 │   ├── languages.py         # Language codes, levels, flags
 │   ├── conjugations.py      # Verb conjugation models
 │   ├── story.py             # Story response model
 │   ├── import_model.py      # Import parsing model
+│   ├── api_key.py           # LLM API key file model and loader
 │   └── trace.py             # TraceData / Span schema models
 │
-├── services/                # Business logic
-│   ├── trace_logger.py      # Flat-file async execution tracing
-│   ├── expression.py        # CRUD + review candidate selection
-│   ├── user.py              # User CRUD + settings
+├── services/                # Data owners: each gets only its own collection
+│   ├── expression.py        # Cards: CRUD + review candidate selection
+│   ├── user.py              # User profile, settings, onboarding, last_seen_at
+│   ├── consumption.py       # Usage counters
+│   ├── review_state.py      # ReviewStateStore: current review, last graded
 │   ├── verb.py              # Verb lookup (DB cache + scraper API)
+│   ├── language_validation.py # Input validators per language
 │   ├── i18n.py              # Internationalization (JSON locale files)
 │   ├── http_client.py       # Shared httpx client
+│   ├── trace_logger.py      # Flat-file async execution tracing
 │   ├── llm/                 # LLM integration
 │   │   ├── llm.py           # LLMService (card gen, stories, import parsing)
 │   │   ├── llm_key.py       # API key resolution
@@ -83,14 +100,16 @@ flashcard-project/src/flashcard/
 ├── telegram/                # Telegram bot layer
 │   ├── bot.py               # Dispatcher setup and Telegram runtime (start/stop, running_bot)
 │   ├── middlewares/         # aiogram middlewares
-│   │   └── trace_middleware.py # Injects trace context per update and propagates trace_id
+│   │   ├── trace_middleware.py   # Trace context per update; records the user as seen
+│   │   └── timeout_middleware.py # Per-handler timeout
 │   ├── keyboards.py         # Reply keyboard builder
 │   ├── handlers/            # Command, callback & message handlers
 │   ├── helpers/             # Telegram-specific utilities
-│   │   └── card_generator.py
+│   │   └── callback_utils.py
 │   ├── ui/                  # Message formatters
 │   │   ├── expression.py    # Review card formatting
 │   │   ├── expression_lists.py
+│   │   ├── review_label.py  # "Saved version" label
 │   │   ├── verb.py          # Verb conjugation formatting
 │   │   ├── story.py         # Story formatting
 │   │   └── factories/       # Callback data factories
@@ -99,23 +118,28 @@ flashcard-project/src/flashcard/
 ├── utils/                   # General utilities
 │   ├── logger.py            # Logging setup
 │   ├── tracing.py           # Trace/span helpers, @observe, and finalize_trace lifecycle helper
+│   ├── asyncio_errors.py    # Reports unhandled asyncio errors to the logger bot
 │   └── time.py              # UTC time helpers
 │
 └── resources/               # Static resources
     └── locales/
-        └── en.json          # English UI strings
+        ├── en.json          # English UI strings
+        └── it.json          # Italian UI strings
 
-tests/                           # Test suite (413 tests - unit, integration, smoke)
+tests/                           # Test suite (unit, integration, smoke)
 ├── conftest.py                  # Env var setup & autouse router state isolation fixtures
-├── helpers.py                   # Shared unit test utilities (AsyncCursorMock)
-├── unit/                        # Mocked unit tests
+├── helpers.py                   # Shared test utilities (TEST_LANGUAGE, AsyncCursorMock)
+├── unit/                        # Mocked unit tests + architecture guards (test_*_contract, test_data_ownership, test_composition_root)
 │   ├── algorithm/               # Grading & priority tests
+│   ├── api/                     # Webhook route tests
+│   ├── app/                     # Use-case tests
+│   ├── migrations/              # Migration tests
 │   ├── services/                # Service layer tests
 │   ├── schemas/                 # Pydantic model tests
-│   ├── telegram/                # UI, keyboards, callback tests
+│   ├── telegram/                # UI, keyboards, callback, handler flow tests
 │   ├── scheduler/               # Scheduler logic tests
 │   └── utils/                   # Tracing & time utility tests
-├── integration/                 # Dispatcher and full lifecycle runtime integration tests
+├── integration/                 # Dispatcher, review-state, stored-card and lifecycle tests
 └── smoke/                       # System-level ecosystem smoke checks
 ```
 
