@@ -7,10 +7,10 @@ allowed values are enforced by UserService's setters, and the return types are
 narrowed only after that check. These use cases parse user input (language names)
 first. Callers own presentation (labels, flags, keyboards).
 """
-from typing import cast
+from typing import Optional, cast
 
 from flashcard.schemas.user import UserId
-from flashcard.schemas.languages import LanguageLevel, normalize_language_input
+from flashcard.schemas.languages import NONE_MAP, LanguageLevel, normalize_language_input
 from flashcard.schemas.user import ReviewMode, UserDB
 from flashcard.services.user import UserService
 
@@ -36,9 +36,11 @@ class SettingsUseCases:
         await self.users.set_primary_language(user_id, code)
         return code
 
-    async def set_secondary_language(self, user_id: UserId, text: str) -> str:
-        """Like set_primary_language, but "none" turns it off (returns NO_LANGUAGE)."""
+    async def set_secondary_language(self, user_id: UserId, text: str) -> Optional[str]:
+        """Like set_primary_language, but "none" (or "no") turns it off and returns None."""
         code = _language_code(text, none_allowed=True)
+        if code in NONE_MAP:
+            code = None
         await self.users.set_secondary_language(user_id, code)
         return code
 

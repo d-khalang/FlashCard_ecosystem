@@ -166,7 +166,7 @@ def get_language_settings_keyboard(i18n: I18nService, current_data: UserDB) -> I
     )
     
     # 2. Secondary Language (Can be None)
-    if curr_s and curr_s.lower() != "none":
+    if curr_s:
         flag_s = get_language_flag(curr_s)
     else:
         flag_s = "⚪" # Placeholder for None

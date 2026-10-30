@@ -2,7 +2,6 @@
 Unit tests for flashcard.services.algorithm.priority
 
 Tests the review-candidate scoring algorithm:
-  - _read_time() — stored dates and legacy ISO text
   - hours_since() — time delta helper
   - calculate_priority() — the full priority formula
 
@@ -13,8 +12,8 @@ import random
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
+from flashcard.schemas.expression import ExpressionStats
 from flashcard.services.algorithm.priority import (
-    _read_time,
     hours_since,
     calculate_priority,
 )
@@ -23,43 +22,6 @@ UTC = timezone.utc
 
 # A fixed "now" for deterministic tests
 FIXED_NOW = datetime(2026, 2, 27, 12, 0, 0, tzinfo=UTC)
-
-
-# ===================================================================
-# _read_time
-# ===================================================================
-class TestParseISO:
-    """_read_time reads stored dates and legacy ISO-8601 text as aware UTC datetimes."""
-
-    def test_z_suffix(self):
-        result = _read_time("2026-01-15T10:30:00Z")
-        assert result is not None
-        assert result.year == 2026
-        assert result.month == 1
-        assert result.tzinfo is not None
-
-    def test_offset_suffix(self):
-        result = _read_time("2026-01-15T10:30:00+00:00")
-        assert result is not None
-        assert result.tzinfo is not None
-
-    def test_naive_timestamp_gets_utc(self):
-        result = _read_time("2026-01-15T10:30:00")
-        assert result is not None
-        assert result.tzinfo is not None, "Naive datetimes should be coerced to UTC"
-
-    def test_none_returns_none(self):
-        assert _read_time(None) is None
-
-    def test_empty_string_returns_none(self):
-        assert _read_time("") is None
-
-    def test_invalid_string_returns_none(self):
-        assert _read_time("not-a-date") is None
-
-    def test_stored_date_is_read_as_utc(self):
-        from datetime import datetime, timezone
-        assert _read_time(datetime(2026, 1, 15, 10, 30)) == datetime(2026, 1, 15, 10, 30, tzinfo=timezone.utc)
 
 
 # ===================================================================
@@ -104,18 +66,28 @@ class TestCalculatePriority:
       random(0, 0.08)
     """
 
-    def _make_stats(self, **overrides) -> dict:
-        """Create a stats dict with sensible defaults, overriding as needed."""
-        base = {
-            "last_interaction_at": None,
-            "created_at": None,
-            "ewma_grade": 0.0,
-            "success_streak": 0,
-            "lapses": 0,
-            "reps": 0,
-        }
-        base.update(overrides)
-        return base
+    def _make_stats(self, **overrides) -> ExpressionStats:
+        """Stats with sensible defaults (never reviewed), overriding as needed."""
+        return ExpressionStats(**overrides)
+
+    @patch("flashcard.services.algorithm.priority.random")
+    def test_longer_since_review_means_higher_priority(self, mock_random_mod):
+        mock_random_mod.random.return_value = 0.0
+        now = datetime.now(UTC)
+
+        stale = self._make_stats(reps=3, last_review_at=now - timedelta(days=5))
+        fresh = self._make_stats(reps=3, last_review_at=now - timedelta(hours=1))
+
+        assert calculate_priority(stale) > calculate_priority(fresh)
+
+    @patch("flashcard.services.algorithm.priority.random")
+    def test_never_reviewed_counts_from_creation(self, mock_random_mod):
+        mock_random_mod.random.return_value = 0.0
+        now = datetime.now(UTC)
+        stats = self._make_stats()
+
+        assert calculate_priority(stats, created_at=now - timedelta(days=5)) > calculate_priority(
+            stats, created_at=now - timedelta(hours=1))
 
     @patch("flashcard.services.algorithm.priority.random")
     def test_new_card_has_novelty_bonus(self, mock_random_mod):

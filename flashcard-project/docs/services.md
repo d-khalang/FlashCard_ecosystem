@@ -50,9 +50,10 @@ uses one definition of an active card, `ACTIVE`: `status` is `"active"` or missi
 | `add_expression` | `(user_id, value) → bool` | Adds expression if not duplicate (case-insensitive). Returns `True` if inserted. Never writes `users`. |
 | `add_expressions_bulk` | `(user_id, expressions) → list[str]` | Bulk insert, skipping duplicates. Returns list of actually inserted values. |
 | `get_all_expressions` | `(user_id) → list[str]` | The user's active expressions, each value once, oldest first. |
-| `get_review_candidate` | `(user_id, review_mode) → dict \| None` | Selects the highest-priority card for review using the SRS algorithm. Filters by 12-hour cooldown. The caller passes the user's `review_mode`. Returns `{doc, direction}`. |
+| `search_expressions` | `(user_id, query, limit=50) → list[Expression]` | Active cards whose value contains the query (case-insensitive). |
+| `get_review_candidate` | `(user_id, review_mode) → ReviewCandidate \| None` | Selects the highest-priority card for review using the SRS algorithm. Filters by 12-hour cooldown. The caller passes the user's `review_mode`. Returns the `Expression` and the `direction`. |
 | `update_expression_sent` | `(expression_id, message_id)` | Marks expression as sent with the Telegram message ID. |
-| `grade_expression` | `(user_id, expression_id, grade, direction="forward")` | Processes a grade (0–5) using the SRS algorithm and updates the expression's stats only. Raises `ValueError` for a bad grade or direction; returns `None` only when the card is not found. |
+| `grade_expression` | `(user_id, expression_id, grade, direction="forward") → bool` | Processes a grade (0–5) using the SRS algorithm and updates the graded direction's stats only. Raises `ValueError` for a bad grade or direction; `False` when the card is not found. |
 
 ### Review Candidate Selection
 
@@ -61,6 +62,11 @@ The `get_review_candidate` method implements the core spaced repetition logic:
 1. **Cooldown filter** — Excludes cards interacted with in the last 12 hours. For cards with no `last_activity_at`, uses `created_at` instead.
 2. **Priority scoring** — Each candidate gets a priority score via `calculate_priority()`.
 3. **Direction selection** — In `"dual"` review mode, both forward and reverse directions are scored. The highest overall priority wins.
+
+Reads return `Expression` (`schemas/expression.py`): the stored document with its `id`.
+Null stat counters read as 0, an unreadable stored card (`last_card`) is dropped, and a
+document that still cannot be read is logged and skipped, so one bad card never blocks a
+user's other cards.
 
 ---
 
@@ -269,7 +275,7 @@ i18n.get("callbacks.grade.rated", grade="3")           # With formatting
 
 **File:** [`services/algorithm/priority.py`](../src/flashcard/services/algorithm/priority.py)
 
-The `calculate_priority(stats)` function scores each card for review urgency:
+The `calculate_priority(stats, created_at)` function scores one direction (`ExpressionStats`) for review urgency; recency counts from its last review, else from `created_at`:
 
 ```
 Priority = 0.40 × Recency + 0.35 × Difficulty + 0.10 × Stability 
@@ -289,7 +295,7 @@ Priority = 0.40 × Recency + 0.35 × Difficulty + 0.10 × Stability
 
 **File:** [`services/algorithm/grading.py`](../src/flashcard/services/algorithm/grading.py)
 
-The `calculate_new_stats(stats, grade, is_reverse=False)` function updates SRS stats after a grade:
+The `calculate_new_stats(stats, grade) → ExpressionStats` function returns one direction's stats after a grade (reviewed now); the service stores forward stats at the root (`last_interaction_at`) and reverse ones in `reverse_stats`:
 
 - **EWMA grade:** `α × grade + (1-α) × previous` where α = 0.30
 - **Success:** grade ≥ 3 → increment reps, extend streak

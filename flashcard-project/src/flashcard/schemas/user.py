@@ -1,7 +1,7 @@
 from typing import Literal, Optional, get_args
 from enum import Enum
 from pydantic import BaseModel, Field, field_serializer, field_validator
-from flashcard.schemas.languages import LanguageCode, LanguageLevel
+from flashcard.schemas.languages import NONE_MAP, LanguageCode, LanguageLevel
 from flashcard.utils.logger import get_logger
 from flashcard.utils.time import UtcDatetime
 
@@ -57,8 +57,6 @@ def parse_stored_user_id(value) -> Optional[UserId]:
 MIN_INTERVAL_MINUTES = 15
 MAX_INTERVAL_MINUTES = 240
 ReviewMode = Literal["standard", "dual"]
-# Stored as the secondary language when the user turns it off.
-NO_LANGUAGE = "none"
 
 
 class CurrentReview(BaseModel):
@@ -96,7 +94,7 @@ class UserDB(BaseModel):
     )
     secondary_language: Optional[LanguageCode] = Field(
         ...,
-        description="Secondary translation language",
+        description="Secondary translation language; None when unset or turned off",
     )
     target_level: LanguageLevel = Field(
         ...,
@@ -112,12 +110,13 @@ class UserDB(BaseModel):
     # Consumption Tracking
     consumption: UserConsumption = Field(UserConsumption(), description="User Consumption per day")
 
-    @property
-    def secondary_translation(self) -> Optional[str]:
-        """The secondary language to translate into; None when unset or turned off."""
-        if self.secondary_language in (None, NO_LANGUAGE):
+    @field_validator("secondary_language", mode="before")
+    @classmethod
+    def _turned_off_reads_as_none(cls, value):
+        """Turned off is stored as null; older documents (and env defaults) may say "none"."""
+        if isinstance(value, str) and value.strip().lower() in NONE_MAP:
             return None
-        return self.secondary_language
+        return value
 
     @field_validator("user_id", mode="before")
     @classmethod

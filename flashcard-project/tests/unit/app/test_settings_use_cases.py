@@ -10,7 +10,7 @@ import pytest
 
 from flashcard.app.settings import SettingsUseCases
 from flashcard.schemas.languages import LanguageLevel
-from flashcard.schemas.user import MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE
+from flashcard.schemas.user import MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES
 from flashcard.services.user import UserService
 from tests.integration.helpers import make_cols
 from tests.helpers import TEST_LANGUAGE
@@ -75,8 +75,9 @@ class TestLanguages:
             await use_cases.set_primary_language(777, text)
         assert set(users) == {"user_id"}  # nothing written
 
-    @pytest.mark.parametrize("text, code", [("english", "en"), ("none", NO_LANGUAGE), ("No", NO_LANGUAGE)])
+    @pytest.mark.parametrize("text, code", [("english", "en"), ("none", None), ("No", None)])
     async def test_secondary_accepts_languages_and_none(self, text, code):
+        """Turning it off stores null, not the word "none"."""
         use_cases, users = _use_cases()
 
         assert await use_cases.set_secondary_language(777, text) == code

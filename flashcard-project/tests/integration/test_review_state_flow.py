@@ -111,7 +111,7 @@ class TestCandidateCooldown:
         candidate = await dispatcher_env["expression_service"].get_review_candidate(USER_ID, "standard")
 
         assert candidate is not None
-        assert candidate["doc"]["_id"] == expression_id
+        assert candidate.expression.id == str(expression_id)
 
 
 class TestStoredDates:

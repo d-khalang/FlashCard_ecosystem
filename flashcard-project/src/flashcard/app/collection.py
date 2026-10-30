@@ -175,15 +175,8 @@ class CollectionUseCases:
             logger.warning("Skipping search for user %s: query exceeds %s characters.", user_id, MAX_SEARCH_CHARS)
             return QueryTooLong()
 
-        docs = await self.expressions.search_expressions(user_id, query, limit=MAX_SEARCH_RESULTS)
-        items = []
-        for doc in docs:
-            expression_id, value = str(doc.get("_id", "")), doc.get("value")
-            if not expression_id or not value:
-                logger.warning(f"Skipping malformed expression in search results: {doc}")
-                continue
-            items.append(SavedItem(id=expression_id, value=value))
-        return Matches(items=items)
+        expressions = await self.expressions.search_expressions(user_id, query, limit=MAX_SEARCH_RESULTS)
+        return Matches(items=[SavedItem(id=e.id, value=e.value) for e in expressions])
 
     async def remove(self, user_id: UserId, expression_id: str) -> RemoveResult:
         removed = await self.expressions.remove_expression(user_id, expression_id)

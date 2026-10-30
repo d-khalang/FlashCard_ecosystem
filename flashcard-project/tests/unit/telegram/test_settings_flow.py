@@ -311,7 +311,7 @@ class TestLanguagePrompt:
         d = _deps(state_name=SettingsPrompts.waiting_secondary_lang.state)
         message = await _answer_prompt(d, "none")
 
-        assert d.saved()["secondary_language"] == "none"
+        assert d.saved()["secondary_language"] is None
         message.reply.assert_awaited_once_with(i18n.get(
             "commands.settings.prompts.success_lang", type=i18n.get("commands.settings.prompts.secondary_label"),
             lang=i18n.get("commands.settings.no_language"), flag="⚪"))

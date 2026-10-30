@@ -7,6 +7,8 @@ import pytest
 
 from bson import ObjectId
 
+from flashcard.schemas.expression import Expression
+
 from flashcard.app.collection import (
     MAX_IMPORT_CHARS, MAX_SEARCH_CHARS, MAX_SEARCH_RESULTS, AllDuplicates, CollectionUseCases, Imported,
     InvalidLanguage, Matches, NotFound, NothingFound, ParseFailed, QueryTooLong, QueryTooShort, Removed,
@@ -205,6 +207,11 @@ class TestImportQuota:
         consumption.increment.assert_not_awaited()
 
 
+def _stored(_id, value):
+    """A search result as ExpressionService returns it."""
+    return Expression.model_validate({"_id": _id, "user_id": "1", "value": value})
+
+
 def _saved(*, values=None, found=None, removed=True):
     expressions = MagicMock()
     expressions.get_all_expressions = AsyncMock(return_value=list(values or []))
@@ -258,10 +265,10 @@ class TestSearch:
         assert await use_cases.search(333, "a" * MAX_SEARCH_CHARS) == Matches(items=[])
         expressions.search_expressions.assert_awaited_once()
 
-    async def test_matches_are_typed_and_malformed_ones_skipped(self):
+    async def test_matches_are_typed(self):
+        """Unreadable cards (no id, empty value) never get here: ExpressionService skips them."""
         good = ObjectId()
-        use_cases, expressions = _saved(found=[{"value": "no id"}, {"_id": ObjectId(), "value": ""},
-                                               {"_id": good, "value": "casa"}])
+        use_cases, expressions = _saved(found=[_stored(good, "casa")])
 
         assert await use_cases.search(333, " cas ") == Matches(items=[SavedItem(id=str(good), value="casa")])
         expressions.search_expressions.assert_awaited_once_with(333, "cas", limit=MAX_SEARCH_RESULTS)

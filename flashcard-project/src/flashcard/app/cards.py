@@ -18,7 +18,7 @@ def card_settings(user: UserDB) -> CardSettings:
     return CardSettings(
         level=user.target_level,
         primary_language=user.primary_language,
-        secondary_language=user.secondary_translation,
+        secondary_language=user.secondary_language,
     )
 
 

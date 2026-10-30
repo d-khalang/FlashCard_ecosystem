@@ -49,7 +49,7 @@ tests/
 │   │
 │   ├── algorithm/                  # Pure function tests (no mocking)
 │   │   ├── test_grading.py         # calculate_new_stats
-│   │   └── test_priority.py        # calculate_priority, _read_time
+│   │   └── test_priority.py        # calculate_priority, hours_since
 │   │
 │   ├── services/                   # Business logic (mocked MongoDB)
 │   │   ├── test_expression_service.py  # CRUD + review candidate

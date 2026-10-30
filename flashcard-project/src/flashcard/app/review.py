@@ -11,13 +11,11 @@ instead, free of quota.
 from dataclasses import dataclass
 from typing import Optional, Union
 
-from pydantic import ValidationError
-
 from flashcard.app.cards import card_settings, generate_card
 from flashcard.app.quota import Allowed, QuotaExceeded, QuotaPolicy
 from flashcard.app.shadow import shadow_write
 from flashcard.schemas.user import UserId
-from flashcard.schemas.expression import CardSettings, Direction, ExpressionCard, StoredCard
+from flashcard.schemas.expression import CardSettings, Direction, Expression, ExpressionCard, StoredCard
 from flashcard.schemas.user import UserDB
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
@@ -96,42 +94,37 @@ class ReviewUseCases:
         if user is None:
             user = await self.users.get_user(user_id)
 
-        result = await self.expressions.get_review_candidate(user_id, user.review_mode)
-        if not result:
+        candidate = await self.expressions.get_review_candidate(user_id, user.review_mode)
+        if candidate is None:
             return NoCandidate()
-
-        candidate = result["doc"]
-        direction = result.get("direction", "forward")
+        expression, direction = candidate.expression, candidate.direction
 
         settings = card_settings(user)
         quota = self.quota.check(user, "cards")
         if isinstance(quota, QuotaExceeded):
-            stored = _stored_card(candidate)
-            if stored is None:
+            if expression.last_card is None:
                 return quota
-            return _from_storage(candidate, direction, stored, settings)
+            return _from_storage(expression, direction, settings)
 
         try:
-            card = await generate_card(self.llm, candidate["value"], settings)
+            card = await generate_card(self.llm, expression.value, settings)
         except Exception:
-            stored = _stored_card(candidate)
-            if stored is None:
+            if expression.last_card is None:
                 raise
             logger.warning("Card generation failed for expression %s; sending its stored card",
-                           candidate["_id"], exc_info=True)
-            return _from_storage(candidate, direction, stored, settings)
+                           expression.id, exc_info=True)
+            return _from_storage(expression, direction, settings)
 
         if not card.success:
-            stored = _stored_card(candidate)
-            if stored is None:
-                raise CardGenerationFailed(f"LLM could not make a card for expression {candidate['_id']}")
+            if expression.last_card is None:
+                raise CardGenerationFailed(f"LLM could not make a card for expression {expression.id}")
             logger.warning("LLM could not make a card for expression %s; sending its stored card",
-                           candidate["_id"])
-            return _from_storage(candidate, direction, stored, settings)
+                           expression.id)
+            return _from_storage(expression, direction, settings)
 
         return ReviewReady(
-            expression_id=str(candidate["_id"]),
-            value=candidate["value"],
+            expression_id=expression.id,
+            value=expression.value,
             direction=direction,
             card=card,
             settings=settings,
@@ -160,8 +153,7 @@ class ReviewUseCases:
         Raises ValueError for an out-of-range grade or unknown direction
         (enforced by ExpressionService.grade_expression, before anything is written).
         """
-        updated = await self.expressions.grade_expression(user_id, expression_id, grade, direction)
-        if not updated:
+        if not await self.expressions.grade_expression(user_id, expression_id, grade, direction):
             return CardNotFound()
         await self.review_state.record_reviewed(user_id)
         await shadow_write(
@@ -181,22 +173,11 @@ class ReviewUseCases:
         return await self.users.advance_onboarding(user_id, 1)
 
 
-def _stored_card(candidate: dict) -> Optional[StoredCard]:
-    raw = candidate.get("last_card")
-    if raw is None:
-        return None
-    try:
-        return StoredCard.model_validate(raw)
-    except ValidationError:
-        logger.warning("Unreadable stored card on expression %s", candidate["_id"], exc_info=True)
-        return None
-
-
-def _from_storage(candidate: dict, direction: Direction, stored: StoredCard,
-                  settings: CardSettings) -> ReviewReady:
+def _from_storage(expression: Expression, direction: Direction, settings: CardSettings) -> ReviewReady:
+    stored = expression.last_card
     return ReviewReady(
-        expression_id=str(candidate["_id"]),
-        value=candidate["value"],
+        expression_id=expression.id,
+        value=expression.value,
         direction=direction,
         card=stored.card,
         settings=stored.settings,

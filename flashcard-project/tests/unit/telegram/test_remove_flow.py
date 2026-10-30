@@ -9,6 +9,8 @@ import pytest
 from aiogram.exceptions import TelegramBadRequest
 from bson import ObjectId
 
+from flashcard.schemas.expression import Expression
+
 from flashcard.app.collection import CollectionUseCases
 from tests.helpers import TEST_I18N as i18n
 from flashcard.telegram.handlers import inline_remove
@@ -17,6 +19,11 @@ from flashcard.telegram.ui.factories.inline_remove_callback import InlineRemoveC
 
 USER_ID = 666
 EXPRESSION_ID = str(ObjectId())
+
+
+def _stored(_id, value):
+    """A search result as ExpressionService returns it."""
+    return Expression.model_validate({"_id": _id, "user_id": "1", "value": value})
 
 
 def _deps(*, found=None, removed=True):
@@ -99,7 +106,7 @@ class TestRemoveSearch:
 
     async def test_each_match_is_an_article_with_a_remove_button(self):
         first, second = ObjectId(), ObjectId()
-        d = _deps(found=[{"_id": first, "value": "casa"}, {"_id": second, "value": "casetta"}])
+        d = _deps(found=[_stored(first, "casa"), _stored(second, "casetta")])
         inline_query = await _query(d, "cas")
 
         kwargs = inline_query.answer.await_args.kwargs
@@ -111,13 +118,6 @@ class TestRemoveSearch:
         assert _buttons(results[0].reply_markup) == [(i18n.get("messages.buttons.inline_remove"), "prompt")]
         assert InlineRemoveCallback.unpack(
             results[1].reply_markup.inline_keyboard[0][0].callback_data).expression_id == str(second)
-
-    async def test_matches_without_id_or_value_are_skipped(self):
-        good = ObjectId()
-        d = _deps(found=[{"value": "senza id"}, {"_id": ObjectId(), "value": ""}, {"_id": good, "value": "casa"}])
-        inline_query = await _query(d, "cas")
-
-        assert [r.id for r in inline_query.answer.await_args.kwargs["results"]] == [str(good)]
 
 
 class TestRemoveConfirmation:

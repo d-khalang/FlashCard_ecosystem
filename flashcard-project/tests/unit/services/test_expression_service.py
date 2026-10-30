@@ -9,10 +9,13 @@ Covers all ExpressionService methods:
   - add_expressions_bulk: duplicate filtering, case-insensitivity, bulk insert
   - update_expression_sent: timestamp + pending message tracking
 """
+from datetime import datetime, timezone
+
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from bson import ObjectId
 
+from flashcard.schemas.expression import ExpressionStats
 from flashcard.services.expression import ExpressionService
 
 
@@ -103,14 +106,14 @@ class TestActiveDefinition:
 
     def _service(self, *docs):
         from tests.integration.helpers import make_cols
-        cols = make_cols(expressions=[{"user_id": "123", "created_at": "2000-01-01T00:00:00Z", **doc}
+        cols = make_cols(expressions=[{"_id": ObjectId(), "user_id": "123", "created_at": "2000-01-01T00:00:00Z", **doc}
                                       for doc in docs])
         return ExpressionService(expressions=cols["expression"]), cols["expression"]
 
     async def test_search_finds_a_card_without_status(self):
         service, _ = self._service({"value": "andare"})
 
-        assert [doc["value"] for doc in await service.search_expressions(123, "and")] == ["andare"]
+        assert [e.value for e in await service.search_expressions(123, "and")] == ["andare"]
 
     async def test_remove_deletes_a_card_without_status(self):
         expression_id = ObjectId()
@@ -118,6 +121,13 @@ class TestActiveDefinition:
 
         assert await service.remove_expression(123, str(expression_id)) is True
         assert expressions.docs == []
+
+    async def test_null_status_is_active_like_a_missing_one(self):
+        """ACTIVE matches a stored null; reading it must not drop the card."""
+        service, _ = self._service({"value": "andare", "status": None})
+
+        assert [e.value for e in await service.search_expressions(123, "and")] == ["andare"]
+        assert (await service.get_review_candidate(123, "standard")).expression.value == "andare"
 
     async def test_inactive_card_is_neither_found_removed_nor_reviewed(self):
         expression_id = ObjectId()
@@ -141,15 +151,25 @@ class TestSearchExpressions:
     async def test_returns_capped_active_matches(self):
         service, cols = _make_service()
         docs = [
-            {"_id": ObjectId(), "value": "casa"},
-            {"_id": ObjectId(), "value": "casa mia"},
+            {"_id": ObjectId(), "user_id": "123", "value": "casa"},
+            {"_id": ObjectId(), "user_id": "123", "value": "casa mia"},
         ]
         cols["expression"].find = MagicMock(return_value=_AsyncIterator(docs))
 
         result = await service.search_expressions(123, "cas", limit=1)
 
-        assert result == [docs[0]]
+        assert [(e.id, e.value) for e in result] == [(str(docs[0]["_id"]), "casa")]
         cols["expression"].find.assert_called_once()
+
+    async def test_unreadable_card_is_skipped_not_fatal(self):
+        service, cols = _make_service()
+        docs = [{"_id": ObjectId(), "user_id": "123", "value": "casa", "reps": "many"},
+                {"_id": ObjectId(), "user_id": "123", "value": ""},
+                {"_id": "", "user_id": "123", "value": "casa nostra"},
+                {"_id": ObjectId(), "user_id": "123", "value": "casa mia"}]
+        cols["expression"].find = MagicMock(return_value=_AsyncIterator(docs))
+
+        assert [e.value for e in await service.search_expressions(123, "cas")] == ["casa mia"]
 
 
 
@@ -209,19 +229,34 @@ class TestGetReviewCandidate:
         result = await service.get_review_candidate(123, "standard")
 
         assert result is not None
-        assert result["doc"]["value"] == "difficile"
-        assert result["direction"] == "forward"
+        assert result.expression.value == "difficile"
+        assert result.direction == "forward"
 
-    async def test_returns_direction_key(self):
-        """Result dict must include a 'direction' key."""
+    async def test_returns_the_expression_as_a_model(self):
         service, cols = _make_service()
         doc = _make_expression_doc()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
         result = await service.get_review_candidate(123, "standard")
 
-        assert "doc" in result
-        assert "direction" in result
+        assert result.expression.id == str(doc["_id"])
+        assert result.expression.created_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    async def test_unreadable_card_is_skipped_not_fatal(self):
+        """One bad card must not stop the user's other reviews."""
+        service, cols = _make_service()
+        bad = _make_expression_doc(value="bad", reps="many")
+        good = _make_expression_doc(value="good")
+        cols["expression"].find = MagicMock(return_value=_AsyncIterator([bad, good]))
+
+        assert (await service.get_review_candidate(123, "standard")).expression.value == "good"
+
+    async def test_null_stats_are_read_as_zero(self):
+        service, cols = _make_service()
+        doc = _make_expression_doc(reps=None, lapses=None, ewma_grade=None)
+        cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
+
+        assert (await service.get_review_candidate(123, "standard")).expression.reps == 0
 
     async def test_dual_mode_can_select_reverse(self):
         """In dual mode, reverse direction can win if its priority is higher."""
@@ -244,7 +279,7 @@ class TestGetReviewCandidate:
         result = await service.get_review_candidate(123, "dual")
 
         assert result is not None
-        assert result["direction"] == "reverse"
+        assert result.direction == "reverse"
 
     async def test_standard_mode_never_returns_reverse(self):
         """In standard mode, direction should always be 'forward'."""
@@ -257,33 +292,23 @@ class TestGetReviewCandidate:
 
         result = await service.get_review_candidate(123, "standard")
 
-        assert result["direction"] == "forward"
+        assert result.direction == "forward"
 
-    async def test_simulated_reverse_stats_inherits_created_at(self):
-        """In dual mode, if reverse_stats is missing, its simulated stats use doc['created_at']."""
+    async def test_never_reviewed_reverse_side_counts_from_creation(self):
+        """In dual mode, a reverse side without stats starts empty and uses the card's created_at."""
         service, cols = _make_service()
-
-        created_time = "2026-06-26T12:00:00Z"
-        doc = _make_expression_doc(
-            created_at=created_time,
-            reverse_stats=None
-        )
+        doc = _make_expression_doc(created_at="2026-06-26T12:00:00Z", reverse_stats=None)
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
         from unittest.mock import patch
         with patch("flashcard.services.expression.calculate_priority") as mock_calc:
             mock_calc.return_value = 0.5
             await service.get_review_candidate(123, "dual")
-            
-            assert mock_calc.call_count == 2
-            mock_calc.assert_any_call(doc)
-            
-            args_list = [call[0][0] for call in mock_calc.call_args_list]
-            reverse_arg = [arg for arg in args_list if arg is not doc][0]
-            
-            assert reverse_arg["created_at"] == created_time
-            assert reverse_arg["reps"] == 0
-            assert reverse_arg["ewma_grade"] == 0.0
+
+        assert mock_calc.call_count == 2
+        reverse_stats, created_at = mock_calc.call_args_list[1].args
+        assert reverse_stats == ExpressionStats()
+        assert created_at == datetime(2026, 6, 26, 12, tzinfo=timezone.utc)
 
 
 # ===================================================================
@@ -304,13 +329,13 @@ class TestGradeExpression:
         cols["expression"].find_one.assert_not_called()
         cols["expression"].update_one.assert_not_called()
 
-    async def test_missing_expression_returns_none(self):
-        """Expression not found in DB → returns None."""
+    async def test_missing_expression_returns_false(self):
+        """Expression not found in DB → False."""
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=None)
 
         result = await service.grade_expression(123, str(ObjectId()), grade=4)
-        assert result is None
+        assert result is False
         cols["expression"].update_one.assert_not_called()
 
     async def test_forward_grade_updates_root_stats(self):
@@ -323,7 +348,7 @@ class TestGradeExpression:
             123, str(doc["_id"]), grade=4, direction="forward"
         )
 
-        assert result is not None
+        assert result is True
         # Check expression was updated
         cols["expression"].update_one.assert_called_once()
         update_args = cols["expression"].update_one.call_args[0]
@@ -350,8 +375,10 @@ class TestGradeExpression:
         update_args = cols["expression"].update_one.call_args[0]
         set_dict = update_args[1]["$set"]
 
-        # Should use dot notation for existing reverse_stats
-        assert any(k.startswith("reverse_stats.") for k in set_dict)
+        # The whole reverse_stats object, computed from the stored one
+        assert set_dict["reverse_stats"]["reps"] == 3
+        assert set_dict["reverse_stats"]["success_streak"] == 3
+        assert "reps" not in set_dict  # forward stats untouched
 
     async def test_reverse_grade_creates_reverse_stats_if_none(self):
         """If reverse_stats is None, should set the whole object."""

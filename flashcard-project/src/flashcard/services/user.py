@@ -5,7 +5,7 @@ from typing import Callable, Optional, TYPE_CHECKING, get_args
 from flashcard.utils.logger import get_logger
 from flashcard.schemas.languages import LANGUAGE_DATA, LanguageLevel
 from flashcard.schemas.user import (
-    MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE, ReviewMode, UserDB, UserId, stored_user_id,
+    MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, ReviewMode, UserDB, UserId, stored_user_id,
 )
 from flashcard.utils.time import now_utc
 
@@ -98,9 +98,9 @@ class UserService:
             raise ValueError(f"Unsupported language code: {code!r}")
         await self._set(user_id, "primary_language", code)
 
-    async def set_secondary_language(self, user_id: UserId, code: str) -> None:
-        """A language code, or NO_LANGUAGE to turn it off."""
-        if code != NO_LANGUAGE and code not in LANGUAGE_DATA:
+    async def set_secondary_language(self, user_id: UserId, code: Optional[str]) -> None:
+        """A language code, or None to turn it off (stored as null)."""
+        if code is not None and code not in LANGUAGE_DATA:
             raise ValueError(f"Unsupported language code: {code!r}")
         await self._set(user_id, "secondary_language", code)
 

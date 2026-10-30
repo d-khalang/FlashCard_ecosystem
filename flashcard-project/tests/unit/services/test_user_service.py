@@ -69,7 +69,7 @@ class TestSetters:
         ("set_review_interval", 60, "review_interval_minutes"),
         ("set_primary_language", "de", "primary_language"),
         ("set_secondary_language", "fa", "secondary_language"),
-        ("set_secondary_language", "none", "secondary_language"),
+        ("set_secondary_language", None, "secondary_language"),
         ("set_review_mode", "dual", "review_mode"),
         ("set_active", False, "is_active"),
         ("set_active", True, "is_active"),
@@ -93,6 +93,7 @@ class TestSetters:
         ("set_primary_language", "none"),
         ("set_primary_language", "English"),
         ("set_secondary_language", "klingon"),
+        ("set_secondary_language", "none"),  # turned off is None, never the word
         ("set_review_mode", "triple"),
         ("set_active", "yes"),
         ("set_active", 1),

@@ -10,7 +10,9 @@ from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 import pytest
 
 from flashcard.app.review import CardGenerationFailed, ReviewUseCases
-from flashcard.schemas.expression import CardSettings, ExpressionCard, StoredCard, TranslationLine
+from flashcard.schemas.expression import (
+    CardSettings, Expression, ExpressionCard, ReviewCandidate, StoredCard, TranslationLine,
+)
 from flashcard.app.quota import QuotaExceeded
 from tests.helpers import TEST_LANGUAGE, make_quota, make_user
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
@@ -35,8 +37,9 @@ def _user(**overrides) -> UserDB:
 def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=True, sent_message_id=42):
     user = user or _user()
     expression_service = MagicMock()
-    expression_service.get_review_candidate = AsyncMock(
-        return_value={"doc": candidate, "direction": direction} if candidate else None)
+    expression_service.get_review_candidate = AsyncMock(return_value=ReviewCandidate(
+        expression=Expression.model_validate({"user_id": str(USER_ID), **candidate}), direction=direction,
+    ) if candidate else None)
     expression_service.update_expression_sent = AsyncMock()
     expression_service.grade_expression = AsyncMock()
 
@@ -347,7 +350,7 @@ class TestGrade:
     @pytest.mark.parametrize("code, direction", [("fwd", "forward"), ("rev", "reverse")])
     async def test_success_records_grade_and_edits_message(self, code, direction):
         d = _deps(user=_user(onboarding_step=2))
-        d.expression_service.grade_expression.return_value = {"value": "andare"}
+        d.expression_service.grade_expression.return_value = True
         callback = await _run_grade(d, grade=4, direction=code)
 
         d.expression_service.grade_expression.assert_awaited_once_with(USER_ID, EXPRESSION_ID, 4, direction)
@@ -359,7 +362,7 @@ class TestGrade:
 
     async def test_first_review_shows_tip_and_advances_onboarding(self):
         d = _deps(user=_user(onboarding_step=1))
-        d.expression_service.grade_expression.return_value = {"value": "andare"}
+        d.expression_service.grade_expression.return_value = True
         callback = await _run_grade(d)
 
         callback.message.answer.assert_awaited_once_with(i18n.get("messages.tips.first_review"))
@@ -367,7 +370,7 @@ class TestGrade:
 
     async def test_missing_expression_alerts_and_edits_nothing(self):
         d = _deps()
-        d.expression_service.grade_expression.return_value = None
+        d.expression_service.grade_expression.return_value = False
         callback = await _run_grade(d)
 
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.error_missing"), show_alert=True)

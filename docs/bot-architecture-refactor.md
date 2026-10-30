@@ -16,7 +16,7 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 | 6 | Quota is ad hoc: counters on the user doc, limits frozen at import, trial derived from `created_at` | Parallel quota/allowance system, `miniapp_accounting` fencing | Done (own-key LLM calls deferred) |
 | 7 | Global singletons (`settings`, `i18n`) imported at module level | Runtime-mode explosion, separate runners | Done |
 | 8 | Writes are not idempotent (regex de-duplication, no unique index) | `action_id` required on every call | Code done for card saves; rollout pending (step 3) |
-| 9 | Loose types: `user_id` is `str` or `int`, dicts instead of models, ISO strings compared as text | BSON Int64 session bug | In progress (`user_id`, dates done; rollout pending (step 3)) |
+| 9 | Loose types: `user_id` is `str` or `int`, dicts instead of models, ISO strings compared as text | BSON Int64 session bug | Code done; rollout pending (steps 1 and 3) |
 | 10 | No shared composition root: dispatcher data dict; startup wiring duplicated in `bot.py` | `MiniappRuntime` built its own composition | Done |
 
 ## Production rollout (one update after the full refactor)
@@ -232,6 +232,9 @@ Temporary code that becomes dead once the switch is proven in production:
   `$type: "string"` branch in `UserService.active_users_reviewed_before`; the ISO-text
   conditions in `ExpressionService.get_review_candidate`; text input in `to_utc` (dates only);
   the `legacy_text` cases in the cooldown tests.
+- **Legacy `"none"` language:** run `updateMany({secondary_language: "none"}, {$set: {secondary_language: null}})`
+  per database, then drop `UserDB._turned_off_reads_as_none` (keep reading `"none"` from env defaults
+  in `LanguageConfig` if that is still allowed).
 
 ## #1 Language as instance config: plan
 
@@ -382,7 +385,20 @@ Slices: `user_id` (no migration) → real datetimes (migration in rollout step 3
     only same-type values and sorts mixed types like MongoDB. Verified on a disposable MongoDB 7:
     both-form prefilter and cooldown, mixed-type sort, `tz_aware` reads, and `convert_dates`
     (dry run, naive/offset/fractional text, `""` to null, nested paths, unreadable left, rerun).
-- [ ] Dicts to models (review candidates, expression docs in use cases).
+- [x] **Dicts to models.** `ExpressionService` returns `Expression` (the stored document with
+  its `id`, `schemas/expression.py`) from search and candidate selection, a `ReviewCandidate`
+  (`expression`, `direction`) instead of `{doc, direction}`, and `bool` from grading (was the
+  raw document). Priority and grading take `ExpressionStats` (`Expression.stats(direction)`;
+  forward stats live at the root). Reading is forgiving only where a legacy document may differ:
+  null counters read as 0, a null `status` reads as active (as `ACTIVE` matches it), a missing
+  `created_at` reads as None, an unreadable `last_card` is dropped; an empty `id` or `value` is
+  unreadable; any other unreadable card is logged and skipped (search and candidates), never fatal.
+  Reverse grading now `$set`s the whole `reverse_stats` object (it was computed from the stored
+  one; only grading writes it). Verb data was already typed (`ConjugationResponse`).
+- [x] **A turned-off secondary language is stored as null** (was the text `"none"`).
+  `UserDB.secondary_language` reads `"none"` (older documents, env defaults) as None, so
+  `secondary_translation` is gone; `UserService.set_secondary_language(None)` turns it off and
+  rejects the word. No migration: reads normalize.
 - Later option: store `user_id` as a number too. Only needed if Mongo queries ever mix both forms.
 
 ## #5 Latest card as fallback: progress
@@ -407,8 +423,8 @@ array on the expression. A Mini App redo/back use is decided when the Mini App i
   level or translation languages changed since (compared from data already loaded).
 - [x] Integration tests (`tests/integration/test_stored_card_flow.py`).
 - [x] Fix (review finding): a turned-off secondary language (`"none"`) was sent to the LLM
-  as a language and would differ from an unset one (`None`). `UserDB.secondary_translation`
-  reads both as `None`; review and card creation use it.
+  as a language and would differ from an unset one (`None`). Now stored as null and read
+  as None (#9).
 - No migration: the field is optional and fills in as reviews are delivered.
 
 ## #6 Quota as its own concept: progress
@@ -483,7 +499,7 @@ user receives are counted; the trial stays derived from `created_at` (no migrati
     `SettingsUseCases.toggle_review_mode`; removal is rollout step 7.
   - [x] Pause/resume/close buttons matched text evaluated once at import; now `ButtonText` uses the
     injected `i18n` (#7). A per-user locale would still need to match every locale's text.
-  - "none" is stored as the string `"none"`, not `None`; readers check both.
+  - [x] A turned-off secondary language is stored as null; `"none"` in older documents reads as None (#9).
 - **Story/verb leftovers:**
   - Verb lookups are counted but not limited, by design: they use our own
     scraper and DB cache, no paid provider.

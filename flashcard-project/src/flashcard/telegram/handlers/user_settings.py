@@ -8,7 +8,6 @@ from contextlib import suppress
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 
 from flashcard.app.settings import SettingsUseCases
-from flashcard.schemas.user import NO_LANGUAGE
 from flashcard.services.i18n import I18nService
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
 from flashcard.telegram.keyboards import (
@@ -175,7 +174,7 @@ def _language_flag(code) -> str:
 
 
 def _is_no_language(code) -> bool:
-    return not code or code.lower() == NO_LANGUAGE
+    return code is None
 
 
 def _get_settings_menu_text(i18n: I18nService, user_data: UserDB) -> str:

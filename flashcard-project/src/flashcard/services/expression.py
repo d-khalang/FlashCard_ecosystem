@@ -4,7 +4,9 @@ from typing import Optional, get_args
 
 from flashcard.utils.time import iso_z, now_utc
 
-from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE, Direction, ExpressionDB, StoredCard
+from flashcard.schemas.expression import (
+    MAX_GRADE, MIN_GRADE, Direction, Expression, ExpressionDB, ReviewCandidate, StoredCard,
+)
 from flashcard.schemas.user import UserId, stored_user_id
 from flashcard.services.algorithm.priority import calculate_priority
 from flashcard.services.algorithm.grading import calculate_new_stats
@@ -12,6 +14,7 @@ from flashcard.utils.logger import get_logger
 from flashcard.utils.tracing import observe
 from bson import ObjectId
 from pymongo.collation import Collation, CollationStrength
+from pydantic import ValidationError
 from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 logger = get_logger(__name__)
@@ -38,7 +41,7 @@ class ExpressionService:
         query: str,
         *,
         limit: int = 50,
-    ) -> list[dict]:
+    ) -> list[Expression]:
         """
         Search a user's active expressions by value, case-insensitively.
         """
@@ -55,9 +58,11 @@ class ExpressionService:
             }
         )
 
-        results: list[dict] = []
+        results: list[Expression] = []
         async for doc in cursor:
-            results.append(doc)
+            expression = _read(doc)
+            if expression is not None:
+                results.append(expression)
             if len(results) >= limit:
                 break
 
@@ -212,16 +217,13 @@ class ExpressionService:
         return deleted
 
     @observe(name="ExpressionService.get_review_candidate")
-    async def get_review_candidate(self, user_id: UserId, review_mode: str) -> Optional[dict]:
+    async def get_review_candidate(self, user_id: UserId, review_mode: str) -> Optional[ReviewCandidate]:
         """
         Selects the best expression for review based on priority algorithm.
         Filters out expressions sent in the last 12 hours. `review_mode` is the user's
         setting ("dual" also scores the reverse direction); users are not this service's data.
-        Returns dictionay with 'doc' (ExpressionDB) and 'direction' ('forward' or 'reverse')
+        An unreadable card is logged and skipped.
         """
-        # 1. Filter candidates
-        # Active status (implicit if we only have active ones, but good to be explicit if we add status later)
-        # Not sent in last 12 hours
         #TODO: change 12 hours to get from a config file
         cutoff = now_utc() - timedelta(hours=12)
         # MongoDB compares only values of the same type, so until `convert_dates` has run,
@@ -237,53 +239,22 @@ class ExpressionService:
                 *({"last_activity_at": None, "created_at": condition} for condition in before_cutoff),
             ]
         }
-        
-        cursor = self.expressions.find(query)
-        candidates = []
-        async for doc in cursor:
-            candidates.append(doc)
-            
-        if not candidates:
-            return None
-            
+
         #TODO: change to scheduled priority setter on all items of expressions
-        # 2. Calculate priority for each
-        # We select the one with Max priority
-        best_candidate = None
-        best_direction = "forward"
+        # The highest priority over every candidate and direction wins.
+        directions: tuple[Direction, ...] = ("forward", "reverse") if review_mode == "dual" else ("forward",)
+        best: Optional[ReviewCandidate] = None
         max_priority = -1.0
-        
-        for doc in candidates:
-            # 2a. Forward Priority
-            p_fwd = calculate_priority(doc)
-            
-            if p_fwd > max_priority:
-                max_priority = p_fwd
-                best_candidate = doc
-                best_direction = "forward"
-                
-            # 2b. Reverse Priority (if Dual Mode)
-            if review_mode == "dual":
-                rev_stats = doc.get("reverse_stats") or {
-                    "reps": 0,
-                    "ewma_grade": 0.0,
-                    "success_streak": 0,
-                    "lapses": 0,
-                    "created_at": doc.get("created_at")
-                }
-                p_rev = calculate_priority(rev_stats)
-                
-                if p_rev > max_priority:
-                    max_priority = p_rev
-                    best_candidate = doc
-                    best_direction = "reverse"
-                
-        if best_candidate:
-            return {
-                "doc": best_candidate,
-                "direction": best_direction
-            }
-        return None
+        async for doc in self.expressions.find(query):
+            expression = _read(doc)
+            if expression is None:
+                continue
+            for direction in directions:
+                priority = calculate_priority(expression.stats(direction), expression.created_at)
+                if priority > max_priority:
+                    max_priority = priority
+                    best = ReviewCandidate(expression=expression, direction=direction)
+        return best
 
     async def update_expression_sent(
         self, expression_id: str, message_id: int, last_card: Optional[StoredCard] = None,
@@ -302,55 +273,44 @@ class ExpressionService:
             fields["last_card"] = last_card.model_dump()
         await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": fields})
 
-    async def grade_expression(self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
+    async def grade_expression(self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward") -> bool:
         """
-        Updates the expression with the new grade stats.
-        Returns None when the card does not exist; raises ValueError for an
-        out-of-range grade or unknown direction (nothing is written).
+        Updates the graded direction's stats. False when the card does not exist (or
+        cannot be read); raises ValueError for an out-of-range grade or unknown
+        direction (nothing is written).
         """
         if type(grade) is not int or not MIN_GRADE <= grade <= MAX_GRADE:
             raise ValueError(f"grade must be an integer {MIN_GRADE}-{MAX_GRADE}, got {grade!r}")
         if direction not in get_args(Direction):
             raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
 
-        # 1. Get current document
         doc = await self.expressions.find_one(
             {"_id": ObjectId(expression_id), "user_id": stored_user_id(user_id)}
         )
-        
-        if not doc:
+        expression = _read(doc) if doc else None
+        if expression is None:
             logger.warning(f"Expression {expression_id} not found for user {user_id} during grading")
-            return None
-            
-        # 2. Calculate updates
-        is_reverse = direction == "reverse"
-        # For reverse, we pass the existing reverse_stats (or empty dict which implies new)
-        stats_input = doc if not is_reverse else (doc.get("reverse_stats") or {})
-        
-        updates_dict = calculate_new_stats(stats_input, float(grade), is_reverse=is_reverse)
-        
-        # 3. Apply Updates
-        mongo_updates = {}
-        if is_reverse:
-            if doc.get("reverse_stats") is None:
-                # reverse_stats is null — set the whole object at once
-                mongo_updates["reverse_stats"] = updates_dict
-            else:
-                # reverse_stats exists — use dot-notation for partial update
-                for k, v in updates_dict.items():
-                    mongo_updates[f"reverse_stats.{k}"] = v
-        else:
-            mongo_updates = updates_dict
+            return False
 
-        # Global updates (Cooldown + Clear Pending)
-        mongo_updates["last_activity_at"] = now_utc()
-        mongo_updates["pending_message_id"] = None
-            
-        await self.expressions.update_one(
-            {"_id": ObjectId(expression_id)},
-            {"$set": mongo_updates}
-        )
-        
-        # Return updated document (merged) for UI - approximate sync
-        # Note: this might not be perfect in-memory representation but enough for immediate feedback if needed
-        return doc # UI usually doesn't need the exact new stats immediately
+        stats = calculate_new_stats(expression.stats(direction), grade)
+        if direction == "reverse":
+            updates = {"reverse_stats": stats.model_dump()}
+        else:
+            # Forward stats live at the root; their review time is `last_interaction_at`.
+            updates = stats.model_dump(exclude={"last_review_at"})
+            updates["last_interaction_at"] = stats.last_review_at
+        # Global cooldown, and the card is no longer waiting for an answer.
+        updates["last_activity_at"] = stats.last_review_at
+        updates["pending_message_id"] = None
+
+        await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": updates})
+        return True
+
+
+def _read(doc: dict) -> Optional[Expression]:
+    """The stored expression, or None (logged) if the document cannot be read."""
+    try:
+        return Expression.model_validate(doc)
+    except ValidationError:
+        logger.warning("Skipping unreadable expression %s", doc.get("_id"), exc_info=True)
+        return None

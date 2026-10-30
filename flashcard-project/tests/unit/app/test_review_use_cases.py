@@ -9,7 +9,7 @@ from flashcard.app.review import (
     CardGenerationFailed, CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
 )
 from flashcard.schemas.expression import (
-    MAX_GRADE, MIN_GRADE, CardSettings, ExpressionCard, StoredCard, TranslationLine,
+    MAX_GRADE, MIN_GRADE, CardSettings, Expression, ExpressionCard, ReviewCandidate, StoredCard, TranslationLine,
 )
 from flashcard.app.quota import Allowed
 from tests.helpers import make_quota, make_user
@@ -34,7 +34,7 @@ def _use_cases(*, candidate=None, user=None, exceeded=None):
     expressions = MagicMock()
     expressions.get_review_candidate = AsyncMock(return_value=candidate)
     expressions.update_expression_sent = AsyncMock()
-    expressions.grade_expression = AsyncMock(return_value={"value": "andare"})
+    expressions.grade_expression = AsyncMock(return_value=True)
 
     users = MagicMock()
     users.get_user = AsyncMock(return_value=user or _user())
@@ -52,7 +52,9 @@ def _use_cases(*, candidate=None, user=None, exceeded=None):
 
 
 def _candidate(direction="forward", **doc):
-    return {"doc": {"_id": EXPRESSION_ID, "value": "andare", **doc}, "direction": direction}
+    """What ExpressionService.get_review_candidate returns, read from a stored document."""
+    expression = Expression.model_validate({"_id": EXPRESSION_ID, "user_id": "111", "value": "andare", **doc})
+    return ReviewCandidate(expression=expression, direction=direction)
 
 
 class TestPrepareNext:
@@ -86,14 +88,9 @@ class TestPrepareNext:
             expression_id=EXPRESSION_ID, value="andare", direction="reverse",
             card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False))
 
-    async def test_missing_direction_defaults_to_forward(self):
-        use_cases, *_ = _use_cases(candidate={"doc": {"_id": EXPRESSION_ID, "value": "andare"}})
-
-        assert (await use_cases.prepare_next(111)).direction == "forward"
-
     async def test_object_id_is_returned_as_string(self):
         from bson import ObjectId
-        use_cases, *_ = _use_cases(candidate={"doc": {"_id": ObjectId(EXPRESSION_ID), "value": "andare"}})
+        use_cases, *_ = _use_cases(candidate=_candidate(_id=ObjectId(EXPRESSION_ID)))
 
         assert (await use_cases.prepare_next(111)).expression_id == EXPRESSION_ID
 
@@ -211,7 +208,7 @@ class TestStoredCardFallback:
         assert (await use_cases.prepare_next(111)).older_settings is True
 
     async def test_turned_off_secondary_language_matches_an_unset_one(self):
-        # SETTINGS has no secondary language; "none" is how /settings stores "off".
+        # SETTINGS has no secondary language; older documents store "off" as "none".
         use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored(), user=_user(secondary_language="none"))
         llm.generate_expression_card.side_effect = RuntimeError("all providers down")
 
@@ -274,7 +271,7 @@ class TestGrade:
 
     async def test_missing_card_is_reported(self):
         use_cases, expressions, *_ = _use_cases()
-        expressions.grade_expression.return_value = None
+        expressions.grade_expression.return_value = False
 
         assert await use_cases.grade(111, EXPRESSION_ID, 3, "forward") == CardNotFound()
 
@@ -381,7 +378,7 @@ class TestReviewStateShadow:
 
     async def test_missing_card_records_no_review(self):
         use_cases, expressions, _, _, _ = _use_cases()
-        expressions.grade_expression.return_value = None
+        expressions.grade_expression.return_value = False
 
         await use_cases.grade(111, EXPRESSION_ID, 4, "forward")
 
@@ -401,7 +398,7 @@ class TestReviewStateShadow:
 
     async def test_missing_card_leaves_review_state_alone(self):
         use_cases, expressions, _, _, _ = _use_cases()
-        expressions.grade_expression.return_value = None
+        expressions.grade_expression.return_value = False
 
         assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward") == CardNotFound()
         use_cases.review_state.record_graded.assert_not_awaited()

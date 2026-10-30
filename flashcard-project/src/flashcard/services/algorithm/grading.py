@@ -1,50 +1,22 @@
+from flashcard.schemas.expression import ExpressionStats
 from flashcard.utils.time import now_utc
 
 ALPHA = 0.30          # EWMA smoothing
 PASS_THRESHOLD = 3    # >=3 counts as success
 
-def calculate_new_stats(stats: dict, grade: float, is_reverse: bool = False) -> dict:
+def calculate_new_stats(stats: ExpressionStats, grade: int) -> ExpressionStats:
     """
-    Calculates the new SRS stats for an expression based on the grade.
-    Matches the logic from the n8n Python node.
-    
-    Args:
-        stats: Current stats dict (from root or reverse_stats)
-        grade: User grade (0-5)
-        is_reverse: If True, returns dict for reverse_stats update. If False, for root.
+    The SRS stats of one direction after a grade (0-5), reviewed now.
+    Matches the logic from the n8n Python node. Where they are stored (root
+    for forward, `reverse_stats` for reverse) is the service's concern.
     """
-    # Copy relevant fields to avoid mutating original if needed
-    reps_before = int(stats.get("reps") or 0)
-    lapses_before = int(stats.get("lapses") or 0)
-    streak_before = int(stats.get("success_streak") or 0)
-    ewma_before = float(stats.get("ewma_grade") or 0.0)
-
     is_success = grade >= PASS_THRESHOLD
-    
-    new_reps = reps_before + (1 if is_success else 0)
-    new_lapses = lapses_before + (0 if is_success else 1)
-    new_streak = (streak_before + 1) if is_success else 0
-    
-    new_ewma = round(ALPHA * grade + (1.0 - ALPHA) * ewma_before, 4)
-    
-    now = now_utc()
-    
-    # Common stats
-    new_stats_values = {
-        "reps": new_reps,
-        "lapses": new_lapses,
-        "success_streak": new_streak,
-        "ewma_grade": new_ewma,
-        "last_grade": grade,
-    }
-    
-    if is_reverse:
-        new_stats_values["last_review_at"] = now
-        # For nested object updates, we return the whole object or let the caller construct the set
-        # Here we return a flat dict that the service will convert to dot notation or nested object
-        return new_stats_values
-    else:
-        # Standard/Forward updates (Root level)
-        new_stats_values["last_interaction_at"] = now
-        # pending_message_id handled in service for global consistency
-        return new_stats_values
+
+    return ExpressionStats(
+        reps=stats.reps + (1 if is_success else 0),
+        lapses=stats.lapses + (0 if is_success else 1),
+        success_streak=(stats.success_streak + 1) if is_success else 0,
+        ewma_grade=round(ALPHA * grade + (1.0 - ALPHA) * stats.ewma_grade, 4),
+        last_grade=grade,
+        last_review_at=now_utc(),
+    )
