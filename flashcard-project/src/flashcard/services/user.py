@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Callable, Optional, TYPE_CHECKING, get_args
 from flashcard.utils.logger import get_logger
 from flashcard.schemas.languages import LANGUAGE_DATA, LanguageLevel
 from flashcard.schemas.user import (
     MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE, ReviewMode, UserDB, UserId, stored_user_id,
 )
-from flashcard.utils.time import iso_z, now_utc
+from flashcard.utils.time import now_utc
 
 if TYPE_CHECKING:
     from flashcard.language import UserDefaults
@@ -35,7 +35,7 @@ class UserService:
 
     async def active_users_reviewed_before(
         self,
-        cutoff: str,
+        cutoff: datetime,
         *,
         exclude_pending: bool,
         on_unreadable: Callable[[str, Exception], None],
@@ -47,7 +47,13 @@ class UserService:
         """
         query = {
             "is_active": True,
-            "$or": [{"last_reviewed_at": None}, {"last_reviewed_at": {"$lt": cutoff}}],
+            "$or": [
+                {"last_reviewed_at": None},
+                {"last_reviewed_at": {"$lt": cutoff}},
+                # Legacy text (until `convert_dates` has run): the scheduler checks the
+                # exact interval in Python, where an unreadable date is reported.
+                {"last_reviewed_at": {"$type": "string"}},
+            ],
         }
         if exclude_pending:
             query["has_pending"] = False
@@ -141,17 +147,17 @@ class UserService:
         The only writer that creates user documents, so `created_at` (the trial start)
         is always the first interaction. Every other writer updates existing users only.
         """
-        current_iso = iso_z(now_utc())
+        now = now_utc()
         await self.users.update_one(
             {"user_id": stored_user_id(user_id)},
             {
-                "$set": {"username": username, "last_seen_at": current_iso},
-                "$setOnInsert": {"created_at": current_iso},
+                "$set": {"username": username, "last_seen_at": now},
+                "$setOnInsert": {"created_at": now},
             },
             upsert=True
         )
 
-    async def backfill_created_at(self, user_id: UserId, created_at: str) -> bool:
+    async def backfill_created_at(self, user_id: UserId, created_at: datetime) -> bool:
         """
         Migration only: set a missing `created_at`. Never overwrites one, so it can
         never move a trial start. True when it wrote.

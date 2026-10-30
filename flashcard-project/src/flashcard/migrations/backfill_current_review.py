@@ -11,10 +11,11 @@ Dry run by default; --apply writes. Prints counts only.
 import argparse
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime
 
 from flashcard.schemas.user import parse_stored_user_id
 from flashcard.services.review_state import ReviewStateStore
-from flashcard.utils.time import iso_z, now_utc
+from flashcard.utils.time import UTC, now_utc, to_utc
 
 
 @dataclass
@@ -51,7 +52,7 @@ async def backfill_current_review(cols: dict, store: ReviewStateStore, *, apply:
             report.invalid_message_id += 1
             continue
 
-        sent_at = card.get("last_sent_at") or card.get("last_activity_at") or iso_z(now_utc())
+        sent_at = _time(card.get("last_sent_at")) or _time(card.get("last_activity_at")) or now_utc()
         if not apply:
             report.backfilled += 1
         elif await store.backfill_from_legacy(user_id, str(card["_id"]), message_id, sent_at):
@@ -61,9 +62,21 @@ async def backfill_current_review(cols: dict, store: ReviewStateStore, *, apply:
     return report
 
 
+_NEVER = datetime.min.replace(tzinfo=UTC)
+
+
+def _time(value):
+    """A stored date or legacy ISO text as UTC; None when missing or unreadable."""
+    try:
+        return to_utc(value or None)
+    except ValueError:
+        return None
+
+
 def _sent_order(card: dict) -> tuple:
     # last_sent_at is set together with pending_message_id; the rest only break ties.
-    return (card.get("last_sent_at") or "", card.get("last_activity_at") or "", str(card["_id"]))
+    # Converted first: after the deploy a user can have both dates and legacy text.
+    return (_time(card.get("last_sent_at")) or _NEVER, _time(card.get("last_activity_at")) or _NEVER, str(card["_id"]))
 
 
 async def _latest_pending_card(cols: dict, user_id: str):

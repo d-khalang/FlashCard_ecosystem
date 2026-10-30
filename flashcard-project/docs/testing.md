@@ -49,7 +49,7 @@ tests/
 │   │
 │   ├── algorithm/                  # Pure function tests (no mocking)
 │   │   ├── test_grading.py         # calculate_new_stats
-│   │   └── test_priority.py        # calculate_priority, parse_iso
+│   │   └── test_priority.py        # calculate_priority, _read_time
 │   │
 │   ├── services/                   # Business logic (mocked MongoDB)
 │   │   ├── test_expression_service.py  # CRUD + review candidate
@@ -80,7 +80,7 @@ tests/
 │   │
 │   └── utils/                      # General utilities
 │       ├── test_tracing.py         # @observe + finalize_trace + TraceLogger
-│       └── test_time_and_settings.py   # now_utc, iso_z, webhook_url
+│       └── test_time_and_settings.py   # now_utc, iso_z, to_utc, webhook_url
 │
 ├── integration/                    # Dispatcher & runtime wiring integration tests
 │   ├── conftest.py                 # Integration environment setup

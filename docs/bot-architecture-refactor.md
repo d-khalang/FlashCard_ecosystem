@@ -16,7 +16,7 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 | 6 | Quota is ad hoc: counters on the user doc, limits frozen at import, trial derived from `created_at` | Parallel quota/allowance system, `miniapp_accounting` fencing | Done (own-key LLM calls deferred) |
 | 7 | Global singletons (`settings`, `i18n`) imported at module level | Runtime-mode explosion, separate runners | Done |
 | 8 | Writes are not idempotent (regex de-duplication, no unique index) | `action_id` required on every call | Code done for card saves; rollout pending (step 3) |
-| 9 | Loose types: `user_id` is `str` or `int`, dicts instead of models, ISO strings compared as text | BSON Int64 session bug | In progress (`user_id` done) |
+| 9 | Loose types: `user_id` is `str` or `int`, dicts instead of models, ISO strings compared as text | BSON Int64 session bug | In progress (`user_id`, dates done; rollout pending (step 3)) |
 | 10 | No shared composition root: dispatcher data dict; startup wiring duplicated in `bot.py` | `MiniappRuntime` built its own composition | Done |
 
 ## Production rollout (one update after the full refactor)
@@ -26,9 +26,17 @@ refactor is finished, then these production steps run in order:
 
 1. Back up each language database. In `kartino-deploy`, set `LANGUAGE_VALIDATOR` in each
    instance's env (`italian` for IT, `latin` for EN); without it the new image does not start.
+   Run `python -m flashcard.migrations.convert_dates` (dry run, writes nothing) with the new
+   image against each database: fix every document it lists under `unreadable_ids` before
+   deploying, because the new image cannot read a user whose stored date is not a date.
 2. Deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes (`current_review`,
    `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
 3. Backfill each language DB (dry run, check counts, then `--apply`):
+   - `python -m flashcard.migrations.convert_dates` first: legacy ISO text becomes dates
+     (`unreadable` must be 0, see step 1). Empty text becomes null, so `backfill_created_at`
+     then fills those trial starts too. Run it soon after the deploy: until then `/list`
+     can order cards that already had a BSON date after newer text-dated ones (MongoDB
+     sorts text before dates).
    - `python -m flashcard.migrations.backfill_current_review`
    - `python -m flashcard.migrations.backfill_created_at`: missing trial starts become
      the user's oldest expression (or the run time without expressions). Users counted
@@ -220,6 +228,10 @@ Temporary code that becomes dead once the switch is proven in production:
 - **Tests:** rewrite the `has_pending` assertions in `test_review_state_flow.py` and
   `test_dispatcher_runtime.py` for the new rule.
 - **Data:** `$unset` the dropped fields, only after a backup.
+- **Legacy text dates (#9):** `flashcard/migrations/convert_dates.py` and its tests; the
+  `$type: "string"` branch in `UserService.active_users_reviewed_before`; the ISO-text
+  conditions in `ExpressionService.get_review_candidate`; text input in `to_utc` (dates only);
+  the `legacy_text` cases in the cooldown tests.
 
 ## #1 Language as instance config: plan
 
@@ -344,7 +356,32 @@ Slices: `user_id` (no migration) → real datetimes (migration in rollout step 3
   `/get` and the scheduler now pass the same `int`; the scheduler sends to `chat_id` as `int`.
   Migrations parse stored ids with `parse_stored_user_id` and report bad ones as `invalid_user_id`
   (was `non_string_user_id`). Guard: `tests/unit/schemas/test_user_id.py`.
-- [ ] Real datetimes instead of ISO text (`last_reviewed_at`, `created_at`, ...): needs a migration.
+- [x] **Real dates.** Every stored instant is a BSON date in UTC, read back as an aware
+  `datetime` (`tz_aware=True` on the Mongo client). Schemas type them `UtcDatetime`
+  (`utils/time.py`): reads go through `to_utc`, which also accepts the legacy ISO text until the
+  migration has run; text without a timezone is UTC (every writer used UTC); `""` reads as
+  missing; anything else makes the document unreadable. All writers store `now_utc()`.
+  Users: `created_at`, `last_seen_at`, `last_reviewed_at`, `last_push_at`, `current_review.sent_at`.
+  Expressions: `created_at`, `last_sent_at`, `last_interaction_at`, `last_activity_at`,
+  `reverse_stats.last_review_at`, `last_card.generated_at`. Kept as text on purpose:
+  `consumption.consumption_date` (a calendar day used as a key, compared by equality).
+  - Transition: MongoDB compares only values of the same type, so the two cutoff queries
+    match both forms. The scheduler prefilter also passes every text `last_reviewed_at` to
+    Python, where a bad one is now reported (it used to sort after real dates and silently
+    never be due). The review-candidate cooldown matches dates and ISO text.
+  - Migration `convert_dates` (rollout steps 1 and 3): converts text in place, one field at a
+    time and only if it still holds the text read (safe while the bot runs: a field the bot
+    rewrote is already a date, the other fields still convert); reports unreadable values with
+    their ids and leaves them. `dedupe_expressions` breaks ties on converted times too. Backfills now write dates; `backfill_current_review` orders a
+    user's cards by converted time (both forms exist after the deploy).
+  - Behavior change: dates without a timezone are read as UTC instead of skipping the user
+    or ending the trial. A legacy BSON date `created_at` on a never-reviewed card now passes
+    the 12 h cooldown (it was compared with text and never matched).
+  - Tests: `test_convert_dates.py`, `TestToUtc`, cooldown tests for both forms, and
+    `TestStoredDates` (send, grade and save write no text dates). The Mongo test fake compares
+    only same-type values and sorts mixed types like MongoDB. Verified on a disposable MongoDB 7:
+    both-form prefilter and cooldown, mixed-type sort, `tz_aware` reads, and `convert_dates`
+    (dry run, naive/offset/fractional text, `""` to null, nested paths, unreadable left, rerun).
 - [ ] Dicts to models (review candidates, expression docs in use cases).
 - Later option: store `user_id` as a number too. Only needed if Mongo queries ever mix both forms.
 
@@ -461,9 +498,8 @@ user receives are counted; the trial stays derived from `created_at` (no migrati
   removed. `ExpressionService.ACTIVE` (`"active"` or missing) is now used by every read
   and remove. `get_all_expressions` returns each value once, oldest first (the `-t` path
   could list duplicates); `sort_by_time` is gone. Duplicate documents themselves are #8.
-- **Dates stored as text hide bad values (#9).** A `last_reviewed_at` that is not an
-  ISO date can sort after real dates, so the scheduler's DB prefilter never returns
-  that user: they silently never get reviews. Real dates would fix it.
+- [x] **Dates stored as text hide bad values (#9).** Fixed: text `last_reviewed_at` reaches
+  Python and a bad one is reported; `convert_dates` lists the rest.
 - [x] **Duplicated startup** in `bot.py` (#10). Done: both paths use `running_bot`.
 - [x] **One Mongo and one HTTP client under FastAPI (#10).** `init_telegram_bot` opened
   a second pair and overwrote `app.state`: the first pair was never closed, the second

@@ -166,6 +166,7 @@ _MONGO_CLIENT_OPTIONS = dict(
     waitQueueTimeoutMS=5_000,            # 5s max wait for a pooled connection
     retryReads=True,                     # Explicit, critical for failover
     retryWrites=True,                    # Explicit, critical for failover
+    tz_aware=True,                       # Dates come back as aware UTC datetimes
 )
 
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
-from typing import List, Literal, Optional 
+from typing import List, Literal, Optional
+
+from flashcard.utils.time import UtcDatetime
 
 # Grading rules, enforced by ExpressionService.grade_expression.
 MIN_GRADE = 0
@@ -50,7 +52,7 @@ class StoredCard(BaseModel):
     """The latest successful card of an expression: the fallback when all providers fail."""
     card: ExpressionCard
     settings: CardSettings
-    generated_at: str
+    generated_at: UtcDatetime
 
 
 class ExpressionStats(BaseModel):
@@ -62,16 +64,16 @@ class ExpressionStats(BaseModel):
     success_streak: int = 0
     ewma_grade: float = 0.0
     last_grade: int = 0
-    last_review_at: Optional[str] = None
+    last_review_at: Optional[UtcDatetime] = None
     # next_review_at: Optional[str] = None # Calculated next review time
 
 class ExpressionDB(BaseModel):
     user_id: str = Field(..., description="Stored user id (text); services write it with stored_user_id")
     value: str = Field(..., description="The expression text")
-    created_at: str = Field(..., description="Creation timestamp ISO")
-    last_sent_at: Optional[str] = Field(None, description="Timestamp of last send of both sides")
-    last_interaction_at: Optional[str] = Field(None, description="Timestamp of last review of the forward side")
-    last_activity_at: Optional[str] = Field(None, description="Timestamp of last send/grade event (global cooldown)")
+    created_at: UtcDatetime = Field(..., description="Creation time")
+    last_sent_at: Optional[UtcDatetime] = Field(None, description="Last send of either side")
+    last_interaction_at: Optional[UtcDatetime] = Field(None, description="Last review of the forward side")
+    last_activity_at: Optional[UtcDatetime] = Field(None, description="Last send/grade event (global cooldown)")
     
     # Forward Stats (Root Level - Backward Compatibility)
     reps: int = 0
@@ -83,7 +85,7 @@ class ExpressionDB(BaseModel):
     # Dual Mode
     reverse_stats: Optional[ExpressionStats] = None
     
-    pending_message_id: Optional[str] = None
+    pending_message_id: Optional[int] = None  # Telegram message id
     status: str = "active"
 
     # Overwritten by each successful review; one card, no history.

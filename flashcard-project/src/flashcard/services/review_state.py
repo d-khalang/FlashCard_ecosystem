@@ -1,6 +1,8 @@
 from flashcard.schemas.user import CurrentReview, UserId, stored_user_id
 from flashcard.utils.logger import get_logger
-from flashcard.utils.time import iso_z, now_utc
+from datetime import datetime
+
+from flashcard.utils.time import now_utc
 
 logger = get_logger(__name__)
 
@@ -36,7 +38,7 @@ class ReviewStateStore:
         """The user graded a card: start the review interval and clear the legacy pause."""
         await self.users.update_one(
             {"user_id": stored_user_id(user_id)},
-            {"$set": {"has_pending": False, "last_reviewed_at": iso_z(now_utc())}},
+            {"$set": {"has_pending": False, "last_reviewed_at": now_utc()}},
         )
 
     async def record_sent(
@@ -50,7 +52,7 @@ class ReviewStateStore:
             expression_id=expression_id,
             direction=direction,
             message_id=message_id,
-            sent_at=iso_z(now_utc()),
+            sent_at=now_utc(),
         )
         await self.users.update_one(
             {"user_id": stored_user_id(user_id)},
@@ -73,7 +75,7 @@ class ReviewStateStore:
         user_id: UserId,
         expression_id: str,
         message_id: int,
-        sent_at: str,
+        sent_at: datetime,
     ) -> bool:
         """
         Migration only: set the current review from legacy pending fields.

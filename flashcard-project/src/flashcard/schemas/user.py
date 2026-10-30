@@ -1,10 +1,9 @@
-from datetime import datetime
 from typing import Literal, Optional, get_args
 from enum import Enum
 from pydantic import BaseModel, Field, field_serializer, field_validator
 from flashcard.schemas.languages import LanguageCode, LanguageLevel
 from flashcard.utils.logger import get_logger
-from flashcard.utils.time import iso_z, now_utc
+from flashcard.utils.time import UtcDatetime
 
 logger = get_logger(__name__)
 
@@ -68,7 +67,7 @@ class CurrentReview(BaseModel):
     # "unknown" only for reviews backfilled from legacy fields; either direction's grade clears it.
     direction: Literal["forward", "reverse", "unknown"]
     message_id: int = Field(..., description="Telegram message that carries the card")
-    sent_at: str = Field(..., description="ISO timestamp of delivery")
+    sent_at: UtcDatetime = Field(..., description="Delivery time")
 
 
 class UserTier(str, Enum):
@@ -80,11 +79,11 @@ class UserTier(str, Enum):
 class UserDB(BaseModel):
     user_id: UserId = Field(..., description="Telegram user id (stored as text)")
     username: Optional[str] = Field(None, description="Telegram username")
-    created_at: Optional[str] = Field(None, description="ISO timestamp of user creation (Trial start)")
+    created_at: Optional[UtcDatetime] = Field(None, description="User creation (trial start)")
     tier: UserTier = Field(UserTier.normal, description="User subscription tier")
-    last_push_at: Optional[str] = Field(None, description="ISO timestamp of last push")
-    last_reviewed_at: Optional[str] = Field(None, description="ISO timestamp of last review interaction")
-    last_seen_at: Optional[str] = Field(None, description="ISO timestamp of the user's last interaction with the bot")
+    last_push_at: Optional[UtcDatetime] = Field(None, description="Legacy: last push")
+    last_reviewed_at: Optional[UtcDatetime] = Field(None, description="Last graded review")
+    last_seen_at: Optional[UtcDatetime] = Field(None, description="The user's last interaction with the bot")
     has_pending: bool = Field(False, description="If user has pending reviews")
     current_review: Optional[CurrentReview] = Field(None, description="Ungraded delivered card, if any")
     is_active: bool = Field(True, description="If user is active for scheduler")

@@ -60,11 +60,11 @@ class TestLimit:
         user = _user(UserTier.normal, created_at=_days_ago(days))
         assert (service.limit(user, "cards"), service.limit(user, "stories")) == (10, 2)
 
-    @pytest.mark.parametrize("created_at", ["not a date", "2026-10-01T10:00:00"])
-    def test_unreadable_created_at_means_no_trial(self, created_at):
+    def test_trial_start_without_timezone_is_utc(self):
         service, _ = _service()
-        user = _user(UserTier.normal, created_at=created_at)
-        assert service.limit(user, "cards") == 10
+        naive = iso_z(now_utc() - timedelta(days=3)).removesuffix("Z")
+        user = _user(UserTier.normal, created_at=naive)
+        assert service.limit(user, "cards") == 50  # still in the trial: plus limits
 
     def test_limits_are_read_on_every_check(self):
         settings = SimpleNamespace(**vars(LIMITS))

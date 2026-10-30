@@ -24,7 +24,7 @@ from flashcard.services.llm.llm import LLMService
 from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.user import UserService
 from flashcard.utils.logger import get_logger
-from flashcard.utils.time import iso_z, now_utc
+from flashcard.utils.time import now_utc
 
 logger = get_logger(__name__)
 
@@ -144,7 +144,7 @@ class ReviewUseCases:
         A fresh card is stored and counted; a stored card is neither.
         """
         last_card = None if ready.from_storage else StoredCard(
-            card=ready.card, settings=ready.settings, generated_at=iso_z(now_utc()))
+            card=ready.card, settings=ready.settings, generated_at=now_utc())
         await self.expressions.update_expression_sent(ready.expression_id, message_id, last_card=last_card)
         await self.review_state.mark_pending(user_id)
         if not ready.from_storage:

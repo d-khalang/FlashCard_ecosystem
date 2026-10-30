@@ -11,14 +11,13 @@ from datetime import datetime
 from typing import Literal
 
 from flashcard.schemas.user import UserDB, UserId
-from flashcard.utils.time import parse_iso
 
 
 def interval_elapsed(user: UserDB, now: datetime) -> bool:
     """The user's review interval has passed since their last graded review."""
     if not user.last_reviewed_at:
         return True
-    elapsed_seconds = (now - parse_iso(user.last_reviewed_at)).total_seconds()
+    elapsed_seconds = (now - user.last_reviewed_at).total_seconds()
     return elapsed_seconds >= user.review_interval_minutes * 60
 
 
@@ -29,7 +28,7 @@ def awaiting_answer(user: UserDB) -> bool:
         return False
     if not user.last_seen_at:
         return True
-    return parse_iso(user.last_seen_at) <= parse_iso(review.sent_at)
+    return user.last_seen_at <= review.sent_at
 
 
 # Which pause rule the scheduler uses; "legacy" until the migration switch.

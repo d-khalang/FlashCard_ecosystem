@@ -27,7 +27,7 @@ from datetime import datetime
 from flashcard.schemas.user import parse_stored_user_id
 from flashcard.services.expression import VALUE_COLLATION, ExpressionService
 from flashcard.services.review_state import ReviewStateStore
-from flashcard.utils.time import iso_z
+from flashcard.utils.time import UTC, to_utc
 
 
 @dataclass
@@ -113,10 +113,15 @@ def _reviews(card: dict) -> int:
     return (card.get("reps") or 0) + ((card.get("reverse_stats") or {}).get("reps") or 0)
 
 
-def _created_at(card: dict) -> str:
-    # Legacy documents may store a BSON datetime instead of ISO text; missing sorts as oldest.
-    value = card.get("created_at")
-    return iso_z(value) if isinstance(value, datetime) else str(value or "")
+_NEVER = datetime.min.replace(tzinfo=UTC)
+
+
+def _created_at(card: dict) -> datetime:
+    """Dates and legacy ISO text compared as UTC; missing or unreadable sorts as oldest."""
+    try:
+        return to_utc(card.get("created_at")) or _NEVER
+    except ValueError:
+        return _NEVER
 
 
 def _card_to_keep(cards: list[dict]) -> dict:

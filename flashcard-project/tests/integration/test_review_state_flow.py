@@ -6,8 +6,9 @@ moves to its own model, so the migration can prove it preserves it.
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
+import pytest
 from bson import ObjectId
 
 from flashcard.scheduler.scheduler import find_users_due_for_review
@@ -82,22 +83,68 @@ class TestSchedulerPause:
         assert USER_ID in await _due_ids(dispatcher_env)
 
 
+# Stored dates and the legacy ISO text (until `convert_dates` has run) must behave the same.
+STORED_FORMS = [pytest.param(lambda dt: dt, id="date"), pytest.param(iso_z, id="legacy_text")]
+
+
+@pytest.mark.parametrize("stored", STORED_FORMS)
 class TestCandidateCooldown:
 
-    async def test_sent_card_is_not_a_candidate_within_12_hours(self, dispatcher_env):
-        recent = iso_z(now_utc() - timedelta(hours=1))
+    async def test_sent_card_is_not_a_candidate_within_12_hours(self, dispatcher_env, stored):
+        recent = stored(now_utc() - timedelta(hours=1))
         await _insert_card(dispatcher_env, last_activity_at=recent, pending_message_id=555)
 
         assert await dispatcher_env["expression_service"].get_review_candidate(USER_ID, "standard") is None
 
-    async def test_ungraded_card_is_a_candidate_again_after_12_hours(self, dispatcher_env):
-        old = iso_z(now_utc() - timedelta(hours=13))
+    async def test_new_card_waits_12_hours_after_creation(self, dispatcher_env, stored):
+        await _insert_card(dispatcher_env, created_at=stored(now_utc() - timedelta(hours=1)))
+        assert await dispatcher_env["expression_service"].get_review_candidate(USER_ID, "standard") is None
+
+        await dispatcher_env["cols"]["expression"].update_one(
+            {"user_id": str(USER_ID)}, {"$set": {"created_at": stored(now_utc() - timedelta(hours=13))}})
+        assert await dispatcher_env["expression_service"].get_review_candidate(USER_ID, "standard") is not None
+
+    async def test_ungraded_card_is_a_candidate_again_after_12_hours(self, dispatcher_env, stored):
+        old = stored(now_utc() - timedelta(hours=13))
         expression_id = await _insert_card(dispatcher_env, last_activity_at=old, pending_message_id=555)
 
         candidate = await dispatcher_env["expression_service"].get_review_candidate(USER_ID, "standard")
 
         assert candidate is not None
         assert candidate["doc"]["_id"] == expression_id
+
+
+class TestStoredDates:
+    """Every write stores real dates; legacy text is only read."""
+
+    USER_DATES = ["created_at", "last_reviewed_at", "last_seen_at", "current_review.sent_at"]
+    EXPRESSION_DATES = ["created_at", "last_sent_at", "last_interaction_at", "last_activity_at",
+                        "reverse_stats.last_review_at", "last_card.generated_at"]
+
+    async def test_send_grade_and_save_write_dates(self, dispatcher_env):
+        expression_id = await _insert_card(dispatcher_env, created_at=now_utc() - timedelta(days=1))
+        await _feed(dispatcher_env, make_message_update(text="/get"))
+        user = await _user_doc(dispatcher_env)
+        assert user["current_review"]["sent_at"]  # a review was sent
+
+        callback = GradeCallback(expression_id=str(expression_id), grade=4, direction="fwd").pack()
+        await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
+        await _feed(dispatcher_env, make_callback_update(data="save:nuovo", text="Card", update_id=3))
+
+        written = [(f"users.{path}", _get(await _user_doc(dispatcher_env), path)) for path in self.USER_DATES]
+        for doc in dispatcher_env["cols"]["expression"].docs:
+            written += [(f"expression.{path}", _get(doc, path)) for path in self.EXPRESSION_DATES]
+        present = {name: value for name, value in written if value is not None}
+        assert {"users.created_at", "users.last_reviewed_at", "users.last_seen_at",
+                "expression.last_sent_at", "expression.last_interaction_at",
+                "expression.last_activity_at", "expression.last_card.generated_at"} <= set(present)
+        assert {name: value for name, value in present.items() if not isinstance(value, datetime)} == {}
+
+
+def _get(doc, path):
+    for part in path.split("."):
+        doc = (doc or {}).get(part)
+    return doc
 
 
 class TestCurrentReviewShadow:

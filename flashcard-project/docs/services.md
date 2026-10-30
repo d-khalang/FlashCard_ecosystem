@@ -103,10 +103,10 @@ Defined in [`schemas/user.py`](../src/flashcard/schemas/user.py):
 | `has_pending` | `bool` | `False` | Legacy pause flag; replaced by `current_review` + `last_seen_at` (review-state migration) |
 | `current_review` | `CurrentReview?` | `None` | Delivered card still waiting for a grade (`expression_id`, `direction`, `message_id`, `sent_at`) |
 | `onboarding_step` | `int` | `0` | Tracks user's progress through contextual onboarding tips |
-| `created_at` | `str?` | `None` | ISO timestamp of first contact; the trial start |
-| `last_seen_at` | `str?` | `None` | ISO timestamp of the user's last interaction |
-| `last_push_at` | `str?` | `None` | Legacy, no longer written or read |
-| `last_reviewed_at` | `str?` | `None` | ISO timestamp of last graded review (starts the review interval) |
+| `created_at` | `datetime?` | `None` | First contact (UTC); the trial start |
+| `last_seen_at` | `datetime?` | `None` | The user's last interaction (UTC) |
+| `last_push_at` | `datetime?` | `None` | Legacy, no longer written or read |
+| `last_reviewed_at` | `datetime?` | `None` | Last graded review (UTC; starts the review interval) |
 | `api_config` | `UserAPIConfig?` | `None` | Custom LLM provider/model/key config |
 | `consumption` | `UserConsumption` | `{...}` | Nested usage counters (`cards_generated`, etc.) with daily reset |
 

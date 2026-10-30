@@ -53,7 +53,7 @@ async def find_users_due_for_review(
     # This filters out definitely-not-due users at database level for performance
     # We still check exact intervals per-user in Python since intervals vary by user
     min_interval_minutes = DEFAULT_SCHEDULER_INTERVAL_MINUTES
-    cutoff_time = iso_z(now - timedelta(minutes=min_interval_minutes))
+    cutoff_time = now - timedelta(minutes=min_interval_minutes)
 
     def skip(user_id: str, error: Exception) -> None:
         _skip_unreadable_user(user_id, error, skipped)

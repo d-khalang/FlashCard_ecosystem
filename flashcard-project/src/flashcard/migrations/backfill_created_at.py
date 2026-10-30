@@ -18,7 +18,7 @@ from typing import Optional
 from flashcard.app.quota import TRIAL_DAYS
 from flashcard.schemas.user import parse_stored_user_id
 from flashcard.services.user import UserService
-from flashcard.utils.time import UTC, iso_z, now_utc, parse_iso
+from flashcard.utils.time import now_utc, to_utc
 
 
 @dataclass
@@ -44,7 +44,7 @@ async def backfill_created_at(cols: dict, users: UserService, *, apply: bool) ->
             continue
 
         oldest = await _oldest_expression_time(cols, user["user_id"], report)
-        created_at = iso_z(oldest) if oldest else iso_z(now)
+        created_at = oldest or now
         if apply and not await users.backfill_created_at(user_id, created_at):
             report.already_set += 1
             continue
@@ -71,16 +71,12 @@ async def _oldest_expression_time(cols: dict, user_id: str, report: BackfillRepo
 
 def _parse_time(value) -> Optional[datetime]:
     """UTC-aware datetime, or None for a missing or unreadable value. Naive values are taken as UTC."""
-    if isinstance(value, datetime):
-        parsed = value
-    elif isinstance(value, str) and value:
-        try:
-            parsed = parse_iso(value)
-        except ValueError:
-            return None
-    else:
+    if not value:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    try:
+        return to_utc(value)
+    except ValueError:
+        return None
 
 
 async def _main(apply: bool) -> None:

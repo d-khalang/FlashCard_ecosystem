@@ -1,13 +1,13 @@
 """
 Unit tests for the created_at backfill against the in-memory Mongo fake.
 """
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
 from flashcard.migrations.backfill_created_at import BackfillReport, backfill_created_at
 from flashcard.services.user import UserService
-from flashcard.utils.time import iso_z, now_utc
+from flashcard.utils.time import iso_z, now_utc, to_utc
 from tests.integration.helpers import make_cols
 from tests.helpers import TEST_LANGUAGE
 
@@ -33,7 +33,8 @@ INVALID_USER_IDS = [42, "abc", "4 2", "", "007", "-1", "0"]
 
 
 def _created(cols, user_id="42"):
-    return next(doc for doc in cols["users"].docs if doc["user_id"] == user_id).get("created_at")
+    """The stored trial start, read as UTC (the backfill writes dates; fixtures may hold text)."""
+    return to_utc(next(doc for doc in cols["users"].docs if doc["user_id"] == user_id).get("created_at"))
 
 
 class TestBackfillCreatedAt:
@@ -44,7 +45,9 @@ class TestBackfillCreatedAt:
 
         report = await _run(cols)
 
-        assert _created(cols) == oldest
+        stored = next(doc for doc in cols["users"].docs if doc["user_id"] == "42")["created_at"]
+        assert isinstance(stored, datetime), "written as a date, not text"
+        assert _created(cols) == to_utc(oldest)
         assert report == BackfillReport(missing=1, from_oldest_expression=1, trial_ends_now=1)
 
     async def test_recent_oldest_expression_keeps_the_trial(self):
@@ -75,7 +78,7 @@ class TestBackfillCreatedAt:
 
         report = await _run(cols)
 
-        assert _created(cols) == existing
+        assert _created(cols) == to_utc(existing)
         assert report.missing == 0
 
     async def test_other_users_expressions_are_not_used(self):
@@ -121,7 +124,7 @@ class TestUnusualExpressionDates:
 
         report = await _run(cols)
 
-        assert _created(cols) == good
+        assert _created(cols) == to_utc(good)
         assert report.unreadable_expression_dates == 1
 
     async def test_only_unreadable_dates_falls_back_to_run_time(self):
@@ -137,7 +140,7 @@ class TestUnusualExpressionDates:
 
         await _run(cols)
 
-        assert _created(cols) == "2026-09-01T10:00:00Z"
+        assert _created(cols) == to_utc("2026-09-01T10:00:00Z")
 
     async def test_bson_datetime_values_are_accepted(self):
         from datetime import datetime, timezone
@@ -146,7 +149,7 @@ class TestUnusualExpressionDates:
 
         await _run(cols)
 
-        assert _created(cols) == "2026-08-01T12:00:00Z"
+        assert _created(cols) == to_utc("2026-08-01T12:00:00Z")
 
 
 class TestBackfillCreatedAtWrite:
@@ -154,5 +157,5 @@ class TestBackfillCreatedAtWrite:
     async def test_never_overwrites(self):
         cols = _cols([{"user_id": "42", "created_at": "2026-01-01T00:00:00Z"}])
 
-        assert await UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults).backfill_created_at(42, "2025-01-01T00:00:00Z") is False
-        assert _created(cols) == "2026-01-01T00:00:00Z"
+        assert await UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults).backfill_created_at(42, to_utc("2025-01-01T00:00:00Z")) is False
+        assert _created(cols) == to_utc("2026-01-01T00:00:00Z")

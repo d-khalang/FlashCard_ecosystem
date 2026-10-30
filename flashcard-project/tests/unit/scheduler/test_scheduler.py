@@ -404,14 +404,25 @@ class TestPerUserIsolation:
         assert [entry["user_id"] for entry in skipped] == [str(BAD)]
         assert skipped[0]["error"].startswith("Unreadable user document")
 
-    async def test_naive_date_under_the_new_rule_is_skipped_not_fatal(self):
-        """A naive sent_at minus an aware last_seen_at raises TypeError."""
+    async def test_naive_date_reads_as_utc(self):
+        """Every writer used UTC, so a date without a timezone compares as UTC (seen after the send)."""
         from flashcard.scheduler.scheduler import find_users_due_for_review
         review = {"expression_id": "e1", "direction": "forward", "message_id": 1, "sent_at": "2026-10-01T10:00:00"}
         service = self._service(
-            _make_user_doc(user_id=BAD, current_review=review, last_seen_at="2026-10-02T10:00:00Z"),
+            _make_user_doc(user_id=NEW, current_review=review, last_seen_at="2026-10-02T10:00:00Z"),
             _make_user_doc(user_id=OK),
         )
+        skipped = []
+
+        due = await find_users_due_for_review(service, "current_review", skipped)
+
+        assert sorted(user.user_id for user in due) == sorted([NEW, OK])
+        assert skipped == []
+
+    async def test_unreadable_text_date_passes_the_prefilter_and_is_reported(self):
+        """Legacy text dates reach Python, so a bad one is reported instead of silently never due."""
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        service = self._service(_make_user_doc(user_id=BAD, last_reviewed_at="zzz"), _make_user_doc(user_id=OK))
         skipped = []
 
         due = await find_users_due_for_review(service, "current_review", skipped)

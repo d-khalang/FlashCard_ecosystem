@@ -72,6 +72,17 @@ class TestWhichCardStays:
         assert _ids(cols) == ["a", "b", "d"]
         assert report.duplicate_groups == 1
 
+    async def test_tie_compares_text_forms_as_times(self):
+        """Offsets and fractions are compared as instants, not as text."""
+        cols = make_cols(expressions=[
+            _card("new", "ciao", created="2026-01-01T00:30:00.5Z"),
+            _card("old", "Ciao", created="2026-01-01T01:00:00+01:00"),  # 00:00 UTC
+            _card("bad", "CIAO", created=datetime(2026, 1, 2, tzinfo=timezone.utc))])
+
+        await _run(cols)
+
+        assert _ids(cols) == ["old"]
+
     async def test_mixed_created_at_types_do_not_crash_the_tie_break(self):
         cols = make_cols(expressions=[_card("new", "ciao", created="2026-02-01T00:00:00Z"),
                                       _card("old", "Ciao", created=datetime(2026, 1, 1, tzinfo=timezone.utc)),

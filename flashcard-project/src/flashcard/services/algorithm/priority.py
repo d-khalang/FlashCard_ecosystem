@@ -1,22 +1,18 @@
 import random
-from datetime import datetime, timezone
+from datetime import datetime
 from flashcard.utils.logger import get_logger
+from flashcard.utils.time import UTC, to_utc
 
 logger = get_logger(__name__)
-UTC = timezone.utc
 
-def parse_iso(ts: str | None) -> datetime | None:
-    if not ts:
+def _read_time(value) -> datetime | None:
+    """A stored date (or legacy ISO text) as UTC; None when missing or unreadable."""
+    if not value:
         return None
     try:
-        if ts.endswith("Z"):
-            ts = ts[:-1] + "+00:00"
-        dt = datetime.fromisoformat(ts)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-        return dt
-    except Exception:
-        logger.error(f"Failed to parse ISO timestamp: {ts}")
+        return to_utc(value)
+    except ValueError:
+        logger.error(f"Unreadable timestamp: {value!r}")
         return None
 
 def hours_since(dt: datetime | None) -> float:
@@ -47,7 +43,7 @@ def calculate_priority(stats: dict) -> float:
     # The caller ensures common keys or we handle fallback here.
     
     last_interaction = stats.get("last_interaction_at") or stats.get("last_review_at") or stats.get("created_at")
-    last_dt = parse_iso(last_interaction)
+    last_dt = _read_time(last_interaction)
     t = hours_since(last_dt) if last_dt else 200 # 200 hours is about 8 days to give new cards more chance to be reviewed
     recency = t / (24.0 + t)
 

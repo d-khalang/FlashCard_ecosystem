@@ -85,11 +85,10 @@ class ExpressionService:
             return False
 
         # 2. Insert Expression
-        current_iso = iso_z(now_utc())
         new_expression = ExpressionDB(
             user_id=stored_user_id(user_id),
             value=value,
-            created_at=current_iso
+            created_at=now_utc()
         )
 
         try:
@@ -129,7 +128,7 @@ class ExpressionService:
             
         # 2. Filter new items
         new_items = []
-        current_iso = iso_z(now_utc())
+        now = now_utc()
         
         to_insert = []
         for val in unique_inputs:
@@ -139,7 +138,7 @@ class ExpressionService:
                 new_expr = ExpressionDB(
                     user_id=stored_user_id(user_id),
                     value=val,
-                    created_at=current_iso
+                    created_at=now
                 )
                 to_insert.append(new_expr.model_dump())
         
@@ -224,17 +223,18 @@ class ExpressionService:
         # Active status (implicit if we only have active ones, but good to be explicit if we add status later)
         # Not sent in last 12 hours
         #TODO: change 12 hours to get from a config file
-        cutoff_time = iso_z(now_utc() - timedelta(hours=12))
-        
-        # We find documents where last_activity_at is null OR last_activity_at < cutoff (New COOLDOWN field)
-        
+        cutoff = now_utc() - timedelta(hours=12)
+        # MongoDB compares only values of the same type, so until `convert_dates` has run,
+        # each condition is given for dates and for the legacy ISO text.
+        before_cutoff = [{"$lt": cutoff}, {"$lt": iso_z(cutoff)}]
+
+        # Last send/grade before the cutoff; never interacted: created_at is the reference.
         query = {
             "user_id": stored_user_id(user_id),
             "status": ACTIVE,
             "$or": [
-                {"last_activity_at": {"$lt": cutoff_time}},
-                # Never interacted: use created_at as cooldown reference
-                {"last_activity_at": None, "created_at": {"$lt": cutoff_time}}
+                *({"last_activity_at": condition} for condition in before_cutoff),
+                *({"last_activity_at": None, "created_at": condition} for condition in before_cutoff),
             ]
         }
         
@@ -292,14 +292,14 @@ class ExpressionService:
         Updates the expression after it has been sent to the user.
         `last_card` (a freshly generated card) replaces the stored one in the same write.
         """
-        now = iso_z(now_utc())
+        now = now_utc()
         fields = {
             "last_sent_at": now,
             "last_activity_at": now,
             "pending_message_id": message_id,
         }
         if last_card is not None:
-            fields["last_card"] = last_card.model_dump(mode="json")
+            fields["last_card"] = last_card.model_dump()
         await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": fields})
 
     async def grade_expression(self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
@@ -343,7 +343,7 @@ class ExpressionService:
             mongo_updates = updates_dict
 
         # Global updates (Cooldown + Clear Pending)
-        mongo_updates["last_activity_at"] = iso_z(now_utc())
+        mongo_updates["last_activity_at"] = now_utc()
         mongo_updates["pending_message_id"] = None
             
         await self.expressions.update_one(

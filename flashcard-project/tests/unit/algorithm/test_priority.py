@@ -2,7 +2,7 @@
 Unit tests for flashcard.services.algorithm.priority
 
 Tests the review-candidate scoring algorithm:
-  - parse_iso() — ISO timestamp parsing
+  - _read_time() — stored dates and legacy ISO text
   - hours_since() — time delta helper
   - calculate_priority() — the full priority formula
 
@@ -14,7 +14,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
 from flashcard.services.algorithm.priority import (
-    parse_iso,
+    _read_time,
     hours_since,
     calculate_priority,
 )
@@ -26,36 +26,40 @@ FIXED_NOW = datetime(2026, 2, 27, 12, 0, 0, tzinfo=UTC)
 
 
 # ===================================================================
-# parse_iso
+# _read_time
 # ===================================================================
 class TestParseISO:
-    """parse_iso converts ISO-8601 strings to aware datetimes."""
+    """_read_time reads stored dates and legacy ISO-8601 text as aware UTC datetimes."""
 
     def test_z_suffix(self):
-        result = parse_iso("2026-01-15T10:30:00Z")
+        result = _read_time("2026-01-15T10:30:00Z")
         assert result is not None
         assert result.year == 2026
         assert result.month == 1
         assert result.tzinfo is not None
 
     def test_offset_suffix(self):
-        result = parse_iso("2026-01-15T10:30:00+00:00")
+        result = _read_time("2026-01-15T10:30:00+00:00")
         assert result is not None
         assert result.tzinfo is not None
 
     def test_naive_timestamp_gets_utc(self):
-        result = parse_iso("2026-01-15T10:30:00")
+        result = _read_time("2026-01-15T10:30:00")
         assert result is not None
         assert result.tzinfo is not None, "Naive datetimes should be coerced to UTC"
 
     def test_none_returns_none(self):
-        assert parse_iso(None) is None
+        assert _read_time(None) is None
 
     def test_empty_string_returns_none(self):
-        assert parse_iso("") is None
+        assert _read_time("") is None
 
     def test_invalid_string_returns_none(self):
-        assert parse_iso("not-a-date") is None
+        assert _read_time("not-a-date") is None
+
+    def test_stored_date_is_read_as_utc(self):
+        from datetime import datetime, timezone
+        assert _read_time(datetime(2026, 1, 15, 10, 30)) == datetime(2026, 1, 15, 10, 30, tzinfo=timezone.utc)
 
 
 # ===================================================================

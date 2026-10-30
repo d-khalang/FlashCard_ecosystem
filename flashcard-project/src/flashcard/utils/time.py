@@ -1,4 +1,7 @@
 from datetime import datetime, timezone
+from typing import Annotated
+
+from pydantic import BeforeValidator
 
 UTC = timezone.utc
 
@@ -25,3 +28,27 @@ def parse_iso(iso_str: str) -> datetime:
     if iso_str.endswith('Z'):
         iso_str = iso_str.replace('Z', '+00:00')
     return datetime.fromisoformat(iso_str)
+
+
+def to_utc(value) -> "datetime | None":
+    """
+    A stored instant as an aware UTC datetime. Accepts BSON dates and, until the
+    `convert_dates` migration has run, the legacy ISO text. Naive values are UTC
+    (every writer used UTC). None and "" (missing) read as None; anything else raises ValueError.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        try:
+            value = parse_iso(value)
+        except ValueError:
+            raise ValueError(f"not an ISO date: {value!r}") from None
+    if not isinstance(value, datetime):
+        raise ValueError(f"not a date: {value!r}")
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+# A stored instant: read with `to_utc`, written as a BSON date.
+UtcDatetime = Annotated[datetime, BeforeValidator(to_utc)]

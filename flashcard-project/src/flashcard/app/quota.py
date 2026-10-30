@@ -10,10 +10,8 @@ from typing import Literal, Union
 from flashcard.schemas.user import UserId
 from flashcard.schemas.user import UserDB, UserTier
 from flashcard.services.consumption import ConsumptionService
-from flashcard.utils.logger import get_logger
-from flashcard.utils.time import now_utc, parse_iso
+from flashcard.utils.time import now_utc
 
-logger = get_logger(__name__)
 
 # Normal-tier users get plus limits for this many days after created_at.
 TRIAL_DAYS = 14
@@ -72,8 +70,4 @@ class QuotaPolicy:
         # No created_at yet: the trial has not started, so it is still on.
         if user.created_at is None:
             return True
-        try:
-            return (now_utc() - parse_iso(user.created_at)).days < TRIAL_DAYS
-        except (ValueError, TypeError):  # unparseable or timezone-naive date
-            logger.warning("Unreadable created_at %r for user %s; no trial", user.created_at, user.user_id)
-            return False
+        return (now_utc() - user.created_at).days < TRIAL_DAYS

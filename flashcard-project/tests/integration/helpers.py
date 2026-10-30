@@ -72,6 +72,27 @@ def _inc_nested(doc: dict[str, Any], key: str, delta: int) -> None:
     _set_nested(doc, key, current + delta)
 
 
+def _bson_type(value: Any) -> str | None:
+    """The `$type` alias of the value types these tests store."""
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, datetime):
+        return "date"
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, (int, float)):
+        return "number"
+    return None
+
+
+# MongoDB sorts mixed types in this order (numbers < text < ... < dates).
+_SORT_ORDER = {None: 0, "number": 1, "string": 2, "bool": 3, "date": 4}
+
+
+def _sort_key(value: Any) -> tuple:
+    return (_SORT_ORDER.get(_bson_type(value), 0), value if value is not None else 0)
+
+
 def _match_condition(field_value: Any, condition: Any) -> bool:
     if isinstance(condition, dict):
         regex_flags = 0
@@ -80,7 +101,11 @@ def _match_condition(field_value: Any, condition: Any) -> bool:
 
         for op, expected in condition.items():
             if op == "$lt":
-                if field_value is None or field_value >= expected:
+                # MongoDB compares only within one type (text with text, dates with dates).
+                if _bson_type(field_value) != _bson_type(expected) or field_value >= expected:
+                    return False
+            elif op == "$type":
+                if _bson_type(field_value) != expected:
                     return False
             elif op == "$ne":
                 if field_value == expected:
@@ -134,7 +159,7 @@ class AsyncCursorMock:
 
     def sort(self, field: str, direction: int) -> "AsyncCursorMock":
         reverse = direction == -1
-        self._docs.sort(key=lambda doc: _get_nested(doc, field), reverse=reverse)
+        self._docs.sort(key=lambda doc: _sort_key(_get_nested(doc, field)), reverse=reverse)
         return self
 
     def __aiter__(self) -> "AsyncCursorMock":

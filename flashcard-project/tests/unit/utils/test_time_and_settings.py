@@ -4,11 +4,15 @@ Unit tests for time utilities and settings.
 Tests:
   - now_utc: returns aware UTC datetime
   - iso_z: formats to ISO 8601 with Z suffix
+  - to_utc / UtcDatetime: stored dates and legacy ISO text read as aware UTC
   - Settings.webhook_url: property combining base + path
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from flashcard.utils.time import now_utc, iso_z
+import pytest
+from pydantic import BaseModel, ValidationError
+
+from flashcard.utils.time import UtcDatetime, iso_z, now_utc, to_utc
 
 
 # ===================================================================
@@ -68,6 +72,40 @@ class TestIsoZ:
         parsed = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
         assert parsed.year == original.year
         assert parsed.minute == original.minute
+
+
+# ===================================================================
+# to_utc / UtcDatetime
+# ===================================================================
+class TestToUtc:
+    SEP_1 = datetime(2026, 9, 1, 10, tzinfo=timezone.utc)
+
+    @pytest.mark.parametrize("value", [
+        "2026-09-01T10:00:00Z", "2026-09-01T10:00:00+00:00", "2026-09-01T12:00:00+02:00",
+        "2026-09-01T10:00:00", datetime(2026, 9, 1, 10), datetime(2026, 9, 1, 10, tzinfo=timezone.utc),
+        datetime(2026, 9, 1, 12, tzinfo=timezone(timedelta(hours=2))),
+    ])
+    def test_reads_as_aware_utc(self, value):
+        result = to_utc(value)
+        assert result == self.SEP_1 and result.tzinfo == timezone.utc
+
+    @pytest.mark.parametrize("value", [None, ""])
+    def test_missing_is_none(self, value):
+        assert to_utc(value) is None
+
+    @pytest.mark.parametrize("value", ["not a date", "zzz", 42, 4.2])
+    def test_anything_else_raises(self, value):
+        with pytest.raises(ValueError):
+            to_utc(value)
+
+    def test_model_field_reads_both_forms_and_rejects_garbage(self):
+        class Doc(BaseModel):
+            at: UtcDatetime
+
+        assert Doc(at="2026-09-01T10:00:00Z").at == Doc(at=self.SEP_1).at == self.SEP_1
+        assert Doc(at=self.SEP_1).model_dump()["at"] == self.SEP_1  # dumped as a date, not text
+        with pytest.raises(ValidationError):
+            Doc(at="not a date")
 
 
 # ===================================================================

@@ -17,6 +17,7 @@ ENTRY_POINTS = {
     "migrations/backfill_created_at.py",
     "migrations/backfill_current_review.py",
     "migrations/dedupe_expressions.py",
+    "migrations/convert_dates.py",
 }
 
 

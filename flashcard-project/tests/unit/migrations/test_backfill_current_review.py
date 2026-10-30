@@ -1,6 +1,8 @@
 """
 Unit tests for the current_review backfill against the in-memory Mongo fake.
 """
+from datetime import datetime, timezone
+
 import pytest
 
 from flashcard.migrations.backfill_current_review import BackfillReport, backfill_current_review
@@ -36,7 +38,8 @@ class TestBackfill:
         report = await _run(cols)
 
         assert _user(cols)["current_review"] == {
-            "expression_id": "e1", "direction": "unknown", "message_id": 555, "sent_at": "2026-10-01T10:00:00Z"}
+            "expression_id": "e1", "direction": "unknown", "message_id": 555,
+            "sent_at": datetime(2026, 10, 1, 10, tzinfo=timezone.utc)}
         assert report == BackfillReport(pending_users=1, backfilled=1)
 
     async def test_latest_sent_card_wins(self):

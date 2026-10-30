@@ -1,4 +1,4 @@
-from flashcard.utils.time import iso_z, now_utc
+from flashcard.utils.time import now_utc
 
 ALPHA = 0.30          # EWMA smoothing
 PASS_THRESHOLD = 3    # >=3 counts as success
@@ -27,7 +27,7 @@ def calculate_new_stats(stats: dict, grade: float, is_reverse: bool = False) -> 
     
     new_ewma = round(ALPHA * grade + (1.0 - ALPHA) * ewma_before, 4)
     
-    current_time_iso = iso_z(now_utc())
+    now = now_utc()
     
     # Common stats
     new_stats_values = {
@@ -39,12 +39,12 @@ def calculate_new_stats(stats: dict, grade: float, is_reverse: bool = False) -> 
     }
     
     if is_reverse:
-        new_stats_values["last_review_at"] = current_time_iso
+        new_stats_values["last_review_at"] = now
         # For nested object updates, we return the whole object or let the caller construct the set
         # Here we return a flat dict that the service will convert to dot notation or nested object
         return new_stats_values
     else:
         # Standard/Forward updates (Root level)
-        new_stats_values["last_interaction_at"] = current_time_iso
+        new_stats_values["last_interaction_at"] = now
         # pending_message_id handled in service for global consistency
         return new_stats_values
