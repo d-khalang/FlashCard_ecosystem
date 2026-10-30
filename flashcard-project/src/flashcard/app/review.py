@@ -13,12 +13,11 @@ from typing import Optional, Union
 
 from pydantic import ValidationError
 
+from flashcard.app.cards import card_settings, generate_card
 from flashcard.app.quota import Allowed, QuotaExceeded, QuotaPolicy
 from flashcard.app.shadow import shadow_write
 from flashcard.schemas.user import UserId
-from flashcard.language import UserDefaults
 from flashcard.schemas.expression import CardSettings, Direction, ExpressionCard, StoredCard
-from flashcard.schemas.languages import get_language_flag
 from flashcard.schemas.user import UserDB
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService
@@ -82,14 +81,12 @@ class ReviewUseCases:
         quota: QuotaPolicy,
         llm_service: LLMService,
         review_state: ReviewStateStore,
-        user_defaults: UserDefaults,
     ):
         self.expressions = expression_service
         self.users = user_service
         self.quota = quota
         self.llm = llm_service
         self.review_state = review_state
-        self.user_defaults = user_defaults
 
     async def prepare_next(self, user_id: UserId, user: Optional[UserDB] = None) -> PrepareResult:
         """
@@ -106,11 +103,7 @@ class ReviewUseCases:
         candidate = result["doc"]
         direction = result.get("direction", "forward")
 
-        settings = CardSettings(
-            level=user.target_level or self.user_defaults.target_level,
-            primary_language=user.primary_language or self.user_defaults.primary_language,
-            secondary_language=user.secondary_translation,
-        )
+        settings = card_settings(user)
         quota = self.quota.check(user, "cards")
         if isinstance(quota, QuotaExceeded):
             stored = _stored_card(candidate)
@@ -119,14 +112,7 @@ class ReviewUseCases:
             return _from_storage(candidate, direction, stored, settings)
 
         try:
-            card = await self.llm.generate_expression_card(
-                raw=candidate["value"],
-                level=settings.level,
-                lang1_code=settings.primary_language,
-                lang2_code=settings.secondary_language,
-                lang1_label=get_language_flag(settings.primary_language),
-                lang2_label=get_language_flag(settings.secondary_language),
-            )
+            card = await generate_card(self.llm, candidate["value"], settings)
         except Exception:
             stored = _stored_card(candidate)
             if stored is None:

@@ -45,6 +45,7 @@ flashcard-project/src/flashcard/
 ├── app/                     # Use cases: the flows handlers and the scheduler call
 │   ├── review.py            # Prepare, send and grade reviews (+ stored-card fallback)
 │   ├── review_schedule.py   # Pure scheduler rules (interval, pause, shadow compare)
+│   ├── cards.py             # Card settings + the one LLM card call (creation and review)
 │   ├── creation.py          # Text-to-card, regenerate, save
 │   ├── collection.py        # /import, list, search, remove
 │   ├── settings.py          # /settings, pause/resume

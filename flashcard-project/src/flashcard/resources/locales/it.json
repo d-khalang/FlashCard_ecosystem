@@ -1,7 +1,6 @@
 {
     "callbacks": {
         "save": {
-            "success_alert": "Salvato nella collezione ricevuto!",
             "success_message": "Salvato nella collezione!",
             "success_tag": "\n\n🔒 <b>{norm} salvato</b>",
             "already_exists": "Esiste già tra le tue FlashCards 🧐"

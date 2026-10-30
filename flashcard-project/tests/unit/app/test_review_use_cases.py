@@ -12,7 +12,7 @@ from flashcard.schemas.expression import (
     MAX_GRADE, MIN_GRADE, CardSettings, ExpressionCard, StoredCard, TranslationLine,
 )
 from flashcard.app.quota import Allowed
-from tests.helpers import TEST_LANGUAGE, make_quota, make_user
+from tests.helpers import make_quota, make_user
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
 
 
@@ -24,7 +24,7 @@ SETTINGS = CardSettings(level="B1", primary_language="en", secondary_language=No
 
 
 def _user(**overrides) -> UserDB:
-    fields = {"user_id": "111", "primary_language": "en", "secondary_language": None,
+    fields = {"user_id": 111, "primary_language": "en", "secondary_language": None,
               "target_level": "B1", "tier": UserTier.normal}
     fields.update(overrides)
     return make_user(**fields)
@@ -47,8 +47,7 @@ def _use_cases(*, candidate=None, user=None, exceeded=None):
     llm.generate_expression_card = AsyncMock(return_value=CARD)
 
     use_cases = ReviewUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
-                               quota=make_quota(consumption, exceeded), llm_service=llm,
-                               user_defaults=TEST_LANGUAGE.user_defaults)
+                               quota=make_quota(consumption, exceeded), llm_service=llm)
     return use_cases, expressions, users, consumption, llm
 
 
@@ -126,16 +125,16 @@ class TestPrepareNext:
         await use_cases.prepare_next(111)
         llm.generate_expression_card.assert_awaited_once_with(
             raw="andare", level="A2", lang1_code="fa", lang2_code="en",
-            lang1_label="🇮🇷", lang2_label="🇬🇧")
+            lang1_label="🇮🇷", lang2_label="🇬🇧", on_fallback=None)
 
-    async def test_generation_falls_back_to_default_level_and_language(self):
-        user = _user().model_copy(update={"target_level": None, "primary_language": None})
-        use_cases, _, _, _, llm = _use_cases(candidate=_candidate(), user=user)
+    async def test_no_secondary_language_passes_no_label(self):
+        """Same request as card creation (both use app.cards.generate_card)."""
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate(), user=_user(secondary_language="none"))
 
         await use_cases.prepare_next(111)
         kwargs = llm.generate_expression_card.await_args.kwargs
-        assert kwargs["level"] == TEST_LANGUAGE.user_defaults.target_level
-        assert kwargs["lang1_code"] == TEST_LANGUAGE.user_defaults.primary_language
+        assert kwargs["lang2_code"] is None
+        assert kwargs["lang2_label"] is None
 
     async def test_generation_failure_propagates(self):
         use_cases, _, _, consumption, llm = _use_cases(candidate=_candidate())
@@ -303,8 +302,7 @@ class TestGrade:
                                        "created_at": "2000-01-01T00:00:00Z", "status": "active"}])
         use_cases = ReviewUseCases(review_state=AsyncMock(), user_service=MagicMock(),
                                    expression_service=ExpressionService(expressions=cols["expression"]),
-                                   quota=MagicMock(), llm_service=MagicMock(),
-                                   user_defaults=TEST_LANGUAGE.user_defaults)
+                                   quota=MagicMock(), llm_service=MagicMock())
         return use_cases, str(expression_id), cols["expression"].docs
 
     @pytest.mark.parametrize("grade", [-1, 6, 9, True, 2.5, "3"])

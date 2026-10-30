@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from google.genai.errors import ServerError
 from pymongo.errors import NetworkTimeout
 
+from flashcard.app.review import CardGenerationFailed
 from flashcard.telegram.handlers.errors import error_handler, _user_message_key
 
 
@@ -19,6 +20,10 @@ class TestUserMessageKey:
     def test_gemini_error_maps_to_llm_key(self):
         exc = ServerError(503, {"error": {"message": "overloaded"}})
         assert _user_message_key(exc) == "messages.errors.llm_unavailable"
+
+    def test_card_generation_failure_maps_to_get_key(self):
+        """/get with no card the LLM could make and none stored."""
+        assert _user_message_key(CardGenerationFailed("no card")) == "commands.get.generation_error"
 
     def test_pymongo_error_maps_to_db_key(self):
         exc = NetworkTimeout("timed out")

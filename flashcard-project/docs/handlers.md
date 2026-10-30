@@ -130,7 +130,7 @@ All user-visible bot text lives in [`resources/locales/en.json`](../src/flashcar
 
 Examples:
 - `commands.start.welcome` — `/start` welcome message
-- `callbacks.save.success_alert` — Save button feedback
+- `callbacks.save.success_message` — Save button feedback
 - `messages.errors.service_unavailable` — Generic error
 
 ### Adding a New String

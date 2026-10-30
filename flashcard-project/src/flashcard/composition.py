@@ -130,7 +130,6 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
             quota=quota,
             llm_service=llm_service,
             review_state=review_state,
-            user_defaults=language.user_defaults,
         ),
         creation_use_cases=CreationUseCases(
             expression_service=expression_service,

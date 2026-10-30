@@ -59,8 +59,7 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
 
 def _use_cases(d) -> ReviewUseCases:
     return ReviewUseCases(review_state=d.review_state, expression_service=d.expression_service, user_service=d.user_service,
-                          quota=d.quota, llm_service=d.llm_service,
-                          user_defaults=TEST_LANGUAGE.user_defaults)
+                          quota=d.quota, llm_service=d.llm_service)
 
 
 @pytest.fixture
@@ -106,7 +105,7 @@ WITH_STORED = {**CANDIDATE, "last_card": STORED.model_dump(mode="json")}
 
 
 EXPECTED_LLM_CALL = call(raw="andare", level="B1", lang1_code="en", lang2_code="fa",
-                         lang1_label="🇬🇧", lang2_label="🇮🇷")
+                         lang1_label="🇬🇧", lang2_label="🇮🇷", on_fallback=None)
 
 
 # ===================================================================
@@ -227,12 +226,6 @@ class TestGetCommand:
         stored = d.expression_service.update_expression_sent.await_args.kwargs["last_card"]
         assert stored.card == CARD
         assert stored.settings == CardSettings(level="B1", primary_language="en", secondary_language="fa")
-
-    async def test_missing_target_level_falls_back_to_default(self, ui):
-        d = _deps(user=_user().model_copy(update={"target_level": None}))
-        await _run_get(d)
-
-        assert d.llm_service.generate_expression_card.await_args.kwargs["level"] == TEST_LANGUAGE.user_defaults.target_level
 
 
 # ===================================================================

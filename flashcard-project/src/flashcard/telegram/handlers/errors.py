@@ -6,6 +6,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from google.genai.errors import APIError as GeminiAPIError
 from pymongo.errors import PyMongoError
 
+from flashcard.app.review import CardGenerationFailed
 from flashcard.services.i18n import I18nService
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger
@@ -16,6 +17,7 @@ logger = get_logger(__name__)
 # Ordered mapping: first match wins.
 # Handlers that catch locally never reach here; only uncaught exceptions are mapped.
 _ERROR_MESSAGE_MAP: list[tuple[type, str]] = [
+    (CardGenerationFailed, "commands.get.generation_error"),
     (GeminiAPIError, "messages.errors.llm_unavailable"),
     (PyMongoError,   "messages.errors.db_unavailable"),
 ]

@@ -110,6 +110,8 @@ async def handle_save(callback: CallbackQuery, creation_use_cases: CreationUseCa
 @router.callback_query(F.data.startswith("regen:"))
 @flags.chat_action(ChatAction.TYPING)
 async def handle_regen(callback: CallbackQuery, creation_use_cases: CreationUseCases, language: LanguageConfig, i18n: I18nService):
+    # Kept to restore the card if regenerating fails.
+    original_text = callback.message.html_text
     callback_markup = callback.message.reply_markup
     await callback.message.edit_text(i18n.get("callbacks.regen.working"))
 
@@ -119,14 +121,30 @@ async def handle_regen(callback: CallbackQuery, creation_use_cases: CreationUseC
     async def notify_fallback() -> None:
         await callback.message.edit_text(i18n.get("messages.llm_fallback"))
 
-    result = await creation_use_cases.generate(user_id, expression, on_fallback=notify_fallback)
-    text, _ = _present(i18n, result, language)
+    async def restore_card() -> None:
+        await callback.message.edit_text(text=original_text, reply_markup=callback_markup)
+
+    try:
+        result = await creation_use_cases.generate(user_id, expression, on_fallback=notify_fallback)
+    except Exception:
+        # The error handler tells the user; the card must not stay stuck on "working".
+        try:
+            await restore_card()
+        except Exception:
+            logger.warning("Could not restore the card after a failed regenerate", exc_info=True)
+        raise
 
     if isinstance(result, CardReady):
-        await callback.message.edit_text(
-            text=text,
-            reply_markup=callback_markup
-        )
+        text, _ = _present(i18n, result, language)
+        await callback.message.edit_text(text=text, reply_markup=callback_markup)
+        return
+
+    # Failed: put the card and its buttons back, so the user can still save it or retry.
+    await restore_card()
+    if isinstance(result, QuotaExceeded):
+        # Too long for an alert (200 characters).
+        text, _ = _present(i18n, result, language)
+        await callback.message.answer(text)
+        await safe_answer_callback(callback)
     else:
-        # text will be the error message or quota message
-        await callback.message.edit_text(text)
+        await safe_answer_callback(callback, i18n.get("callbacks.regen.failed"), show_alert=True)

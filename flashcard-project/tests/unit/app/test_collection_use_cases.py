@@ -20,7 +20,7 @@ from tests.helpers import make_quota, make_user
 
 
 def _user(**overrides) -> UserDB:
-    fields = {"user_id": "333", "tier": UserTier.normal}
+    fields = {"user_id": 333, "tier": UserTier.normal}
     fields.update(overrides)
     return make_user(**fields)
 

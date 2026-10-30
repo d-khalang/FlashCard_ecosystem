@@ -186,6 +186,7 @@ def _callback(data, markup=None, text="CARD TEXT"):
     callback.data = data
     callback.from_user.id = USER_ID
     callback.message.text = text
+    callback.message.html_text = text
     callback.message.caption = None
     callback.message.reply_markup = markup
     callback.message.edit_text = AsyncMock()
@@ -214,13 +215,46 @@ class TestRegenerate:
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=False)
 
-    async def test_quota_exceeded_replaces_card_and_drops_actions(self):
+    async def test_quota_exceeded_keeps_the_card_and_sends_the_limit(self):
+        """The quota text is too long for an alert, so it is a message; the card stays usable."""
         d = _deps(can_generate=False)
         callback = await _run_regen(d)
 
-        assert callback.message.edit_text.await_args_list[-1].args == (QUOTA_TEXT(),)
-        assert callback.message.edit_text.await_args_list[-1].kwargs == {}
+        assert callback.message.edit_text.await_args_list[-1].kwargs == {
+            "text": "CARD TEXT", "reply_markup": expression_action_kb(i18n, "andare")}
+        callback.message.answer.assert_awaited_once_with(QUOTA_TEXT())
         d.consumption_service.increment.assert_not_awaited()
+
+    async def test_unclear_result_keeps_the_card_and_alerts(self):
+        d = _deps(card=_card().model_copy(update={"success": False}))
+        callback = await _run_regen(d)
+
+        assert callback.message.edit_text.await_args_list[-1].kwargs == {
+            "text": "CARD TEXT", "reply_markup": expression_action_kb(i18n, "andare")}
+        callback.answer.assert_awaited_once_with(i18n.get("callbacks.regen.failed"), show_alert=True)
+        callback.message.answer.assert_not_awaited()
+        d.consumption_service.increment.assert_not_awaited()
+
+    async def test_provider_error_restores_the_card_and_propagates(self):
+        """The error handler tells the user; the card must not stay stuck on "working"."""
+        d = _deps()
+        d.llm_service.generate_expression_card.side_effect = RuntimeError("provider down")
+
+        callback = _callback("regen:andare", markup=expression_action_kb(i18n, "andare"))
+
+        with pytest.raises(RuntimeError, match="provider down"):
+            await creation.handle_regen(callback, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
+        assert callback.message.edit_text.await_args_list[-1].kwargs == {
+            "text": "CARD TEXT", "reply_markup": expression_action_kb(i18n, "andare")}
+
+    async def test_failed_restore_does_not_hide_the_provider_error(self):
+        d = _deps()
+        d.llm_service.generate_expression_card.side_effect = RuntimeError("provider down")
+        callback = _callback("regen:andare", markup=expression_action_kb(i18n, "andare"))
+        callback.message.edit_text.side_effect = [None, RuntimeError("message gone")]
+
+        with pytest.raises(RuntimeError, match="provider down"):
+            await creation.handle_regen(callback, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
     async def test_expression_with_colon_is_kept_whole(self):
         d = _deps()

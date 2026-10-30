@@ -416,11 +416,14 @@ user receives are counted; the trial stays derived from `created_at` (no migrati
 - **Creation flow quirks**, pinned by `test_creation_flow.py` and kept for now:
   - Unclear input (`card.success == False`) calls the LLM but is not counted
     as usage. Kept by #6: only results the user receives are counted.
-  - Creation passes user preferences to the LLM without the defaults review
-    uses (`DEFAULT_LANG_LEVEL`, `DEFAULT_LANG_1_CODE`); with no secondary
-    language, creation sends label `None` while review sends 🌍. Unify.
-  - Regenerate failure (quota, unclear input) replaces the card and removes
-    the Save/Regenerate buttons, so the user can neither retry nor save.
+  - [x] Creation and review request cards the same way: `app/cards.py` (`card_settings`,
+    `generate_card`). Review's own fallbacks to the instance defaults were unreachable
+    (`UserDB` requires level and primary language; `UserService` fills them), so they and
+    `ReviewUseCases(user_defaults=)` are gone. With no secondary language both send no
+    label (review sent 🌍; the LLM ignored it, so no prompt changed).
+  - [x] Regenerate failure keeps the card and its Save/Regenerate buttons. Unclear input
+    shows the `callbacks.regen.failed` alert; over quota sends the quota text as a message
+    (longer than Telegram's 200-character alert limit).
 - [x] **Usage counting differs between flows (#6).** One rule now: only results the
   user receives are counted (`/import` counts one generation when it saves something).
 - **"Own API key" is never used for LLM calls (#6).** Pending feature; gets
@@ -429,9 +432,10 @@ user receives are counted; the trial stays derived from `created_at` (no migrati
   `LLMService` always calls with the system keys. Users with `api_config` get
   unlimited system-key usage. The quota message advertises own keys in
   /settings, but that section only says "reach out to admin (Feature pending)".
-- **Unused locale keys.** 3 keys exist in both locales but no code uses them:
-  `callbacks.save.success_alert`, `callbacks.regen.failed`,
-  `commands.get.generation_error`. Remove or wire up (e.g. regenerate failure).
+- [x] **Unused locale keys.** `commands.get.generation_error` is shown when `/get` cannot
+  make a card and none is stored (`CardGenerationFailed`, was the generic "service
+  unavailable"); `callbacks.regen.failed` on regenerate failure; `callbacks.save.success_alert`
+  (a duplicate of `success_message`) removed.
   `messages.buttons.verb_web_table` is now used by `get_verb_keyboard` (#7).
 - [x] **i18n returns the raw key when the UI locale lacks it.** Now falls back to English (#7).
 - **Onboarding is spread across use cases.** `claim_first_review_tip` and

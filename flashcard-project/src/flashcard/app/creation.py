@@ -4,19 +4,17 @@ Creation use cases: turn user text into a card, and save expressions.
 Callers own presentation: they render the card, choose buttons and wording.
 """
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Optional, Union
+from typing import Optional, Union
 
+from flashcard.app.cards import FallbackNotifier, card_settings, generate_card
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy
 from flashcard.schemas.user import UserId
 from flashcard.schemas.expression import ExpressionCard
-from flashcard.schemas.languages import get_language_flag
 from flashcard.services.expression import ExpressionService
 from flashcard.services.language_validation import LanguageValidityChecker
 from flashcard.services.llm.llm import LLMService
 from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.user import UserService
-
-FallbackNotifier = Callable[[], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -92,17 +90,7 @@ class CreationUseCases:
         if isinstance(quota, QuotaExceeded):
             return quota
 
-        lang1_code = user.primary_language
-        lang2_code = user.secondary_translation
-        card = await self.llm.generate_expression_card(
-            raw=text,
-            level=user.target_level,
-            lang1_code=lang1_code,
-            lang2_code=lang2_code,
-            lang1_label=get_language_flag(lang1_code),
-            lang2_label=get_language_flag(lang2_code) if lang2_code else None,
-            on_fallback=on_fallback,
-        )
+        card = await generate_card(self.llm, text, card_settings(user), on_fallback=on_fallback)
 
         if not card.success:
             return Unclear(card=card)
