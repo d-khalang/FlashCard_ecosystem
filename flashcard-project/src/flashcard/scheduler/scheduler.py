@@ -9,7 +9,7 @@ from flashcard.app.review_schedule import PauseComparison, PauseRule, interval_e
 from flashcard.language import LanguageConfig
 from flashcard.services.i18n import I18nService
 from flashcard.schemas.trace import TraceData
-from flashcard.schemas.user import UserDB
+from flashcard.schemas.user import UserDB, UserId
 from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
 from flashcard.services.user import UserService
 from flashcard.telegram.ui.expression import format_review_message
@@ -69,7 +69,7 @@ async def find_users_due_for_review(
             if not paused(user, pause_rule) and interval_elapsed(user, now):
                 users_due.append(user)
         except (ValueError, TypeError) as e:  # unparseable or mixed-timezone dates
-            skip(user.user_id, e)
+            skip(str(user.user_id), e)
 
     return users_due
 
@@ -97,7 +97,7 @@ async def compare_pause_rules(user_service: UserService) -> PauseComparison:
         try:
             comparison.add(user)
         except (ValueError, TypeError) as e:  # unparseable or mixed-timezone dates
-            count_unreadable(user.user_id, e)
+            count_unreadable(str(user.user_id), e)
     return comparison
 
 
@@ -156,7 +156,7 @@ async def send_scheduled_review(
 async def send_admin_metrics(
     logger_bot: Bot,
     admin_id: int,
-    successful_ids: list[str],
+    successful_ids: list[UserId],
     failed_details: list[dict],
     total_time: float
 ) -> None:
@@ -186,7 +186,7 @@ async def send_admin_metrics(
 
     # Add successful users
     if successful_ids:
-        success_text = f"<b>Successful Users:</b>\n" + ", ".join(successful_ids) + "\n\n"
+        success_text = f"<b>Successful Users:</b>\n" + ", ".join(str(user_id) for user_id in successful_ids) + "\n\n"
         if len(current_msg + success_text) > 4000:  # Leave margin for safety
             messages.append(current_msg)
             current_msg = success_text
@@ -232,7 +232,7 @@ async def _observed_find_users_due_for_review(
 async def _observed_send_admin_metrics(
     logger_bot: Bot,
     admin_id: int,
-    successful_ids: list[str],
+    successful_ids: list[UserId],
     failed_details: list[dict],
     total_time: float
 ) -> None:

@@ -24,6 +24,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from flashcard.schemas.user import parse_stored_user_id
 from flashcard.services.expression import VALUE_COLLATION, ExpressionService
 from flashcard.services.review_state import ReviewStateStore
 from flashcard.utils.time import iso_z
@@ -36,7 +37,7 @@ class DedupeReport:
     removed: int = 0
     pending_cleared: int = 0
     current_review_cleared: int = 0
-    non_string_user_id: int = 0
+    invalid_user_id: int = 0  # not decimal text (the only stored form)
     non_string_value: int = 0
     index_built: bool = False
 
@@ -62,9 +63,9 @@ async def dedupe_expressions(
     ):
         cards = group["cards"]
         report.expressions += len(cards)
-        if not isinstance(group["_id"].get("user_id"), str):
-            # Every writer stores str ids; report anything else instead of guessing.
-            report.non_string_user_id += len(cards)
+        if parse_stored_user_id(group["_id"].get("user_id")) is None:
+            # Every writer stores decimal text; report anything else instead of guessing.
+            report.invalid_user_id += len(cards)
             continue
         if not isinstance(group["_id"].get("value"), str):
             report.non_string_value += len(cards)
@@ -93,12 +94,12 @@ async def dedupe_expressions(
 
         await expressions.remove_duplicates([card["_id"] for card in cards.removed])
         if clears_pause:
-            await review_state.clear_pending(user_id)
+            await review_state.clear_pending(parse_stored_user_id(user_id))
         if clears_current:
-            await review_state.record_removed(user_id, doc["current_review"]["expression_id"])
+            await review_state.record_removed(parse_stored_user_id(user_id), doc["current_review"]["expression_id"])
 
     if apply:
-        # Fails if duplicates remain (e.g. a non-string user_id or value reported above).
+        # Fails if duplicates remain (e.g. an invalid user_id or a non-string value reported above).
         await expressions.ensure_unique_value_index()
         report.index_built = True
     return report

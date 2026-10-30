@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional, get_args
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator
 from flashcard.schemas.languages import LanguageCode, LanguageLevel
 from flashcard.utils.logger import get_logger
 from flashcard.utils.time import iso_z, now_utc
@@ -25,6 +25,34 @@ class UserConsumption(BaseModel):
     system_api: LLMUsage = Field(LLMUsage(), description="Usage on system API keys (tier-limited)")
     user_api: LLMUsage = Field(LLMUsage(), description="Usage on user's own API keys")
     verb_lookups: int = Field(0, description="Third-party verb API lookups")
+
+# Telegram user id. Code passes it as an int; documents store it as text, so only the
+# services that own a collection convert it, with `stored_user_id`.
+UserId = int
+
+
+def stored_user_id(user_id: UserId) -> str:
+    """
+    The stored form of a user id. Rejects anything but an int, so a text id cannot slip in,
+    and ids below 1 (Telegram user ids are positive).
+    """
+    if type(user_id) is not int:
+        raise TypeError(f"user_id must be an int: {user_id!r}")
+    if user_id < 1:
+        raise ValueError(f"user_id must be positive: {user_id!r}")
+    return str(user_id)
+
+
+def parse_stored_user_id(value) -> Optional[UserId]:
+    """
+    The user id a document stores, or None if it is not one. Only the exact text
+    `stored_user_id` writes counts ("7", not "007" or "-7"), so writes match the document read.
+    """
+    if not (isinstance(value, str) and value.isascii() and value.isdecimal()):
+        return None
+    parsed = int(value)
+    return parsed if parsed >= 1 and str(parsed) == value else None
+
 
 # Rules for the user's settings, enforced by UserService's setters.
 MIN_INTERVAL_MINUTES = 15
@@ -50,7 +78,7 @@ class UserTier(str, Enum):
     normal = "normal"
 
 class UserDB(BaseModel):
-    user_id: str = Field(..., description="User ID as string")
+    user_id: UserId = Field(..., description="Telegram user id (stored as text)")
     username: Optional[str] = Field(None, description="Telegram username")
     created_at: Optional[str] = Field(None, description="ISO timestamp of user creation (Trial start)")
     tier: UserTier = Field(UserTier.normal, description="User subscription tier")
@@ -91,6 +119,23 @@ class UserDB(BaseModel):
         if self.secondary_language in (None, NO_LANGUAGE):
             return None
         return self.secondary_language
+
+    @field_validator("user_id", mode="before")
+    @classmethod
+    def _user_id_from_storage(cls, value):
+        """Reads the stored text form; anything else but a positive int makes the document unreadable."""
+        if type(value) is int:
+            stored_user_id(value)  # raises ValueError below 1
+            return value
+        parsed = parse_stored_user_id(value)
+        if parsed is None:
+            raise ValueError(f"not a stored user id: {value!r}")
+        return parsed
+
+    @field_serializer("user_id")
+    def _user_id_to_storage(self, user_id: UserId) -> str:
+        """A dump is the document's shape, so it round-trips through storage."""
+        return stored_user_id(user_id)
 
     @field_validator("review_mode", mode="before")
     @classmethod

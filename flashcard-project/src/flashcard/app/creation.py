@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Optional, Union
 
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy
-from flashcard.app.types import UserId
+from flashcard.schemas.user import UserId
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.languages import get_language_flag
 from flashcard.services.expression import ExpressionService

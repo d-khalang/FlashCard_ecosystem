@@ -15,7 +15,7 @@ from pydantic import ValidationError
 
 from flashcard.app.quota import Allowed, QuotaExceeded, QuotaPolicy
 from flashcard.app.shadow import shadow_write
-from flashcard.app.types import UserId
+from flashcard.schemas.user import UserId
 from flashcard.language import UserDefaults
 from flashcard.schemas.expression import CardSettings, Direction, ExpressionCard, StoredCard
 from flashcard.schemas.languages import get_language_flag

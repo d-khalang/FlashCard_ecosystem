@@ -243,7 +243,7 @@ async def test_import_command_receives_args_without_bot_mention(dispatcher_env):
     assert dispatcher_env["llm_service"].import_calls == ["andare, fare"]
     send_calls = [call for call in dispatcher_env["session"].calls if call.method == "SendMessage"]
     assert len(send_calls) == 1
-    saved = await dispatcher_env["expression_service"].get_all_expressions("42")
+    saved = await dispatcher_env["expression_service"].get_all_expressions(42)
     assert sorted(saved) == ["andare", "fare"]
 
 

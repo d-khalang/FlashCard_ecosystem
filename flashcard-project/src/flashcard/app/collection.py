@@ -9,7 +9,7 @@ from typing import Literal, Optional, Union, get_args
 
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy
 from flashcard.app.shadow import shadow_write
-from flashcard.app.types import UserId
+from flashcard.schemas.user import UserId
 from flashcard.services.expression import ExpressionService
 from flashcard.services.language_validation import LanguageValidityChecker
 from flashcard.services.llm.llm import LLMService

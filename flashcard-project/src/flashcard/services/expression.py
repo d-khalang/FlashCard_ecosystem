@@ -1,10 +1,11 @@
 import re
 from datetime import datetime, timedelta
-from typing import Optional, Union, get_args
+from typing import Optional, get_args
 
 from flashcard.utils.time import iso_z, now_utc
 
 from flashcard.schemas.expression import MAX_GRADE, MIN_GRADE, Direction, ExpressionDB, StoredCard
+from flashcard.schemas.user import UserId, stored_user_id
 from flashcard.services.algorithm.priority import calculate_priority
 from flashcard.services.algorithm.grading import calculate_new_stats
 from flashcard.utils.logger import get_logger
@@ -33,7 +34,7 @@ class ExpressionService:
 
     async def search_expressions(
         self,
-        user_id: Union[str, int],
+        user_id: UserId,
         query: str,
         *,
         limit: int = 50,
@@ -48,7 +49,7 @@ class ExpressionService:
         escaped_query = re.escape(normalized_query)
         cursor = self.expressions.find(
             {
-                "user_id": str(user_id),
+                "user_id": stored_user_id(user_id),
                 "status": ACTIVE,
                 "value": {"$regex": escaped_query, "$options": "i"},
             }
@@ -62,7 +63,7 @@ class ExpressionService:
 
         return results
 
-    async def add_expression(self, user_id: Union[str, int], value: str) -> bool:
+    async def add_expression(self, user_id: UserId, value: str) -> bool:
         """
         Adds a new expression if it doesn't already exist.
         1. Check for duplicates (case-insensitive)
@@ -76,7 +77,7 @@ class ExpressionService:
         # Escaping regex to prevent issues with special characters in 'value'
         escaped_value = re.escape(value)
         existing = await self.expressions.find_one({
-            "user_id": str(user_id),
+            "user_id": stored_user_id(user_id),
             "value": {"$regex": f"^{escaped_value}$", "$options": "i"}
         })
 
@@ -86,7 +87,7 @@ class ExpressionService:
         # 2. Insert Expression
         current_iso = iso_z(now_utc())
         new_expression = ExpressionDB(
-            user_id=str(user_id),
+            user_id=stored_user_id(user_id),
             value=value,
             created_at=current_iso
         )
@@ -99,7 +100,7 @@ class ExpressionService:
         logger.info(f"Inserted new expression for user {user_id}: {value}")
         return True
 
-    async def add_expressions_bulk(self, user_id: Union[str, int], expressions: list[str]) -> list[str]:
+    async def add_expressions_bulk(self, user_id: UserId, expressions: list[str]) -> list[str]:
         """
         Adds multiple expressions at once, ignoring duplicates.
         Returns the list of values that were actually inserted.
@@ -117,7 +118,7 @@ class ExpressionService:
         regex_list = [re.compile(f"^{re.escape(v)}$", re.I) for v in unique_inputs]
 
         existing_cursor = self.expressions.find({
-            "user_id": str(user_id),
+            "user_id": stored_user_id(user_id),
             "value": {"$in": regex_list}
         })
         
@@ -136,7 +137,7 @@ class ExpressionService:
                 new_items.append(val)
                 # Prepare for bulk insert
                 new_expr = ExpressionDB(
-                    user_id=str(user_id),
+                    user_id=stored_user_id(user_id),
                     value=val,
                     created_at=current_iso
                 )
@@ -174,12 +175,12 @@ class ExpressionService:
         result = await self.expressions.delete_many({"_id": {"$in": expression_ids}})
         return result.deleted_count
 
-    async def get_all_expressions(self, user_id: Union[str, int]) -> list[str]:
+    async def get_all_expressions(self, user_id: UserId) -> list[str]:
         """
         The user's active expressions, each value once, oldest first.
         """
         cursor = self.expressions.find(
-            {"user_id": str(user_id), "status": ACTIVE}, {"value": 1}
+            {"user_id": stored_user_id(user_id), "status": ACTIVE}, {"value": 1}
         ).sort("created_at", 1)
         values: dict[str, None] = {}  # keeps first-seen order
         async for doc in cursor:
@@ -187,7 +188,7 @@ class ExpressionService:
                 values.setdefault(doc["value"], None)
         return list(values)
 
-    async def remove_expression(self, user_id: Union[str, int], expression_id: str) -> bool:
+    async def remove_expression(self, user_id: UserId, expression_id: str) -> bool:
         """
         Delete an active expression owned by the given user.
         """
@@ -198,7 +199,7 @@ class ExpressionService:
         result = await self.expressions.delete_one(
             {
                 "_id": ObjectId(expression_id),
-                "user_id": str(user_id),
+                "user_id": stored_user_id(user_id),
                 "status": ACTIVE,
             }
         )
@@ -212,7 +213,7 @@ class ExpressionService:
         return deleted
 
     @observe(name="ExpressionService.get_review_candidate")
-    async def get_review_candidate(self, user_id: Union[str, int], review_mode: str) -> Optional[dict]:
+    async def get_review_candidate(self, user_id: UserId, review_mode: str) -> Optional[dict]:
         """
         Selects the best expression for review based on priority algorithm.
         Filters out expressions sent in the last 12 hours. `review_mode` is the user's
@@ -228,7 +229,7 @@ class ExpressionService:
         # We find documents where last_activity_at is null OR last_activity_at < cutoff (New COOLDOWN field)
         
         query = {
-            "user_id": str(user_id),
+            "user_id": stored_user_id(user_id),
             "status": ACTIVE,
             "$or": [
                 {"last_activity_at": {"$lt": cutoff_time}},
@@ -301,7 +302,7 @@ class ExpressionService:
             fields["last_card"] = last_card.model_dump(mode="json")
         await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": fields})
 
-    async def grade_expression(self, user_id: str, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
+    async def grade_expression(self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
         """
         Updates the expression with the new grade stats.
         Returns None when the card does not exist; raises ValueError for an
@@ -314,7 +315,7 @@ class ExpressionService:
 
         # 1. Get current document
         doc = await self.expressions.find_one(
-            {"_id": ObjectId(expression_id), "user_id": str(user_id)}
+            {"_id": ObjectId(expression_id), "user_id": stored_user_id(user_id)}
         )
         
         if not doc:

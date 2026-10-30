@@ -1,6 +1,8 @@
 """
 Unit tests for the current_review backfill against the in-memory Mongo fake.
 """
+import pytest
+
 from flashcard.migrations.backfill_current_review import BackfillReport, backfill_current_review
 from flashcard.services.review_state import ReviewStateStore
 from tests.integration.helpers import make_cols
@@ -12,6 +14,10 @@ def _cols(users, expressions=()):
 
 async def _run(cols, *, apply=True):
     return await backfill_current_review(cols, ReviewStateStore(users=cols["users"]), apply=apply)
+
+
+# Only decimal text is a stored user id; anything else is reported, not guessed.
+INVALID_USER_IDS = [42, "abc", "4 2", "", "007", "-1", "0"]
 
 
 def _user(cols, user_id="42"):
@@ -113,13 +119,14 @@ class TestBackfill:
         assert _user(cols)["current_review"]["expression_id"] == "e1"
         assert report.backfilled == 1
 
-    async def test_non_string_user_id_is_reported_and_skipped(self):
-        cols = _cols([{"user_id": 42, "has_pending": True}], [_card("e1")])
+    @pytest.mark.parametrize("user_id", INVALID_USER_IDS)
+    async def test_invalid_user_id_is_reported_and_skipped(self, user_id):
+        cols = _cols([{"user_id": user_id, "has_pending": True}], [_card("e1")])
 
         report = await _run(cols)
 
-        assert "current_review" not in _user(cols, 42)
-        assert report == BackfillReport(pending_users=1, non_string_user_id=1)
+        assert "current_review" not in _user(cols, user_id)
+        assert report == BackfillReport(pending_users=1, invalid_user_id=1)
 
     async def test_ties_without_sent_time_are_broken_deterministically(self):
         older = {"_id": "a1", "user_id": "42", "value": "a", "pending_message_id": 1, "last_activity_at": "2026-10-01T00:00:00Z"}

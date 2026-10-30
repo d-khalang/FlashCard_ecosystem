@@ -49,7 +49,7 @@ async def test_handle_text_message_invalid_language_skips_generation():
 
     llm_service = MagicMock()
     user_service = MagicMock()
-    user_service.get_user = AsyncMock(return_value=make_user(user_id="123"))
+    user_service.get_user = AsyncMock(return_value=make_user(user_id=123))
     quota = MagicMock()
     language_validator = MagicMock()
     language_validator.validate_expression = AsyncMock(

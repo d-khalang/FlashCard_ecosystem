@@ -29,7 +29,7 @@ def _days_ago(days: int) -> str:
 
 
 def _user(tier=UserTier.plus, *, cards=0, stories=0, date=None, **fields):
-    user = make_user(user_id="1", tier=tier, **fields)
+    user = make_user(user_id=1, tier=tier, **fields)
     user.consumption.consumption_date = date or _today()
     user.consumption.system_api.cards_generated = cards
     user.consumption.system_api.stories_generated = stories

@@ -8,7 +8,7 @@ and lookup errors propagate.
 from dataclasses import dataclass
 from typing import Optional, Union
 
-from flashcard.app.types import UserId
+from flashcard.schemas.user import UserId
 from flashcard.schemas.conjugations import ConjugationResponse
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.verb import VerbService

@@ -16,7 +16,7 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 | 6 | Quota is ad hoc: counters on the user doc, limits frozen at import, trial derived from `created_at` | Parallel quota/allowance system, `miniapp_accounting` fencing | Done (own-key LLM calls deferred) |
 | 7 | Global singletons (`settings`, `i18n`) imported at module level | Runtime-mode explosion, separate runners | Done |
 | 8 | Writes are not idempotent (regex de-duplication, no unique index) | `action_id` required on every call | Code done for card saves; rollout pending (step 3) |
-| 9 | Loose types: `user_id` is `str` or `int`, dicts instead of models, ISO strings compared as text | BSON Int64 session bug | Open |
+| 9 | Loose types: `user_id` is `str` or `int`, dicts instead of models, ISO strings compared as text | BSON Int64 session bug | In progress (`user_id` done) |
 | 10 | No shared composition root: dispatcher data dict; startup wiring duplicated in `bot.py` | `MiniappRuntime` built its own composition | Done |
 
 ## Production rollout (one update after the full refactor)
@@ -256,6 +256,7 @@ Mini App consequence: its authority DB, language exchange and second build go aw
   the index. Non-string `user_id` / `value` are reported, not touched. Values differing only
   by surrounding spaces stay distinct for both the index and the migration (input is trimmed
   on save). Verified on a disposable MongoDB 7.
+  A `user_id` that is not decimal text is reported as `invalid_user_id` and left alone (#9).
 
 Out of scope: per-user interface locale (new feature, own item later).
 
@@ -329,6 +330,24 @@ Slice 2, i18n:
 - [x] Guard: `test_injected_config.py` (only `composition.py` builds `I18nService`; no `i18n` global).
   Dispatcher test: reply buttons match through the real dispatcher and never reach card creation.
 
+## #9 Loose types: progress
+
+Slices: `user_id` (no migration) → real datetimes (migration in rollout step 3) → dicts to models.
+
+- [x] **One `user_id` type.** Code passes `UserId = int` (`schemas/user.py`), what Telegram and the
+  Mini App give. Documents keep decimal text, so no migration: only the services that own a
+  collection convert, with `stored_user_id` (raises `TypeError` for anything but an `int`, so a text
+  id fails loudly instead of matching nothing; ids below 1 too). Only the exact text it writes is a
+  stored id (`"7"`, not `"007"` or `"-7"`), so a write always matches the document that was read.
+  `UserDB.user_id` reads the text as `int`; any other stored value makes the document unreadable (the
+  scheduler skips and reports it); a dump writes the text form back. The admin report joins ids with `str`. `ExpressionDB` stays the stored shape. `app/types.py` is gone.
+  `/get` and the scheduler now pass the same `int`; the scheduler sends to `chat_id` as `int`.
+  Migrations parse stored ids with `parse_stored_user_id` and report bad ones as `invalid_user_id`
+  (was `non_string_user_id`). Guard: `tests/unit/schemas/test_user_id.py`.
+- [ ] Real datetimes instead of ISO text (`last_reviewed_at`, `created_at`, ...): needs a migration.
+- [ ] Dicts to models (review candidates, expression docs in use cases).
+- Later option: store `user_id` as a number too. Only needed if Mongo queries ever mix both forms.
+
 ## #5 Latest card as fallback: progress
 
 Decision (2026-10-28): reviews stay freshly generated. Each expression keeps one stored
@@ -385,10 +404,10 @@ user receives are counted; the trial stays derived from `created_at` (no migrati
 - [x] **Quota as its own concept (#6).** Done: `QuotaPolicy.check` / `record`.
 - [x] **Quota is checked before the stored-card fallback (#5/#6).** Decided: over quota,
   the stored card is sent.
-- **`/get` vs scheduler differences**, pinned by tests and kept for now:
-  `user_id` is `int` in `/get` and `str` in the scheduler (#9); `/get` reloads the
-  user, the scheduler reuses it; over quota, `/get` tells the user while the
-  scheduler skips silently. Decide deliberately, then unify.
+- [x] **`/get` vs scheduler differences.** Decided (2026-10-30): over quota, `/get` tells the
+  user and the scheduler skips silently (it is automatic; nobody asked). `/get` reloads the user,
+  the scheduler reuses the one it already loaded. Both kept on purpose. `user_id` is now `int`
+  in both (#9).
 - [x] **Grading rules live with the owner (#3).** `ExpressionService.grade_expression`
   returned `None` for a bad grade, which callers could not tell apart from "card not
   found", and accepted any direction as "forward". It now raises `ValueError` for both

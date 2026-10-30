@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Awaitable, Callable, Optional, Union
 
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy
-from flashcard.app.types import UserId
+from flashcard.schemas.user import UserId
 from flashcard.schemas.story import StoryResponse
 from flashcard.services.expression import ExpressionService
 from flashcard.services.llm.llm import LLMService

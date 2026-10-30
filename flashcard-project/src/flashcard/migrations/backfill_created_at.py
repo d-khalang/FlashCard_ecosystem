@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from flashcard.app.quota import TRIAL_DAYS
+from flashcard.schemas.user import parse_stored_user_id
 from flashcard.services.user import UserService
 from flashcard.utils.time import UTC, iso_z, now_utc, parse_iso
 
@@ -26,7 +27,7 @@ class BackfillReport:
     from_oldest_expression: int = 0
     from_run_time: int = 0
     trial_ends_now: int = 0  # oldest expression is older than the trial: limits drop to their tier
-    non_string_user_id: int = 0
+    invalid_user_id: int = 0  # not decimal text (the only stored form)
     already_set: int = 0
     unreadable_expression_dates: int = 0  # skipped when looking for the oldest expression
 
@@ -36,14 +37,15 @@ async def backfill_created_at(cols: dict, users: UserService, *, apply: bool) ->
     now = now_utc()
     async for user in cols["users"].find({"created_at": None}):
         report.missing += 1
-        if not isinstance(user["user_id"], str):
-            # Every writer stores str ids; report anything else instead of guessing.
-            report.non_string_user_id += 1
+        user_id = parse_stored_user_id(user["user_id"])
+        if user_id is None:
+            # Every writer stores decimal text; report anything else instead of guessing.
+            report.invalid_user_id += 1
             continue
 
         oldest = await _oldest_expression_time(cols, user["user_id"], report)
         created_at = iso_z(oldest) if oldest else iso_z(now)
-        if apply and not await users.backfill_created_at(user["user_id"], created_at):
+        if apply and not await users.backfill_created_at(user_id, created_at):
             report.already_set += 1
             continue
 

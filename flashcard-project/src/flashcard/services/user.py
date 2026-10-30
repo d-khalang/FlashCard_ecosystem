@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Callable, Optional, Union, TYPE_CHECKING, get_args
+from typing import Callable, Optional, TYPE_CHECKING, get_args
 from flashcard.utils.logger import get_logger
 from flashcard.schemas.languages import LANGUAGE_DATA, LanguageLevel
 from flashcard.schemas.user import (
-    MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE, ReviewMode, UserDB,
+    MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, NO_LANGUAGE, ReviewMode, UserDB, UserId, stored_user_id,
 )
 from flashcard.utils.time import iso_z, now_utc
 
@@ -67,62 +67,62 @@ class UserService:
                 on_unreadable(str(doc.get("user_id", "?")), e)
         return users
 
-    async def get_user(self, user_id: Union[str, int]) -> UserDB:
+    async def get_user(self, user_id: UserId) -> UserDB:
         """
         Retrieves the full user document.
         """
-        doc = await self.users.find_one({"user_id": str(user_id)}) or {}
+        doc = await self.users.find_one({"user_id": stored_user_id(user_id)}) or {}
         if not doc:
-            return self._to_user({"user_id": str(user_id)})
+            return self._to_user({"user_id": stored_user_id(user_id)})
 
         return self._to_user(doc)
 
-    async def set_target_level(self, user_id: Union[str, int], level: LanguageLevel) -> None:
+    async def set_target_level(self, user_id: UserId, level: LanguageLevel) -> None:
         if level not in get_args(LanguageLevel):
             raise ValueError(f"Unknown level: {level!r}")
         await self._set(user_id, "target_level", level)
 
-    async def set_review_interval(self, user_id: Union[str, int], minutes: int) -> None:
+    async def set_review_interval(self, user_id: UserId, minutes: int) -> None:
         if type(minutes) is not int or not MIN_INTERVAL_MINUTES <= minutes <= MAX_INTERVAL_MINUTES:
             raise ValueError(f"Interval must be {MIN_INTERVAL_MINUTES}-{MAX_INTERVAL_MINUTES} minutes: {minutes!r}")
         await self._set(user_id, "review_interval_minutes", minutes)
 
-    async def set_primary_language(self, user_id: Union[str, int], code: str) -> None:
+    async def set_primary_language(self, user_id: UserId, code: str) -> None:
         if code not in LANGUAGE_DATA:
             raise ValueError(f"Unsupported language code: {code!r}")
         await self._set(user_id, "primary_language", code)
 
-    async def set_secondary_language(self, user_id: Union[str, int], code: str) -> None:
+    async def set_secondary_language(self, user_id: UserId, code: str) -> None:
         """A language code, or NO_LANGUAGE to turn it off."""
         if code != NO_LANGUAGE and code not in LANGUAGE_DATA:
             raise ValueError(f"Unsupported language code: {code!r}")
         await self._set(user_id, "secondary_language", code)
 
-    async def set_review_mode(self, user_id: Union[str, int], mode: ReviewMode) -> None:
+    async def set_review_mode(self, user_id: UserId, mode: ReviewMode) -> None:
         if mode not in get_args(ReviewMode):
             raise ValueError(f"Unknown review mode: {mode!r}")
         await self._set(user_id, "review_mode", mode)
 
-    async def set_active(self, user_id: Union[str, int], active: bool) -> None:
+    async def set_active(self, user_id: UserId, active: bool) -> None:
         """Pause or resume scheduled reviews. Idempotent: a repeated tap changes nothing."""
         if type(active) is not bool:
             raise ValueError(f"active must be a bool: {active!r}")
         await self._set(user_id, "is_active", active)
         logger.info(f"User {user_id} status set to {'Active' if active else 'Inactive'}")
 
-    async def _set(self, user_id: Union[str, int], field: str, value) -> None:
+    async def _set(self, user_id: UserId, field: str, value) -> None:
         """Only for the validated setters above; never creates a user."""
         await self.users.update_one(
-            {"user_id": str(user_id)},
+            {"user_id": stored_user_id(user_id)},
             {"$set": {field: value}},
         )
 
-    async def advance_onboarding(self, user_id: Union[str, int], current_step: int) -> bool:
+    async def advance_onboarding(self, user_id: UserId, current_step: int) -> bool:
         """
         Advances the onboarding step if the user is at the expected step.
         Returns True if advanced, False if already past this step.
         """
-        query = {"user_id": str(user_id)}
+        query = {"user_id": stored_user_id(user_id)}
         if current_step == 0:
             query["$or"] = [{"onboarding_step": 0}, {"onboarding_step": {"$exists": False}}]
         else:
@@ -134,7 +134,7 @@ class UserService:
         )
         return result.modified_count > 0
 
-    async def record_seen(self, user_id: Union[str, int], username: Optional[str]):
+    async def record_seen(self, user_id: UserId, username: Optional[str]):
         """
         Records that the user interacted with the bot, and syncs their Telegram username.
 
@@ -143,7 +143,7 @@ class UserService:
         """
         current_iso = iso_z(now_utc())
         await self.users.update_one(
-            {"user_id": str(user_id)},
+            {"user_id": stored_user_id(user_id)},
             {
                 "$set": {"username": username, "last_seen_at": current_iso},
                 "$setOnInsert": {"created_at": current_iso},
@@ -151,14 +151,14 @@ class UserService:
             upsert=True
         )
 
-    async def backfill_created_at(self, user_id: Union[str, int], created_at: str) -> bool:
+    async def backfill_created_at(self, user_id: UserId, created_at: str) -> bool:
         """
         Migration only: set a missing `created_at`. Never overwrites one, so it can
         never move a trial start. True when it wrote.
         """
         result = await self.users.update_one(
             # Matches a missing field and an explicit null alike.
-            {"user_id": str(user_id), "created_at": None},
+            {"user_id": stored_user_id(user_id), "created_at": None},
             {"$set": {"created_at": created_at}},
         )
         return bool(getattr(result, "modified_count", 0))

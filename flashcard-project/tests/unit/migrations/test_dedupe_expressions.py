@@ -176,8 +176,9 @@ class TestRun:
             await cols["expression"].insert_one(_card("c", "CIAO"))
 
     async def test_unexpected_ids_and_values_are_reported_not_grouped(self):
-        cols = make_cols(expressions=[_card("a", "ciao", user_id=42), {"_id": "b", "user_id": "42", "value": None}])
+        cols = make_cols(expressions=[_card("a", "ciao", user_id=42), _card("c", "ciao", user_id="abc"),
+                                      {"_id": "b", "user_id": "42", "value": None}])
 
         report = await _run(cols, apply=False)
 
-        assert (report.non_string_user_id, report.non_string_value, report.duplicate_groups) == (1, 1, 0)
+        assert (report.invalid_user_id, report.non_string_value, report.duplicate_groups) == (2, 1, 0)

@@ -39,7 +39,7 @@ class TestIncrementResetLogic:
         """No user doc → reset counters to today's date → then increment."""
         service, cols = _make_service(user_doc=None)
 
-        await service.increment("123", "cards_generated")
+        await service.increment(123, "cards_generated")
 
         # 2 update_one calls: reset + increment
         assert cols["users"].update_one.call_count == 2
@@ -55,7 +55,7 @@ class TestIncrementResetLogic:
             user_doc={"consumption": {"consumption_date": "2020-01-01"}}
         )
 
-        await service.increment("123", "cards_generated")
+        await service.increment(123, "cards_generated")
 
         assert cols["users"].update_one.call_count == 2  # reset + inc
 
@@ -63,7 +63,7 @@ class TestIncrementResetLogic:
         """Today's date already stored → no reset, just increment."""
         service, cols = _make_service(user_doc=_today_consumption())
 
-        await service.increment("123", "stories_generated")
+        await service.increment(123, "stories_generated")
 
         assert cols["users"].update_one.call_count == 1  # inc only
         inc_call = cols["users"].update_one.call_args_list[0]
@@ -80,7 +80,7 @@ class TestIncrementRouting:
     async def test_system_api_bucket_default(self):
         service, cols = _make_service(user_doc=_today_consumption())
 
-        await service.increment("123", "cards_generated")
+        await service.increment(123, "cards_generated")
 
         inc = cols["users"].update_one.call_args[0][1]["$inc"]
         assert inc == {"consumption.system_api.cards_generated": 1}
@@ -88,7 +88,7 @@ class TestIncrementRouting:
     async def test_user_api_bucket_with_own_key(self):
         service, cols = _make_service(user_doc=_today_consumption())
 
-        await service.increment("123", "cards_generated", uses_own_key=True)
+        await service.increment(123, "cards_generated", uses_own_key=True)
 
         inc = cols["users"].update_one.call_args[0][1]["$inc"]
         assert inc == {"consumption.user_api.cards_generated": 1}
@@ -97,7 +97,7 @@ class TestIncrementRouting:
         """verb_lookups lives at top level, not under system_api."""
         service, cols = _make_service(user_doc=_today_consumption())
 
-        await service.increment("123", "verb_lookups")
+        await service.increment(123, "verb_lookups")
 
         inc = cols["users"].update_one.call_args[0][1]["$inc"]
         assert inc == {"consumption.verb_lookups": 1}
@@ -106,7 +106,7 @@ class TestIncrementRouting:
         """Unknown metric → warning logged, no DB writes."""
         service, cols = _make_service()
 
-        await service.increment("123", "nonexistent_metric")
+        await service.increment(123, "nonexistent_metric")
 
         cols["users"].find_one.assert_not_called()
         cols["users"].update_one.assert_not_called()
@@ -120,7 +120,7 @@ class TestGetConsumption:
     async def test_new_user_returns_default(self):
         service, _ = _make_service(user_doc=None)
 
-        result = await service.get_consumption("999")
+        result = await service.get_consumption(999)
 
         assert isinstance(result, UserConsumption)
         assert result.system_api.cards_generated == 0
@@ -136,7 +136,7 @@ class TestGetConsumption:
             }
         })
 
-        result = await service.get_consumption("123")
+        result = await service.get_consumption(123)
 
         assert result.consumption_date == date.today().isoformat()
         assert result.system_api.cards_generated == 0
@@ -154,7 +154,7 @@ class TestGetConsumption:
             }
         })
 
-        result = await service.get_consumption("123")
+        result = await service.get_consumption(123)
 
         assert result.consumption_date == today
         assert result.system_api.cards_generated == 3

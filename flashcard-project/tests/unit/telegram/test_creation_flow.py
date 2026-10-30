@@ -35,7 +35,7 @@ def _card(success=True, norm="andare") -> ExpressionCard:
 
 
 def _user(**overrides) -> UserDB:
-    fields = {"user_id": str(USER_ID), "primary_language": "en", "secondary_language": None,
+    fields = {"user_id": USER_ID, "primary_language": "en", "secondary_language": None,
               "target_level": "B1", "tier": UserTier.normal}
     fields.update(overrides)
     return make_user(**fields)

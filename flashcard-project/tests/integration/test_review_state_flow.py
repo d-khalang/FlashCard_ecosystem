@@ -17,7 +17,7 @@ from flashcard.utils.time import iso_z, now_utc
 
 from .helpers import make_callback_update, make_message_update
 
-USER_ID = "42"
+USER_ID = 42
 
 
 async def _feed(env, update):
@@ -28,7 +28,7 @@ async def _insert_card(env, value="andare", **fields):
     expression_id = ObjectId()
     await env["cols"]["expression"].insert_one({
         "_id": expression_id,
-        "user_id": USER_ID,
+        "user_id": str(USER_ID),
         "value": value,
         "created_at": "2000-01-01T00:00:00Z",
         "status": "active",
@@ -39,11 +39,11 @@ async def _insert_card(env, value="andare", **fields):
 
 async def _set_user(env, **fields):
     await env["cols"]["users"].update_one(
-        {"user_id": USER_ID}, {"$set": {"is_active": True, **fields}}, upsert=True)
+        {"user_id": str(USER_ID)}, {"$set": {"is_active": True, **fields}}, upsert=True)
 
 
 async def _user_doc(env):
-    return await env["cols"]["users"].find_one({"user_id": USER_ID})
+    return await env["cols"]["users"].find_one({"user_id": str(USER_ID)})
 
 
 async def _due_ids(env):

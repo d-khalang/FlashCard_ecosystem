@@ -110,22 +110,22 @@ class TestActiveDefinition:
     async def test_search_finds_a_card_without_status(self):
         service, _ = self._service({"value": "andare"})
 
-        assert [doc["value"] for doc in await service.search_expressions("123", "and")] == ["andare"]
+        assert [doc["value"] for doc in await service.search_expressions(123, "and")] == ["andare"]
 
     async def test_remove_deletes_a_card_without_status(self):
         expression_id = ObjectId()
         service, expressions = self._service({"_id": expression_id, "value": "andare"})
 
-        assert await service.remove_expression("123", str(expression_id)) is True
+        assert await service.remove_expression(123, str(expression_id)) is True
         assert expressions.docs == []
 
     async def test_inactive_card_is_neither_found_removed_nor_reviewed(self):
         expression_id = ObjectId()
         service, expressions = self._service({"_id": expression_id, "value": "andare", "status": "archived"})
 
-        assert await service.search_expressions("123", "and") == []
-        assert await service.remove_expression("123", str(expression_id)) is False
-        assert await service.get_review_candidate("123", "standard") is None
+        assert await service.search_expressions(123, "and") == []
+        assert await service.remove_expression(123, str(expression_id)) is False
+        assert await service.get_review_candidate(123, "standard") is None
         assert len(expressions.docs) == 1
 
 
@@ -133,7 +133,7 @@ class TestSearchExpressions:
     async def test_empty_query_returns_no_results(self):
         service, cols = _make_service()
 
-        result = await service.search_expressions("123", "   ")
+        result = await service.search_expressions(123, "   ")
 
         assert result == []
         cols["expression"].find.assert_not_called()
@@ -146,7 +146,7 @@ class TestSearchExpressions:
         ]
         cols["expression"].find = MagicMock(return_value=_AsyncIterator(docs))
 
-        result = await service.search_expressions("123", "cas", limit=1)
+        result = await service.search_expressions(123, "cas", limit=1)
 
         assert result == [docs[0]]
         cols["expression"].find.assert_called_once()
@@ -187,7 +187,7 @@ class TestGetReviewCandidate:
         service, cols = _make_service()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([]))
 
-        result = await service.get_review_candidate("123", "standard")
+        result = await service.get_review_candidate(123, "standard")
         assert result is None
 
     async def test_returns_best_candidate_by_priority(self):
@@ -206,7 +206,7 @@ class TestGetReviewCandidate:
             return_value=_AsyncIterator([card_a, card_b])
         )
 
-        result = await service.get_review_candidate("123", "standard")
+        result = await service.get_review_candidate(123, "standard")
 
         assert result is not None
         assert result["doc"]["value"] == "difficile"
@@ -218,7 +218,7 @@ class TestGetReviewCandidate:
         doc = _make_expression_doc()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123", "standard")
+        result = await service.get_review_candidate(123, "standard")
 
         assert "doc" in result
         assert "direction" in result
@@ -241,7 +241,7 @@ class TestGetReviewCandidate:
         )
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123", "dual")
+        result = await service.get_review_candidate(123, "dual")
 
         assert result is not None
         assert result["direction"] == "reverse"
@@ -255,7 +255,7 @@ class TestGetReviewCandidate:
         )
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123", "standard")
+        result = await service.get_review_candidate(123, "standard")
 
         assert result["direction"] == "forward"
 
@@ -273,7 +273,7 @@ class TestGetReviewCandidate:
         from unittest.mock import patch
         with patch("flashcard.services.expression.calculate_priority") as mock_calc:
             mock_calc.return_value = 0.5
-            await service.get_review_candidate("123", "dual")
+            await service.get_review_candidate(123, "dual")
             
             assert mock_calc.call_count == 2
             mock_calc.assert_any_call(doc)
@@ -299,7 +299,7 @@ class TestGradeExpression:
         service, cols = _make_service()
 
         with pytest.raises(ValueError):
-            await service.grade_expression("123", str(ObjectId()), grade=grade, direction=direction)
+            await service.grade_expression(123, str(ObjectId()), grade=grade, direction=direction)
 
         cols["expression"].find_one.assert_not_called()
         cols["expression"].update_one.assert_not_called()
@@ -309,7 +309,7 @@ class TestGradeExpression:
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=None)
 
-        result = await service.grade_expression("123", str(ObjectId()), grade=4)
+        result = await service.grade_expression(123, str(ObjectId()), grade=4)
         assert result is None
         cols["expression"].update_one.assert_not_called()
 
@@ -320,7 +320,7 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         result = await service.grade_expression(
-            "123", str(doc["_id"]), grade=4, direction="forward"
+            123, str(doc["_id"]), grade=4, direction="forward"
         )
 
         assert result is not None
@@ -344,7 +344,7 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         await service.grade_expression(
-            "123", str(doc["_id"]), grade=5, direction="reverse"
+            123, str(doc["_id"]), grade=5, direction="reverse"
         )
 
         update_args = cols["expression"].update_one.call_args[0]
@@ -360,7 +360,7 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         await service.grade_expression(
-            "123", str(doc["_id"]), grade=3, direction="reverse"
+            123, str(doc["_id"]), grade=3, direction="reverse"
         )
 
         update_args = cols["expression"].update_one.call_args[0]
@@ -376,7 +376,7 @@ class TestGradeExpression:
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
-        await service.grade_expression("123", str(doc["_id"]), grade=4)
+        await service.grade_expression(123, str(doc["_id"]), grade=4)
 
         cols["users"].update_one.assert_not_called()
 
@@ -389,7 +389,7 @@ class TestAddExpressionsBulk:
 
     async def test_empty_list_returns_empty(self):
         service, cols = _make_service()
-        result = await service.add_expressions_bulk("123", [])
+        result = await service.add_expressions_bulk(123, [])
         assert result == []
         cols["expression"].insert_many.assert_not_called()
 
@@ -398,7 +398,7 @@ class TestAddExpressionsBulk:
         service, cols = _make_service()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([]))
 
-        result = await service.add_expressions_bulk("123", ["casa", "gatto", "cane"])
+        result = await service.add_expressions_bulk(123, ["casa", "gatto", "cane"])
 
         assert len(result) == 3
         cols["expression"].insert_many.assert_called_once()
@@ -413,7 +413,7 @@ class TestAddExpressionsBulk:
             return_value=_AsyncIterator([{"value": "casa"}])
         )
 
-        result = await service.add_expressions_bulk("123", ["casa", "gatto"])
+        result = await service.add_expressions_bulk(123, ["casa", "gatto"])
 
         assert result == ["gatto"]
         inserted = cols["expression"].insert_many.call_args[0][0]
@@ -427,7 +427,7 @@ class TestAddExpressionsBulk:
             return_value=_AsyncIterator([{"value": "casa"}, {"value": "gatto"}])
         )
 
-        result = await service.add_expressions_bulk("123", ["casa", "gatto"])
+        result = await service.add_expressions_bulk(123, ["casa", "gatto"])
 
         assert result == []
         cols["expression"].insert_many.assert_not_called()
@@ -436,7 +436,7 @@ class TestAddExpressionsBulk:
         service, cols = _make_service()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([]))
 
-        await service.add_expressions_bulk("123", ["nuova"])
+        await service.add_expressions_bulk(123, ["nuova"])
 
         cols["users"].update_one.assert_not_called()
 
@@ -447,7 +447,7 @@ class TestAddExpressionsBulk:
             return_value=_AsyncIterator([{"value": "Casa"}])
         )
 
-        result = await service.add_expressions_bulk("123", ["casa", "gatto"])
+        result = await service.add_expressions_bulk(123, ["casa", "gatto"])
 
         assert "casa" not in result
         assert "gatto" in result
@@ -498,7 +498,7 @@ class TestRemoveExpression:
     async def test_invalid_object_id_returns_false(self):
         service, cols = _make_service()
 
-        result = await service.remove_expression("123", "not-an-object-id")
+        result = await service.remove_expression(123, "not-an-object-id")
 
         assert result is False
         cols["expression"].delete_one.assert_not_called()
@@ -510,7 +510,7 @@ class TestRemoveExpression:
         cols["expression"].delete_one = AsyncMock(return_value=delete_result)
         expression_id = str(ObjectId())
 
-        result = await service.remove_expression("123", expression_id)
+        result = await service.remove_expression(123, expression_id)
 
         assert result is True
         cols["expression"].delete_one.assert_called_once()
@@ -521,6 +521,6 @@ class TestRemoveExpression:
         delete_result.deleted_count = 0
         cols["expression"].delete_one = AsyncMock(return_value=delete_result)
 
-        result = await service.remove_expression("123", str(ObjectId()))
+        result = await service.remove_expression(123, str(ObjectId()))
 
         assert result is False

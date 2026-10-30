@@ -28,7 +28,7 @@ def _deps(state_name):
     user_service = MagicMock()
     user_service.set_primary_language = AsyncMock()
     user_service.set_secondary_language = AsyncMock()
-    user_service.get_user = AsyncMock(return_value=make_user(user_id="444"))
+    user_service.get_user = AsyncMock(return_value=make_user(user_id=444))
     return state, user_service
 
 

@@ -1,6 +1,4 @@
-from typing import Union
-
-from flashcard.schemas.user import UserConsumption
+from flashcard.schemas.user import UserConsumption, UserId, stored_user_id
 from flashcard.utils.logger import get_logger
 from flashcard.utils.time import now_utc
 
@@ -26,7 +24,7 @@ class ConsumptionService:
 
     async def increment(
         self,
-        user_id: Union[str, int],
+        user_id: UserId,
         metric: str,
         uses_own_key: bool = False,
     ) -> None:
@@ -46,7 +44,7 @@ class ConsumptionService:
             logger.warning(f"Unknown consumption metric: {metric}")
             return
 
-        user_id_str = str(user_id)
+        user_id_str = stored_user_id(user_id)
         today = self._today()
 
         # Check if we need a daily reset
@@ -100,12 +98,12 @@ class ConsumptionService:
             return UserConsumption(consumption_date=self._today())
         return consumption
 
-    async def get_consumption(self, user_id: Union[str, int]) -> UserConsumption:
+    async def get_consumption(self, user_id: UserId) -> UserConsumption:
         """
         Returns the current UserConsumption for a user.
         Auto-resets if the stored date is stale.
         """
-        user_id_str = str(user_id)
+        user_id_str = stored_user_id(user_id)
         doc = await self.users.find_one(
             {"user_id": user_id_str},
             {"consumption": 1},

@@ -9,7 +9,7 @@ first. Callers own presentation (labels, flags, keyboards).
 """
 from typing import cast
 
-from flashcard.app.types import UserId
+from flashcard.schemas.user import UserId
 from flashcard.schemas.languages import LanguageLevel, normalize_language_input
 from flashcard.schemas.user import ReviewMode, UserDB
 from flashcard.services.user import UserService

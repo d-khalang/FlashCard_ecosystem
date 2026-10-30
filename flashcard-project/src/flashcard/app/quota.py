@@ -7,7 +7,7 @@ what was generated. Only delivered results count; failed generations are free.
 from dataclasses import dataclass
 from typing import Literal, Union
 
-from flashcard.app.types import UserId
+from flashcard.schemas.user import UserId
 from flashcard.schemas.user import UserDB, UserTier
 from flashcard.services.consumption import ConsumptionService
 from flashcard.utils.logger import get_logger

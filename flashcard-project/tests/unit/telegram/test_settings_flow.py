@@ -28,7 +28,7 @@ USER_ID = 777
 
 
 def _user(**overrides) -> UserDB:
-    fields = {"user_id": str(USER_ID)}
+    fields = {"user_id": USER_ID}
     fields.update(overrides)
     return make_user(**fields)
 

@@ -35,7 +35,7 @@ class TestGetUser:
         result = await service.get_user(999)
 
         assert isinstance(result, UserDB)
-        assert result.user_id == "999"
+        assert result.user_id == 999
         assert result.is_active is True
         assert result.target_level == "A2"  # default
 
@@ -52,7 +52,7 @@ class TestGetUser:
         result = await service.get_user(123)
 
         assert isinstance(result, UserDB)
-        assert result.user_id == "123"
+        assert result.user_id == 123
         assert result.is_active is False
         assert result.primary_language == "fa"
         assert result.target_level == "B1"
@@ -162,7 +162,7 @@ class TestRecordSeen:
 
     async def test_sets_username_and_first_seen(self):
         service, cols = _make_service()
-        await service.record_seen("123", "new_handle")
+        await service.record_seen(123, "new_handle")
 
         cols["users"].update_one.assert_called_once_with(
             {"user_id": "123"},

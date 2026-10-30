@@ -3,6 +3,8 @@ Unit tests for the created_at backfill against the in-memory Mongo fake.
 """
 from datetime import timedelta
 
+import pytest
+
 from flashcard.migrations.backfill_created_at import BackfillReport, backfill_created_at
 from flashcard.services.user import UserService
 from flashcard.utils.time import iso_z, now_utc
@@ -24,6 +26,10 @@ def _word(created_at, user_id="42"):
 
 async def _run(cols, *, apply=True):
     return await backfill_created_at(cols, UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults), apply=apply)
+
+
+# Only decimal text is a stored user id; anything else is reported, not guessed.
+INVALID_USER_IDS = [42, "abc", "4 2", "", "007", "-1", "0"]
 
 
 def _created(cols, user_id="42"):
@@ -79,13 +85,14 @@ class TestBackfillCreatedAt:
 
         assert report.from_run_time == 1
 
-    async def test_non_string_user_id_is_reported_and_skipped(self):
-        cols = _cols([{"user_id": 42}], [_word(_ago(30))])
+    @pytest.mark.parametrize("user_id", INVALID_USER_IDS)
+    async def test_invalid_user_id_is_reported_and_skipped(self, user_id):
+        cols = _cols([{"user_id": user_id}], [_word(_ago(30))])
 
         report = await _run(cols)
 
-        assert _created(cols, 42) is None
-        assert report == BackfillReport(missing=1, non_string_user_id=1)
+        assert _created(cols, user_id) is None
+        assert report == BackfillReport(missing=1, invalid_user_id=1)
 
     async def test_dry_run_writes_nothing(self):
         cols = _cols([{"user_id": "42"}], [_word(_ago(30))])

@@ -21,7 +21,7 @@ def _ago(**delta) -> str:
 def _user(*, has_pending=False, sent_at=None, last_seen_at=None, **fields) -> UserDB:
     review = None if sent_at is None else {
         "expression_id": "e1", "direction": "forward", "message_id": 1, "sent_at": sent_at}
-    return make_user(user_id="42", has_pending=has_pending, current_review=review, last_seen_at=last_seen_at, **fields)
+    return make_user(user_id=42, has_pending=has_pending, current_review=review, last_seen_at=last_seen_at, **fields)
 
 
 class TestIntervalElapsed:
@@ -86,4 +86,4 @@ class TestComparePause:
         report.add(_user(has_pending=True))
 
         assert report.counts == {"agree": 1, "missing_current_review": 1}
-        assert report.mismatches == [("42", "missing_current_review")]
+        assert report.mismatches == [(42, "missing_current_review")]

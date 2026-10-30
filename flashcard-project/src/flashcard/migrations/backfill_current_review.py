@@ -12,6 +12,7 @@ import argparse
 import asyncio
 from dataclasses import dataclass
 
+from flashcard.schemas.user import parse_stored_user_id
 from flashcard.services.review_state import ReviewStateStore
 from flashcard.utils.time import iso_z, now_utc
 
@@ -23,16 +24,17 @@ class BackfillReport:
     backfilled: int = 0
     no_pending_card: int = 0
     invalid_message_id: int = 0
-    non_string_user_id: int = 0
+    invalid_user_id: int = 0  # not decimal text (the only stored form)
 
 
 async def backfill_current_review(cols: dict, store: ReviewStateStore, *, apply: bool) -> BackfillReport:
     report = BackfillReport()
     async for user in cols["users"].find({"has_pending": True}):
         report.pending_users += 1
-        if not isinstance(user["user_id"], str):
-            # Every writer stores str ids; report anything else instead of guessing.
-            report.non_string_user_id += 1
+        user_id = parse_stored_user_id(user["user_id"])
+        if user_id is None:
+            # Every writer stores decimal text; report anything else instead of guessing.
+            report.invalid_user_id += 1
             continue
         if user.get("current_review") is not None:
             report.already_set += 1
@@ -52,7 +54,7 @@ async def backfill_current_review(cols: dict, store: ReviewStateStore, *, apply:
         sent_at = card.get("last_sent_at") or card.get("last_activity_at") or iso_z(now_utc())
         if not apply:
             report.backfilled += 1
-        elif await store.backfill_from_legacy(user["user_id"], str(card["_id"]), message_id, sent_at):
+        elif await store.backfill_from_legacy(user_id, str(card["_id"]), message_id, sent_at):
             report.backfilled += 1
         else:
             report.already_set += 1

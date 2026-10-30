@@ -26,7 +26,7 @@ CANDIDATE = {"_id": EXPRESSION_ID, "value": "andare"}
 
 
 def _user(**overrides) -> UserDB:
-    fields = {"user_id": str(USER_ID), "primary_language": "en", "secondary_language": "fa",
+    fields = {"user_id": USER_ID, "primary_language": "en", "secondary_language": "fa",
               "target_level": "B1", "tier": UserTier.normal}
     fields.update(overrides)
     return make_user(**fields)
@@ -273,11 +273,11 @@ class TestScheduledReview:
         ui.fmt_sched.assert_called_once_with(
             CARD, "andare", direction="reverse", learning_flag=TEST_LANGUAGE.flag, label=None)
         ui.kb_sched.assert_called_once_with(i18n, EXPRESSION_ID, direction="reverse")
-        bot.send_message.assert_awaited_once_with(chat_id=str(USER_ID), text="TEXT", reply_markup="KB")
+        bot.send_message.assert_awaited_once_with(chat_id=USER_ID, text="TEXT", reply_markup="KB")
         d.expression_service.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42, last_card=ANY)
-        d.review_state.mark_pending.assert_awaited_once_with(str(USER_ID))
+        d.review_state.mark_pending.assert_awaited_once_with(USER_ID)
         d.consumption_service.increment.assert_awaited_once_with(
-            str(USER_ID), "cards_generated", uses_own_key=False)
+            USER_ID, "cards_generated", uses_own_key=False)
 
     async def test_send_failure_propagates_and_records_nothing(self, ui):
         d = _deps()

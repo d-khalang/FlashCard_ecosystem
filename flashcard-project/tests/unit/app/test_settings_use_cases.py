@@ -126,4 +126,4 @@ class TestToggles:
 
         user = await use_cases.get(777)
 
-        assert (user.user_id, user.target_level) == ("777", "B2")
+        assert (user.user_id, user.target_level) == (777, "B2")

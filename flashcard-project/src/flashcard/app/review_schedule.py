@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
-from flashcard.schemas.user import UserDB
+from flashcard.schemas.user import UserDB, UserId
 from flashcard.utils.time import parse_iso
 
 
@@ -67,7 +67,7 @@ def compare_pause(user: UserDB) -> Comparison:
 @dataclass
 class PauseComparison:
     counts: dict[str, int] = field(default_factory=dict)
-    mismatches: list[tuple[str, str]] = field(default_factory=list)  # (user_id, comparison)
+    mismatches: list[tuple[UserId, str]] = field(default_factory=list)  # (user_id, comparison)
 
     def add(self, user: UserDB) -> None:
         comparison = compare_pause(user)

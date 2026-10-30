@@ -13,7 +13,7 @@ from flashcard.utils.time import now_utc
 
 from .helpers import make_message_update
 
-USER_ID = "42"
+USER_ID = 42
 UNCLEAR = ExpressionCard(success=False, norm="andare", learning_definition=None, translations=[],
                          learning_example=None, note="Not clear", suggestions=[])
 
@@ -25,11 +25,11 @@ async def _feed(env, update):
 async def _setup(env):
     expression_id = ObjectId()
     await env["cols"]["expression"].insert_one({
-        "_id": expression_id, "user_id": USER_ID, "value": "andare",
+        "_id": expression_id, "user_id": str(USER_ID), "value": "andare",
         "created_at": "2000-01-01T00:00:00Z", "status": "active",
     })
     await env["cols"]["users"].update_one(
-        {"user_id": USER_ID}, {"$set": {"is_active": True, "target_level": "B1"}}, upsert=True)
+        {"user_id": str(USER_ID)}, {"$set": {"is_active": True, "target_level": "B1"}}, upsert=True)
     return expression_id
 
 
@@ -41,14 +41,14 @@ async def _get_again(env, expression_id):
 
 
 async def _cards_generated(env) -> int:
-    user = await env["cols"]["users"].find_one({"user_id": USER_ID})
+    user = await env["cols"]["users"].find_one({"user_id": str(USER_ID)})
     return sum(bucket.get("cards_generated", 0) for bucket in user.get("consumption", {}).values()
                if isinstance(bucket, dict))
 
 
 async def _use_up_quota(env):
     """More cards today than any tier allows."""
-    await env["cols"]["users"].update_one({"user_id": USER_ID}, {"$set": {"consumption": {
+    await env["cols"]["users"].update_one({"user_id": str(USER_ID)}, {"$set": {"consumption": {
         "consumption_date": now_utc().date().isoformat(), "system_api": {"cards_generated": 999}}}})
 
 
@@ -92,7 +92,7 @@ class TestStoredCard:
     async def test_changed_level_is_shown_on_the_stored_card(self, dispatcher_env):
         expression_id = await _setup(dispatcher_env)
         await _feed(dispatcher_env, make_message_update(text="/get"))
-        await dispatcher_env["cols"]["users"].update_one({"user_id": USER_ID}, {"$set": {"target_level": "C1"}})
+        await dispatcher_env["cols"]["users"].update_one({"user_id": str(USER_ID)}, {"$set": {"target_level": "C1"}})
 
         dispatcher_env["llm_service"].raise_card_error = True
         await _get_again(dispatcher_env, expression_id)
@@ -134,7 +134,7 @@ class TestStoredCard:
     async def test_turned_off_secondary_language_matches_an_unset_one(self, dispatcher_env):
         expression_id = await _setup(dispatcher_env)
         await _feed(dispatcher_env, make_message_update(text="/get"))
-        await dispatcher_env["cols"]["users"].update_one({"user_id": USER_ID}, {"$set": {"secondary_language": "none"}})
+        await dispatcher_env["cols"]["users"].update_one({"user_id": str(USER_ID)}, {"$set": {"secondary_language": "none"}})
 
         dispatcher_env["llm_service"].raise_card_error = True
         await _get_again(dispatcher_env, expression_id)

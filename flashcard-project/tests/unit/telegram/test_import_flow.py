@@ -24,7 +24,7 @@ USER_ID = 333
 
 def _deps(*, parsed=None, inserted=None, validation=None, can_generate=True):
     user_service = MagicMock()
-    user_service.get_user = AsyncMock(return_value=make_user(user_id=str(USER_ID), tier=UserTier.normal))
+    user_service.get_user = AsyncMock(return_value=make_user(user_id=USER_ID, tier=UserTier.normal))
 
     consumption_service = MagicMock()
     consumption_service.increment = AsyncMock()

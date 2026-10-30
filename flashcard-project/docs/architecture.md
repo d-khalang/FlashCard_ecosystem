@@ -51,8 +51,7 @@ flashcard-project/src/flashcard/
 │   ├── story.py             # /story
 │   ├── verb.py              # /verb lookups
 │   ├── quota.py             # QuotaPolicy: tier limits, trial, own key
-│   ├── shadow.py            # Shadow writes for the review-state migration (temporary)
-│   └── types.py             # Types shared across use cases
+│   └── shadow.py            # Shadow writes for the review-state migration (temporary)
 │
 ├── api/                     # FastAPI layer
 │   ├── main.py              # App and routers

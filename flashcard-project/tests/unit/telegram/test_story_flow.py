@@ -26,7 +26,7 @@ STORY = StoryResponse(paragraphs=[
 
 
 def _user(**overrides) -> UserDB:
-    fields = {"user_id": str(USER_ID), "tier": UserTier.normal, "primary_language": "fa", "target_level": "B1"}
+    fields = {"user_id": USER_ID, "tier": UserTier.normal, "primary_language": "fa", "target_level": "B1"}
     fields.update(overrides)
     return make_user(**fields)
 

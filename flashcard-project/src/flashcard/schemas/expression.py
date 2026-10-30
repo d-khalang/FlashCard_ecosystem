@@ -66,7 +66,7 @@ class ExpressionStats(BaseModel):
     # next_review_at: Optional[str] = None # Calculated next review time
 
 class ExpressionDB(BaseModel):
-    user_id: str = Field(..., description="User ID as string")
+    user_id: str = Field(..., description="Stored user id (text); services write it with stored_user_id")
     value: str = Field(..., description="The expression text")
     created_at: str = Field(..., description="Creation timestamp ISO")
     last_sent_at: Optional[str] = Field(None, description="Timestamp of last send of both sides")

@@ -22,7 +22,7 @@ def _use_cases(words=("andare", "fare"), *, exceeded=None, story=STORY, user=Non
 
     users = MagicMock()
     users.get_user = AsyncMock(return_value=user or make_user(
-        user_id="888", tier=UserTier.normal, primary_language="de", target_level="A2"))
+        user_id=888, tier=UserTier.normal, primary_language="de", target_level="A2"))
 
     consumption = MagicMock()
     consumption.increment = AsyncMock()
