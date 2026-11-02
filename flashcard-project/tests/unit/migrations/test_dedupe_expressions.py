@@ -2,6 +2,7 @@
 Unit tests for the expression dedupe migration against the in-memory Mongo fake.
 """
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 from pymongo.errors import DuplicateKeyError
@@ -98,6 +99,41 @@ class TestWhichCardStays:
         await _run(cols)
 
         assert _ids(cols) == ["a", "b"]
+
+
+class TestInterruptedRun:
+
+    def _pending_duplicates(self):
+        return make_cols(users=[{"user_id": "42", "has_pending": True}],
+                         expressions=[_card("a", "ciao", reps=5), _card("b", "Ciao", pending=777)])
+
+    async def test_failure_before_the_delete_keeps_the_cards_and_a_rerun_finishes(self):
+        cols = self._pending_duplicates()
+        service = ExpressionService(expressions=cols["expression"])
+        store = ReviewStateStore(users=cols["users"])
+        store.clear_pending = AsyncMock(side_effect=RuntimeError("mongo down"))
+
+        with pytest.raises(RuntimeError):
+            await dedupe_expressions(cols, service, store, apply=True)
+        assert _ids(cols) == ["a", "b"]
+
+        await _run(cols)
+
+        assert _ids(cols) == ["a"]
+        assert cols["users"].docs[0]["has_pending"] is False
+
+    async def test_failure_in_the_delete_leaves_no_stuck_pause_and_a_rerun_finishes(self):
+        cols = self._pending_duplicates()
+        service = ExpressionService(expressions=cols["expression"])
+        service.remove_duplicates = AsyncMock(side_effect=RuntimeError("mongo down"))
+
+        with pytest.raises(RuntimeError):
+            await dedupe_expressions(cols, service, ReviewStateStore(users=cols["users"]), apply=True)
+        assert cols["users"].docs[0]["has_pending"] is False
+
+        await _run(cols)
+
+        assert _ids(cols) == ["a"]
 
 
 class TestReviewState:

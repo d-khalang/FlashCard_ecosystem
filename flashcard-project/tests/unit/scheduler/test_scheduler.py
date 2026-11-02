@@ -363,6 +363,39 @@ class TestFindUsersDueCurrentReviewRule:
 
         assert await self._due(service, "current_review") == []
 
+    @pytest.mark.parametrize("rule", ["legacy", "current_review"])
+    async def test_user_who_never_pressed_pause_is_active(self, rule):
+        """record_seen stores no is_active, and /settings shows such a user as active."""
+        never_pressed = _make_user_doc(user_id=NEW)
+        del never_pressed["is_active"]
+        service = self._service(
+            never_pressed,
+            _make_user_doc(user_id=OK, is_active=True),
+            _make_user_doc(user_id=INACTIVE, is_active=False),
+        )
+
+        assert await self._due(service, rule) == sorted([NEW, OK])
+
+    async def test_new_user_saving_a_card_becomes_due(self):
+        """The whole path of a new user: created by record_seen, has_pending set by the first save."""
+        from flashcard.services.review_state import ReviewStateStore
+        service = self._service()
+        await service.users.insert_one({"user_id": str(NEW)})  # what record_seen's upsert leaves
+        assert await self._due(service, "legacy") == []  # no has_pending yet, and nothing to review
+
+        await ReviewStateStore(users=service.users).clear_pending(NEW)
+
+        assert await self._due(service, "legacy") == [NEW]
+
+    async def test_compare_includes_a_user_who_never_pressed_pause(self):
+        from flashcard.scheduler.scheduler import compare_pause_rules
+        waiting = _make_user_doc(user_id=NEW, has_pending=True, current_review=self._review(2))
+        del waiting["is_active"]
+
+        report = await compare_pause_rules(self._service(waiting))
+
+        assert report.counts == {"agree": 1}
+
 
 class TestBadStoredReviewMode:
 

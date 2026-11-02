@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
+from aiogram.exceptions import TelegramForbiddenError
 
 from flashcard.app.review import CardGenerationFailed, ReviewUseCases
 from flashcard.schemas.expression import (
@@ -309,6 +310,20 @@ class TestScheduledReview:
             await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
         bot.send_message.assert_not_awaited()
+        d.consumption_service.increment.assert_not_awaited()
+
+    async def test_blocked_user_is_paused_and_records_nothing(self, ui):
+        d = _deps()
+        d.user_service.set_active = AsyncMock()
+        bot = MagicMock()
+        bot.send_message = AsyncMock(side_effect=TelegramForbiddenError(
+            method=MagicMock(), message="Forbidden: bot was blocked by the user"))
+
+        result = await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
+
+        assert result is False
+        d.user_service.set_active.assert_awaited_once_with(USER_ID, False)
+        d.expression_service.update_expression_sent.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
 
     async def test_provider_failure_sends_the_stored_card_free(self, ui):

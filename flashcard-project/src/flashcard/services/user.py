@@ -51,7 +51,8 @@ class UserService:
         A document that cannot be read is passed to `on_unreadable` and skipped.
         """
         query = {
-            "is_active": True,
+            # Only Pause stores False; a user who never pressed it has no field and is active.
+            "is_active": {"$ne": False},
             "$or": [
                 {"last_reviewed_at": None},
                 {"last_reviewed_at": {"$lt": cutoff}},
@@ -66,7 +67,7 @@ class UserService:
 
     async def active_users_possibly_paused(self, on_unreadable: Callable[[str, Exception], None]) -> list[UserDB]:
         """Migration only (shadow compare): active users either pause rule could pause."""
-        query = {"is_active": True, "$or": [{"has_pending": True}, {"current_review": {"$ne": None}}]}
+        query = {"is_active": {"$ne": False}, "$or": [{"has_pending": True}, {"current_review": {"$ne": None}}]}
         return await self._read_users(query, on_unreadable)
 
     async def _read_users(self, query: dict, on_unreadable: Callable[[str, Exception], None]) -> list[UserDB]:

@@ -6,7 +6,8 @@ Names follow MongoDB's defaults, so indexes already built by hand with the same 
 are left as they are. A duplicate user_id stops the run before anything is built: such
 users must be merged by hand. Stays after the contract step, unlike the other migrations.
 
-Dry run by default; --apply builds. Prints counts only.
+Dry run by default; --apply builds. Prints counts only. The dry run checks user_id only;
+duplicate cards are what dedupe_expressions' dry run reports.
     python -m flashcard.migrations.ensure_indexes [--apply]
 """
 import argparse

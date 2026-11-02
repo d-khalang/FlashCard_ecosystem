@@ -4,6 +4,7 @@ import uuid
 from datetime import timedelta
 from typing import Optional
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError
 
 from flashcard.app.review_schedule import PauseComparison, PauseRule, interval_elapsed, paused
 from flashcard.language import LanguageConfig
@@ -37,7 +38,7 @@ async def find_users_due_for_review(
 
     Returns:
         List of UserDB objects for users who meet all criteria:
-        - is_active == True (scheduler not paused)
+        - is_active is not False (not paused with the Pause button; a missing field is active)
         - not paused by `pause_rule` (legacy: has_pending; current_review: a card
           is waiting and the user has not been seen since it was sent)
         - last_reviewed_at + review_interval_minutes < now (or never reviewed)
@@ -126,8 +127,8 @@ async def send_scheduled_review(
     Sends a scheduled review to a user.
 
     Returns:
-        True if a flashcard was actually sent, False if no candidate was available
-        or the user is over quota (skipped silently).
+        True if a flashcard was actually sent, False if no candidate was available,
+        the user is over quota (skipped silently) or cannot be messaged (paused).
 
     Raises exceptions on failure (caught by per-user error handler in scheduler loop).
     """
@@ -146,7 +147,13 @@ async def send_scheduled_review(
         result.card, result.value, direction=result.direction, learning_flag=language.flag,
         label=review_label(i18n, result))
     keyboard = get_review_keyboard(i18n, result.expression_id, direction=result.direction)
-    sent_msg = await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
+    try:
+        sent_msg = await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
+    except TelegramForbiddenError:
+        # Otherwise every tick pays for a card that can never arrive (and is never counted).
+        await review_use_cases.pause_undeliverable(user_id)
+        logger.info(f"Paused scheduled reviews for user {user_id}: cannot be messaged")
+        return False
     await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
 
     logger.info(f"Scheduled review sent to user {user_id}: {result.value}")

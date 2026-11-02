@@ -181,6 +181,11 @@ Migration (each step deployable; the pause rule can be switched back, the image 
   Guarded by `tests/unit/test_user_creation_contract.py`: only `record_seen` may
   upsert `users`, and the Telegram dispatcher must run `TraceMiddleware`.
   **Mini App:** its auth/launch step must call `record_seen` too; add its test there.
+- [x] **A missing `is_active` means active.** Only the Pause and Resume buttons write the field,
+  but the scheduler matched `True` exactly, so a user who never pressed them saw "Active" in
+  `/settings` and never got a scheduled review. It now excludes only `False`. Behavior change at
+  deploy: users without the field who have cards start getting reviews (4 on IT at the
+  2026-11-02 count, none of whom has ever graded a card).
 - [x] **`ExpressionService` no longer writes `users`.** Review state moved to
   `ReviewStateStore`: `mark_pending` (send), `clear_pending` (save, import, remove),
   `record_reviewed` (grade: `last_reviewed_at` + clear `has_pending`, one update).
@@ -215,6 +220,11 @@ Migration (each step deployable; the pause rule can be switched back, the image 
   it and reports it to the admin with the send failures (`Unreadable user document`).
   The shadow compare counts such users as `unreadable`. A bad document is reported
   every tick until fixed.
+
+- [x] **A blocked user is paused.** Each tick generated a card, failed to send it and counted
+  nothing, so one blocked user cost an LLM call every tick, forever, and a line in every admin
+  report. On `TelegramForbiddenError` the scheduler now sets `is_active` to false, as Pause does.
+  A user who unblocks the bot sees "Paused" in `/settings` and presses Resume; `/get` keeps working.
 
 ### Remove after the migration is validated (contract step)
 
@@ -440,6 +450,9 @@ array on the expression. A Mini App redo/back use is decided when the Mini App i
 - [x] Label on the first line: "Saved version", or "Saved version · older settings" when
   level or translation languages changed since (compared from data already loaded).
 - [x] Integration tests (`tests/integration/test_stored_card_flow.py`).
+- [x] Fix (review finding): a slow provider got no fallback, because the 10 s handler timeout
+  cancels the task and `except Exception` cannot catch that. With a stored card, a fresh one now
+  gets 8 s (`STORED_CARD_AFTER_SECONDS`), then the stored card goes out. Without one, nothing changes.
 - [x] Fix (review finding): a turned-off secondary language (`"none"`) was sent to the LLM
   as a language and would differ from an unset one (`None`). Now stored as null and read
   as None (#9).

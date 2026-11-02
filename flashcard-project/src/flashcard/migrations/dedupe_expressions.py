@@ -92,11 +92,13 @@ async def dedupe_expressions(
         if not apply:
             continue
 
-        await expressions.remove_duplicates([card["_id"] for card in cards.removed])
+        # Review state first: if this stops here, the duplicates are still there and a
+        # rerun finishes the job. The other order would leave a pause nothing can find.
         if clears_pause:
             await review_state.clear_pending(parse_stored_user_id(user_id))
         if clears_current:
             await review_state.record_removed(parse_stored_user_id(user_id), doc["current_review"]["expression_id"])
+        await expressions.remove_duplicates([card["_id"] for card in cards.removed])
 
     if apply:
         # Fails if duplicates remain (e.g. an invalid user_id or a non-string value reported above).

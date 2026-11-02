@@ -1,10 +1,12 @@
 """
 Unit tests for ReviewUseCases: the review contract, independent of Telegram.
 """
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from flashcard.app import review as review_module
 from flashcard.app.review import (
     CardGenerationFailed, CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
 )
@@ -49,6 +51,11 @@ def _use_cases(*, candidate=None, user=None, exceeded=None):
     use_cases = ReviewUseCases(review_state=AsyncMock(), expression_service=expressions, user_service=users,
                                quota=make_quota(consumption, exceeded), llm_service=llm)
     return use_cases, expressions, users, consumption, llm
+
+
+async def _slow_card(**_):
+    await asyncio.sleep(0.05)
+    return CARD
 
 
 def _candidate(direction="forward", **doc):
@@ -183,6 +190,34 @@ class TestStoredCardFallback:
         assert await use_cases.prepare_next(111) == ReviewReady(
             expression_id=EXPRESSION_ID, value="andare", direction="forward", card=CARD,
             settings=SETTINGS, quota=None, older_settings=False)
+
+    async def test_slow_provider_returns_the_stored_card(self, monkeypatch):
+        """Under the handler timeout, whose cancellation `except Exception` could not catch."""
+        assert review_module.STORED_CARD_AFTER_SECONDS < 10
+        monkeypatch.setattr(review_module, "STORED_CARD_AFTER_SECONDS", 0.01)
+        use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored())
+        llm.generate_expression_card.side_effect = _slow_card
+
+        result = await use_cases.prepare_next(111)
+
+        assert result.from_storage and result.card == self.STORED.card
+
+    async def test_slow_provider_without_stored_card_is_not_cut_short(self, monkeypatch):
+        monkeypatch.setattr(review_module, "STORED_CARD_AFTER_SECONDS", 0.01)
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate())
+        llm.generate_expression_card.side_effect = _slow_card
+
+        result = await use_cases.prepare_next(111)
+
+        assert not result.from_storage and result.card == CARD
+
+    async def test_pause_undeliverable_turns_the_user_inactive(self):
+        use_cases, _, users, _, _ = _use_cases()
+        users.set_active = AsyncMock()
+
+        await use_cases.pause_undeliverable(111)
+
+        users.set_active.assert_awaited_once_with(111, False)
 
     async def test_unclear_card_returns_the_stored_card(self):
         use_cases, _, _, _, llm = _use_cases(candidate=self._with_stored())

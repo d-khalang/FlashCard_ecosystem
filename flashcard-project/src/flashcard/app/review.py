@@ -8,6 +8,7 @@ Each delivered fresh card is stored on its expression (one card, overwritten).
 When generation fails, or the user is over quota, that stored card is sent
 instead, free of quota.
 """
+import asyncio
 from dataclasses import dataclass
 from typing import Optional, Union
 
@@ -26,6 +27,9 @@ from flashcard.utils.time import now_utc
 
 logger = get_logger(__name__)
 
+# How long a fresh card may take when a stored one could replace it. Below the 10 s
+# handler timeout, whose cancellation no fallback could catch, leaving time to send.
+STORED_CARD_AFTER_SECONDS = 8.0
 
 
 @dataclass(frozen=True)
@@ -106,8 +110,10 @@ class ReviewUseCases:
                 return quota
             return _from_storage(expression, direction, settings)
 
+        # No stored card: nothing to fall back on, so the caller's own timeout decides.
+        budget = None if expression.last_card is None else STORED_CARD_AFTER_SECONDS
         try:
-            card = await generate_card(self.llm, expression.value, settings)
+            card = await asyncio.wait_for(generate_card(self.llm, expression.value, settings), timeout=budget)
         except Exception:
             if expression.last_card is None:
                 raise
@@ -146,6 +152,10 @@ class ReviewUseCases:
             self.review_state.record_sent(user_id, ready.expression_id, ready.direction, message_id),
             f"record_sent user={user_id} expression={ready.expression_id}",
         )
+
+    async def pause_undeliverable(self, user_id: UserId) -> None:
+        """The user cannot receive messages (blocked the bot): stop scheduling them, as Pause does."""
+        await self.users.set_active(user_id, False)
 
     async def grade(self, user_id: UserId, expression_id: str, grade: int, direction: Direction) -> GradeResult:
         """

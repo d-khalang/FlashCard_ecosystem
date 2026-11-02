@@ -10,8 +10,14 @@ from flashcard.services.user import UserService
 from tests.helpers import TEST_LANGUAGE
 from tests.integration.helpers import make_cols
 
-USER_INDEXES = {("user_id",), ("is_active", "has_pending", "last_reviewed_at")}
-CARD_INDEXES = {("user_id", "value"), ("user_id", "last_activity_at", "created_at"), ("user_id", "created_at")}
+# (fields, unique, case_insensitive)
+USER_INDEXES = {(("user_id",), True, False), (("is_active", "has_pending", "last_reviewed_at"), False, False)}
+CARD_INDEXES = {
+    (("user_id", "value"), True, True),
+    (("user_id", "value"), False, False),
+    (("user_id", "last_activity_at", "created_at"), False, False),
+    (("user_id", "created_at"), False, False),
+}
 
 
 async def _run(cols, *, apply=True):
@@ -74,3 +80,5 @@ async def test_card_duplicates_fail_loudly():
 
     with pytest.raises(DuplicateKeyError):
         await _run(cols)
+
+    assert not cols["expression"].indexes  # a failed build leaves no index
