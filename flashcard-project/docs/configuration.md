@@ -100,6 +100,7 @@ For multiple bots sharing one MongoDB server, prefer separate databases by setti
 | `LLM_GROQ_MODEL` | ❌ | `"openai/gpt-oss-120b"` | Groq model name |
 | `LLM_GROQ_FALLBACK_DELAY_SECONDS` | ❌ | `4.0` | Timeout in seconds before falling back from Groq to Google Gemini |
 | `LLM_MAX_ATTEMPTS` | ❌ | `2` | Maximum retry attempts for transient LLM errors |
+| `LLM_REQUEST_TIMEOUT_SECONDS` | ❌ | `15` | Timeout of one provider call; a hung call holds a worker thread until then |
 
 
 ### Caddy / TLS / Domain

@@ -32,6 +32,13 @@ def _card(_id, *, pending=555, sent="2026-10-01T10:00:00Z", user_id="42"):
 
 class TestBackfill:
 
+    async def test_document_without_user_id_is_reported_not_fatal(self):
+        cols = _cols([{"has_pending": True}, {"user_id": "42", "has_pending": True}], [_card("e1")])
+
+        report = await _run(cols)
+
+        assert report.invalid_user_id == 1 and report.backfilled == 1
+
     async def test_pending_user_gets_the_pending_card(self):
         cols = _cols([{"user_id": "42", "has_pending": True}], [_card("e1")])
 

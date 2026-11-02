@@ -312,19 +312,33 @@ class TestScheduledReview:
         bot.send_message.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
 
-    async def test_blocked_user_is_paused_and_records_nothing(self, ui):
+    @pytest.mark.parametrize("reason", ["bot was blocked by the user", "user is deactivated"])
+    async def test_user_who_is_gone_is_paused_reported_and_records_nothing(self, ui, reason):
         d = _deps()
         d.user_service.set_active = AsyncMock()
         bot = MagicMock()
         bot.send_message = AsyncMock(side_effect=TelegramForbiddenError(
-            method=MagicMock(), message="Forbidden: bot was blocked by the user"))
+            method=MagicMock(), message=f"Forbidden: {reason}"))
 
-        result = await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
+        with pytest.raises(TelegramForbiddenError):  # the scheduler loop reports it to the admin
+            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
 
-        assert result is False
         d.user_service.set_active.assert_awaited_once_with(USER_ID, False)
         d.expression_service.update_expression_sent.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
+
+    async def test_another_bots_token_pauses_nobody(self, ui):
+        """With the wrong bot's token every user answers this, and all would be paused."""
+        d = _deps()
+        d.user_service.set_active = AsyncMock()
+        bot = MagicMock()
+        bot.send_message = AsyncMock(side_effect=TelegramForbiddenError(
+            method=MagicMock(), message="Forbidden: bot can't initiate conversation with a user"))
+
+        with pytest.raises(TelegramForbiddenError):
+            await scheduler.send_scheduled_review(bot=bot, user=d.user, review_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
+
+        d.user_service.set_active.assert_not_awaited()
 
     async def test_provider_failure_sends_the_stored_card_free(self, ui):
         d = _deps(candidate=WITH_STORED)

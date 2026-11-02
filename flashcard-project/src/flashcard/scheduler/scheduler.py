@@ -24,6 +24,9 @@ logger = get_logger(__name__)
 
 from flashcard.schemas.defaults import DEFAULT_SCHEDULER_INTERVAL_MINUTES
 
+# Telegram's 403 reasons that are about the user, not about this bot.
+USER_GONE_REASONS = ("bot was blocked by the user", "user is deactivated")
+
 
 async def find_users_due_for_review(
     user_service: UserService,
@@ -127,10 +130,11 @@ async def send_scheduled_review(
     Sends a scheduled review to a user.
 
     Returns:
-        True if a flashcard was actually sent, False if no candidate was available,
-        the user is over quota (skipped silently) or cannot be messaged (paused).
+        True if a flashcard was actually sent, False if no candidate was available
+        or the user is over quota (skipped silently).
 
     Raises exceptions on failure (caught by per-user error handler in scheduler loop).
+    A user who blocked the bot is paused first.
     """
     user_id = user.user_id
     result = await review_use_cases.prepare_next(user_id, user=user)
@@ -149,11 +153,14 @@ async def send_scheduled_review(
     keyboard = get_review_keyboard(i18n, result.expression_id, direction=result.direction)
     try:
         sent_msg = await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
-    except TelegramForbiddenError:
+    except TelegramForbiddenError as error:
         # Otherwise every tick pays for a card that can never arrive (and is never counted).
-        await review_use_cases.pause_undeliverable(user_id)
-        logger.info(f"Paused scheduled reviews for user {user_id}: cannot be messaged")
-        return False
+        # Only these reasons: "bot can't initiate conversation" is what every user answers
+        # when the token belongs to another bot, and that must not pause them all.
+        if any(reason in error.message for reason in USER_GONE_REASONS):
+            await review_use_cases.pause_undeliverable(user_id)
+            logger.info(f"Paused scheduled reviews for user {user_id}: cannot be messaged")
+        raise  # reported to the admin; a paused user is not due again, so only once
     await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
 
     logger.info(f"Scheduled review sent to user {user_id}: {result.value}")

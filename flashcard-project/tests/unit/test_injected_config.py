@@ -19,6 +19,7 @@ ENTRY_POINTS = {
     "migrations/dedupe_expressions.py",
     "migrations/convert_dates.py",
     "migrations/ensure_indexes.py",
+    "migrations/check_documents.py",
 }
 
 

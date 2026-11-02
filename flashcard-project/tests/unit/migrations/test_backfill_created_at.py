@@ -39,6 +39,13 @@ def _created(cols, user_id="42"):
 
 class TestBackfillCreatedAt:
 
+    async def test_document_without_user_id_is_reported_not_fatal(self):
+        cols = _cols([{"username": "x"}, {"user_id": "42"}])
+
+        report = await _run(cols)
+
+        assert report.invalid_user_id == 1 and report.from_run_time == 1
+
     async def test_oldest_expression_becomes_the_trial_start(self):
         oldest = _ago(30)
         cols = _cols([{"user_id": "42"}], [_word(_ago(3)), _word(oldest), _word(_ago(10))])

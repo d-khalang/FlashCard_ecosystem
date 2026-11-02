@@ -25,8 +25,8 @@ Nothing from this refactor is deployed yet. Everything ships in **one update** o
 refactor is finished, then these production steps run in order:
 
 **Fix forward only.** The new image writes BSON dates from its first grade or new user, and
-the old image cannot read them (its scheduler stops for everyone). After step 2, never go
-back to the old image on the live data: ship a fixed image instead. So for this deploy:
+the old image cannot read them (its scheduler stops for everyone). Once the step 3 migrations
+have run, never go back to the old image on the live data: ship a fixed image instead. So for this deploy:
 
 - `kartino-deploy/scripts/deploy.sh` rolls back to the previous images on its own when a
   later service or the smoke test fails, after the English canary has already run the new
@@ -42,15 +42,18 @@ back to the old image on the live data: ship a fixed image instead. So for this 
    Run `python -m flashcard.migrations.convert_dates` (dry run, writes nothing) with the new
    image against each database: fix every document it lists under `unreadable_ids` before
    deploying, because the new image cannot read a user whose stored date is not a date.
+   Then `python -m flashcard.migrations.check_documents` against each database: it reads every
+   document the way the new image will and must report `unreadable: 0`. Also check free disk:
+   MongoDB refuses to build an index below its minimum (500 MB by default, as far as we know).
 2. Stop both bots and take **Backup A** (`scripts/backup.sh`), so it holds only legacy data.
-   Then deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes (`current_review`,
-   `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
-3. Backfill each language DB (dry run, check counts, then `--apply`), then take **Backup B**:
+   Set the new image in `images.env` and pull it. The bots stay stopped until step 3 ends, so no
+   grade can land during the migrations and Backup B is consistent.
+3. With the bots stopped, run the migrations with the new image on each language DB
+   (`sh ./scripts/compose.sh run --rm --no-deps flashcard-bot-it python -m …`, then
+   `flashcard-bot-en`; dry run, check counts, then `--apply`):
    - `python -m flashcard.migrations.convert_dates` first: legacy ISO text becomes dates
      (`unreadable` must be 0, see step 1). Empty text becomes null, so `backfill_created_at`
-     then fills those trial starts too. Run it soon after the deploy: until then `/list`
-     can order cards that already had a BSON date after newer text-dated ones (MongoDB
-     sorts text before dates).
+     then fills those trial starts too.
    - `python -m flashcard.migrations.backfill_current_review`
    - `python -m flashcard.migrations.backfill_created_at`: missing trial starts become
      the user's oldest expression (or the run time without expressions). Users counted
@@ -62,6 +65,9 @@ back to the old image on the live data: ship a fixed image instead. So for this 
      unique `users.user_id` index and the lookup indexes. Today IT has hand-made copies, which
      stay as they are, and EN has none. A new, empty database needs this once (`--apply`);
      nothing else creates its indexes.
+
+   Take **Backup B**, then deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes
+   (`current_review`, `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
 4. Observe the `Review-state shadow compare` log line for a few days:
    `missing_current_review` ≈ 0, no unexplained `new_pauses`.
 5. Switch: set `REVIEW_PAUSE_RULE=current_review` and restart (no new image).
@@ -223,7 +229,9 @@ Migration (each step deployable; the pause rule can be switched back, the image 
 
 - [x] **A blocked user is paused.** Each tick generated a card, failed to send it and counted
   nothing, so one blocked user cost an LLM call every tick, forever, and a line in every admin
-  report. On `TelegramForbiddenError` the scheduler now sets `is_active` to false, as Pause does.
+  report. When Telegram says the bot was blocked or the user is deactivated, the scheduler now sets
+  `is_active` to false, as Pause does, and reports it to the admin once. Any other 403 pauses nobody:
+  "bot can't initiate conversation" is what every user answers when the token belongs to another bot.
   A user who unblocks the bot sees "Paused" in `/settings` and presses Resume; `/get` keeps working.
 
 ### Remove after the migration is validated (contract step)
@@ -453,6 +461,10 @@ array on the expression. A Mini App redo/back use is decided when the Mini App i
 - [x] Fix (review finding): a slow provider got no fallback, because the 10 s handler timeout
   cancels the task and `except Exception` cannot catch that. With a stored card, a fresh one now
   gets 8 s (`STORED_CARD_AFTER_SECONDS`), then the stored card goes out. Without one, nothing changes.
+- [x] Fix (review finding): any caller's timeout left the racing provider tasks running, each a paid
+  call whose later failure alerted the admin. They are now cancelled when generation ends. Cancelling
+  cannot stop a call in its thread (about 6 on the 2-core VM), so clients also have a timeout
+  (`LLM_REQUEST_TIMEOUT_SECONDS`, 15 s) and Groq's own SDK retries are off (`LLM_MAX_ATTEMPTS` is the one setting).
 - [x] Fix (review finding): a turned-off secondary language (`"none"`) was sent to the LLM
   as a language and would differ from an unset one (`None`). Now stored as null and read
   as None (#9).

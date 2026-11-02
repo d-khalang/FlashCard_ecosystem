@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     LLM_GROQ_MODEL: str = "openai/gpt-oss-120b"
     LLM_GROQ_FALLBACK_DELAY_SECONDS: float = 4.0
     LLM_MAX_ATTEMPTS: int = 2
+    LLM_REQUEST_TIMEOUT_SECONDS: float = 15.0
     LLM_KEY_FILE: Optional[str] = None
 
     # ──────────────────────────────────────────────

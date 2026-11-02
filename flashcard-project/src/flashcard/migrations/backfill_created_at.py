@@ -37,7 +37,7 @@ async def backfill_created_at(cols: dict, users: UserService, *, apply: bool) ->
     now = now_utc()
     async for user in cols["users"].find({"created_at": None}):
         report.missing += 1
-        user_id = parse_stored_user_id(user["user_id"])
+        user_id = parse_stored_user_id(user.get("user_id"))
         if user_id is None:
             # Every writer stores decimal text; report anything else instead of guessing.
             report.invalid_user_id += 1

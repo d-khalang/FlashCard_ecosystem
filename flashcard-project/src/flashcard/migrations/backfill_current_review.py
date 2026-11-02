@@ -32,7 +32,7 @@ async def backfill_current_review(cols: dict, store: ReviewStateStore, *, apply:
     report = BackfillReport()
     async for user in cols["users"].find({"has_pending": True}):
         report.pending_users += 1
-        user_id = parse_stored_user_id(user["user_id"])
+        user_id = parse_stored_user_id(user.get("user_id"))
         if user_id is None:
             # Every writer stores decimal text; report anything else instead of guessing.
             report.invalid_user_id += 1
