@@ -4,7 +4,7 @@ How to extend the FlashCard Bot — adding commands, services, and following pro
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.12+
 - MongoDB (local or Atlas)
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
 - A logger bot token (separate bot for admin notifications)
