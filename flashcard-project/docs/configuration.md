@@ -63,7 +63,7 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 | `DEFAULT_TARGET_LEVEL` | ❌ | `A2` | Default learner level for new users |
 | `UI_LOCALE` | ❌ | `en` | Locale file used for interface text |
 | `ENABLE_CONJUGATION` | ❌ | `true` | Registers `/verb` and requires scraper configuration when enabled |
-| `LANGUAGE_VALIDATOR` | ❌ | `auto` | Input validator: `auto`, `italian`, `latin`, `permissive`, or a custom dotted path |
+| `LANGUAGE_VALIDATOR` | ✅ | — | Input validator: `italian`, `latin`, `permissive`, or a custom `module:ClassName`. Startup fails if missing or unknown. `latin` rejects non-Latin scripts (use `permissive` or a custom class for those) |
 | `SCHEDULER_CHECK_INTERVAL_SECONDS` | ❌ | `600` | Scheduler loop interval (seconds) |
 | `LLM_KEY_FILE` | ❌ | packaged resource | External LLM key JSON path, such as `/run/secrets/llm_key.json` |
 
@@ -100,6 +100,7 @@ For multiple bots sharing one MongoDB server, prefer separate databases by setti
 | `LLM_GROQ_MODEL` | ❌ | `"openai/gpt-oss-120b"` | Groq model name |
 | `LLM_GROQ_FALLBACK_DELAY_SECONDS` | ❌ | `4.0` | Timeout in seconds before falling back from Groq to Google Gemini |
 | `LLM_MAX_ATTEMPTS` | ❌ | `2` | Maximum retry attempts for transient LLM errors |
+| `LLM_REQUEST_TIMEOUT_SECONDS` | ❌ | `15` | Timeout of one provider call; a hung call holds a worker thread until then |
 
 
 ### Caddy / TLS / Domain

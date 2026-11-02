@@ -1,16 +1,39 @@
+"""
+Interface text for one instance (docs/bot-architecture-refactor.md, #7).
+
+The composition root builds one `I18nService` from the instance's `LanguageConfig`
+and passes it down (Telegram handlers receive it as `i18n`); nothing imports a
+shared instance, so importing a module never reads settings.
+"""
 import json
 import os
 from importlib.resources import files
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from flashcard.settings import settings
+from flashcard.language import LanguageConfig
+from flashcard.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+# Used for any key the instance's UI locale lacks.
+FALLBACK_LOCALE = "en"
+
 
 class I18nService:
-    def __init__(self, locales_dir: str = None):
+    def __init__(self, *, locale: str, language_name: str, locales_dir: Optional[str] = None):
+        """
+        `locale`: the UI locale (`UI_LOCALE`); `language_name`: the language this
+        instance teaches, filled into `{language}` / `{language_lower}`.
+        """
+        self.locale = locale
+        self.language_name = language_name
         self.locales_dir = locales_dir
         self.translations: Dict[str, Dict[str, Any]] = {}
-        self.default_lang = settings.UI_LOCALE
         self._load_locales()
+
+    @classmethod
+    def for_language(cls, language: LanguageConfig) -> "I18nService":
+        return cls(locale=language.ui_locale, language_name=language.name)
 
     def _load_locales(self):
         """Load locale JSON either from a custom directory or package resources."""
@@ -28,7 +51,7 @@ class I18nService:
                             resource.read_text(encoding="utf-8")
                         )
                     except Exception as e:
-                        print(f"Error loading locale {lang_code}: {e}")
+                        logger.error(f"Error loading locale {lang_code}: {e}")
         except Exception:
             return
 
@@ -44,45 +67,34 @@ class I18nService:
                     with open(file_path, "r", encoding="utf-8") as f:
                         self.translations[lang_code] = json.load(f)
                 except Exception as e:
-                    print(f"Error loading locale {lang_code}: {e}")
+                    logger.error(f"Error loading locale {lang_code}: {e}")
 
-    def get(self, key: str, locale: str | None = None, **kwargs) -> str:
+    def _lookup(self, locale: str, key: str) -> Any:
+        value: Any = self.translations.get(locale, {})
+        for k in key.split("."):
+            if not isinstance(value, dict):
+                return None
+            value = value.get(k)
+        return value
+
+    def get(self, key: str, **kwargs) -> Any:
         """
         Retrieves a translation string.
         Supports nested keys using dot notation (e.g., 'start.welcome').
+        A key missing from the UI locale falls back to English, then to the key itself.
         """
-        if locale is None:
-            locale = self.default_lang
-
-        if locale not in self.translations:
-            # Try default if locale not found, but we might just use default_lang
-            locale = self.default_lang
-        
-        keys = key.split(".")
-        value = self.translations.get(locale, {})
-        
-        for k in keys:
-            if isinstance(value, dict):
-                value = value.get(k)
-            else:
-                value = None
-                break
-        
+        value = self._lookup(self.locale, key)
+        if value is None and self.locale != FALLBACK_LOCALE:
+            value = self._lookup(FALLBACK_LOCALE, key)
         if value is None:
-            # Fallback to default lang
-            if locale != self.default_lang:
-                return self.get(key, locale=self.default_lang, **kwargs)
-            return key  # Return key if not found
-            
+            return key
+
         if isinstance(value, str):
-            kwargs.setdefault("language", settings.LEARNING_LANGUAGE_NAME)
-            kwargs.setdefault("language_lower", settings.LEARNING_LANGUAGE_NAME.lower())
+            kwargs.setdefault("language", self.language_name)
+            kwargs.setdefault("language_lower", self.language_name.lower())
             try:
                 return value.format(**kwargs)
             except KeyError:
                 return value
-                
-        return value
 
-# Singleton instance
-i18n = I18nService()
+        return value

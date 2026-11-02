@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import importlib
 import re
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel, Field
 
-from flashcard.settings import Settings, settings
+if TYPE_CHECKING:
+    from flashcard.language import LanguageConfig
 
 
 class LanguageValidationResult(BaseModel):
@@ -29,8 +30,8 @@ class LanguageValidityChecker(Protocol):
 
 
 class BaseLanguageValidityChecker:
-    def __init__(self, app_settings: Settings = settings) -> None:
-        self.settings = app_settings
+    def __init__(self, language: LanguageConfig | None = None) -> None:
+        self.language = language
 
     def _normalize_text(self, text: str) -> str:
         return " ".join(text.strip().split())
@@ -127,8 +128,8 @@ class ItalianLanguageValidityChecker(LatinScriptLanguageValidityChecker):
 #    Example:
 #      class GermanLanguageValidityChecker(BaseLanguageValidityChecker):
 #          async def validate_expression(self, text: str) -> LanguageValidationResult:
-#              # your validation logic...
-# 2. In your .env/settings config, set LANGUAGE_VALIDATOR to:
+#              # your validation logic; self.language is the instance's LanguageConfig
+# 2. In your .env/settings config, set LANGUAGE_VALIDATOR (required) to:
 #      - Either a registered key (e.g. 'permissive', 'latin', 'italian')
 #      - Or an import path to your custom class:
 #          LANGUAGE_VALIDATOR="my_module.validators:GermanLanguageValidityChecker"
@@ -139,33 +140,33 @@ VALIDATOR_REGISTRY = {
 }
 
 
+def _choices() -> str:
+    return ", ".join(VALIDATOR_REGISTRY) + ", or a custom 'module:ClassName'"
+
+
 def _load_custom_validator(path: str):
     module_path, separator, attr_name = path.partition(":")
     if not separator:
         module_path, separator, attr_name = path.rpartition(".")
     if not module_path or not attr_name:
-        raise ValueError(
-            "Custom LANGUAGE_VALIDATOR must be 'module:ClassName' or "
-            "'module.ClassName'"
-        )
+        raise ValueError(f"Unknown LANGUAGE_VALIDATOR {path!r}; choose {_choices()}")
 
     module = importlib.import_module(module_path)
     return getattr(module, attr_name)
 
 
-def get_language_validator(
-    app_settings: Settings = settings,
-) -> LanguageValidityChecker:
-    configured = getattr(app_settings, "LANGUAGE_VALIDATOR", "auto").strip().lower()
-    if configured == "auto":
-        configured = (
-            "italian"
-            if getattr(app_settings, "LEARNING_LANGUAGE_CODE", "it").lower() == "it"
-            else "latin"
-        )
+def get_language_validator(language: LanguageConfig) -> LanguageValidityChecker:
+    """
+    Each instance names its validator; there is no guess per language, because
+    a wrong guess (e.g. `latin` for Russian) silently rejects every word.
+    Raises ValueError at startup when it is missing or unknown.
+    """
+    configured = (language.validator or "").strip()
+    if not configured or configured.lower() == "auto":
+        raise ValueError(f"LANGUAGE_VALIDATOR is required; choose {_choices()}")
 
-    validator_cls = VALIDATOR_REGISTRY.get(configured)
+    validator_cls = VALIDATOR_REGISTRY.get(configured.lower())
     if validator_cls is None:
-        validator_cls = _load_custom_validator(getattr(app_settings, "LANGUAGE_VALIDATOR", "auto"))
+        validator_cls = _load_custom_validator(configured)
 
-    return validator_cls(app_settings)
+    return validator_cls(language)

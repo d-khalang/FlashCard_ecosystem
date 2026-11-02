@@ -7,7 +7,9 @@ and test prompt construction, client rotation, and response parsing.
 LLMKeyProvider is tested with a mock API key config.
 """
 import asyncio
-from unittest.mock import MagicMock, patch
+import gc
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -89,6 +91,7 @@ class TestLLMServiceMocked:
 
         # Create service without calling __init__ (avoids real key loading)
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         provider = GoogleGenAIProvider(
             name="mock",
             provider="google",
@@ -169,13 +172,13 @@ class TestLLMServiceMocked:
         )
         service, mock_client = self._make_service(parsed_response=mock_card)
 
-        with patch("flashcard.services.llm.llm.settings.LEARNING_LANGUAGE_NAME", "English"):
-            await service.generate_expression_card(
-                raw="walk",
-                level="A2",
-                lang1_code="it",
-                lang1_label="IT",
-            )
+        service.learning_language_name = "English"
+        await service.generate_expression_card(
+            raw="walk",
+            level="A2",
+            lang1_code="it",
+            lang1_label="IT",
+        )
 
         call_args = mock_client.models.generate_content.call_args
         prompt = call_args.kwargs["contents"]
@@ -205,6 +208,7 @@ class TestLLMServiceMocked:
         import itertools
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         mock_a = MagicMock()
         mock_b = MagicMock()
         service.clients = {"a": mock_a, "b": mock_b}
@@ -241,6 +245,7 @@ class TestLLMServiceMocked:
         )
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         notified = False
 
         async def slow_groq(**kwargs):
@@ -269,15 +274,15 @@ class TestLLMServiceMocked:
         service.groq_providers = {"groq": MagicMock()}
         service._generate_groq = slow_groq
         service._generate_google = google
+        service.groq_fallback_delay_seconds = 0.001
 
-        with patch("flashcard.services.llm.llm.GROQ_TIMEOUT_SECONDS", 0.001):
-            result = await service.generate_expression_card(
-                raw="parlare",
-                level="B1",
-                lang1_code="en",
-                lang1_label="🇬🇧 EN",
-                on_fallback=notify,
-            )
+        result = await service.generate_expression_card(
+            raw="parlare",
+            level="B1",
+            lang1_code="en",
+            lang1_label="🇬🇧 EN",
+            on_fallback=notify,
+        )
 
         assert result == mock_card
         assert notified is True
@@ -297,6 +302,7 @@ class TestLLMServiceMocked:
         google_card = groq_card.model_copy(update={"learning_definition": "Google definition"})
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         notified = False
         fallback_started = asyncio.Event()
         keep_google_pending = asyncio.Event()
@@ -357,6 +363,7 @@ class TestLLMServiceMocked:
         google_card = groq_card.model_copy(update={"learning_definition": "Google definition"})
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         keep_groq_pending = asyncio.Event()
 
         async def slow_groq(**kwargs):
@@ -405,6 +412,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         notified = False
 
         async def groq(**kwargs):
@@ -439,6 +447,60 @@ class TestLLMServiceMocked:
         assert result.fallback_triggered is True
         assert notified is True
 
+    @pytest.mark.parametrize("delay", [1.0, 0.01], ids=["cancelled_waiting_for_groq", "cancelled_while_racing"])
+    async def test_caller_timeout_stops_the_provider_tasks(self, delay):
+        """Left running, they cost a paid call and alert the admin when they fail."""
+        from flashcard.services.llm.llm import LLMService
+
+        finished = []
+
+        async def slow_then_fail(**kwargs):
+            await asyncio.sleep(0.2)
+            finished.append(True)
+            raise RuntimeError("provider down")
+
+        service = LLMService.__new__(LLMService)
+        service.groq_providers = {"groq": MagicMock()}
+        service.groq_fallback_delay_seconds = delay
+        service._generate_groq = slow_then_fail
+        service._generate_google = slow_then_fail
+        alerts = []
+        asyncio.get_running_loop().set_exception_handler(lambda _loop, context: alerts.append(context))
+
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(
+                service._generate_with_fallback(contents="prompt", response_schema=ExpressionCard), timeout=0.05)
+
+        names = {task.get_name() for task in asyncio.all_tasks()}
+        assert not names & {"llm-groq", "llm-google"}
+        await asyncio.sleep(0.3)
+        gc.collect()
+        await asyncio.sleep(0)
+        assert finished == [] and alerts == []
+
+    def test_provider_clients_have_a_timeout(self, monkeypatch):
+        """Cancelling cannot stop a call in its thread, so the client's timeout must end it."""
+        from flashcard.services.llm import llm
+
+        keys = MagicMock()
+        keys.get_core_entries.return_value = [
+            SimpleNamespace(name="a", provider="google", api_key="k"),
+            SimpleNamespace(name="b", provider="groq", api_key="k"),
+        ]
+        monkeypatch.setattr(llm, "LLMKeyProvider", lambda _key_file: keys)
+        google_client = MagicMock()
+        groq_client = MagicMock()
+        monkeypatch.setattr(llm.genai, "Client", google_client)
+        monkeypatch.setattr("groq.Groq", groq_client)
+        service = llm.LLMService.__new__(llm.LLMService)
+        service.request_timeout_seconds = 15.0
+
+        service._create_providers(None)
+
+        assert google_client.call_args.kwargs["http_options"].timeout == 15_000  # milliseconds
+        assert groq_client.call_args.kwargs["timeout"] == 15.0
+        assert groq_client.call_args.kwargs["max_retries"] == 0
+
     async def test_groq_failure_after_delay_waits_for_google_success(self):
         from flashcard.services.llm.llm import LLMGenerationResult, LLMService
 
@@ -452,6 +514,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def groq(**kwargs):
             await asyncio.sleep(0.01)
@@ -494,6 +557,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def groq(**kwargs):
             await asyncio.sleep(0.03)
@@ -527,6 +591,7 @@ class TestLLMServiceMocked:
         from flashcard.services.llm.llm import LLMService
 
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def groq(**kwargs):
             await asyncio.sleep(0.01)
@@ -560,6 +625,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def google(**kwargs):
             return LLMGenerationResult(
@@ -598,6 +664,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
 
         async def generate(**kwargs):
             return LLMGenerationResult(
@@ -643,6 +710,7 @@ class TestLLMServiceMocked:
             suggestions=[],
         )
         service = LLMService.__new__(LLMService)
+        service.learning_language_name = "Italian"
         google_cancelled = asyncio.Event()
 
         async def groq(**kwargs):

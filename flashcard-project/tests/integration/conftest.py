@@ -18,7 +18,9 @@ from flashcard.telegram.handlers import (
     user_settings,
     verb,
 )
-from flashcard.telegram.bot import build_bot_dispatcher, build_dispatcher_data
+from flashcard import composition
+from flashcard.settings import get_setting
+from flashcard.telegram.bot import build_bot_dispatcher
 from .helpers import (
     DummyTraceLogger,
     FakeHTTPClient,
@@ -29,6 +31,7 @@ from .helpers import (
     make_cols,
     make_services,
 )
+from tests.helpers import TEST_LANGUAGE
 
 
 @pytest.fixture
@@ -87,7 +90,7 @@ def services(cols, fake_http_client):
 
 
 @pytest.fixture
-def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service, services, trace_logger):
+def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service, cols, fake_http_client, trace_logger):
     for module in [
         user_settings,
         feedback,
@@ -105,25 +108,23 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
         module.router._parent_router = None
 
     bot, session = bot_and_session
-    _, dp = build_bot_dispatcher()
+    _, dp = build_bot_dispatcher("123456:test-token", TEST_LANGUAGE)
     logger_bot, _ = make_bot()
-    dispatcher_data = build_dispatcher_data(
-        cols=services["expression_service"].cols,
-        http_client=services["verb_service"].http_client,
-        logger_bot=logger_bot,
-        verb_service=services["verb_service"],
-        expression_service=services["expression_service"],
-        user_service=services["user_service"],
-        consumption_service=services["consumption_service"],
-        llm_service=llm_service,
-        language_validator=BaseLanguageValidityChecker(),
-    )
+    # The real composition root, with the LLM and validator swapped for test doubles.
+    monkeypatch.setattr(composition, "LLMService", lambda **_: llm_service)
+    monkeypatch.setattr(composition, "get_language_validator", lambda language: BaseLanguageValidityChecker())
+    core = composition.build_core(cols, fake_http_client, get_setting(), TEST_LANGUAGE)
     yield {
         "bot": bot,
         "dp": dp,
         "session": session,
         "logger_bot": logger_bot,
-        "dispatcher_data": dispatcher_data,
+        "dispatcher_data": core.handler_data(logger_bot, admin_id=0),
         "llm_service": llm_service,
-        **services,
+        "cols": cols,  # for tests that seed or inspect the in-memory DB directly
+        "expression_service": core.expression_service,
+        "user_service": core.user_service,
+        "consumption_service": core.consumption_service,
+        "verb_service": core.verb_service,
+        "review_state": core.review_state,
     }

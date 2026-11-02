@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import suppress
+
 from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
@@ -11,8 +13,8 @@ from aiogram.types import (
     InputTextMessageContent,
 )
 
-from flashcard.services.expression import ExpressionService
-from flashcard.services.i18n import i18n
+from flashcard.app.collection import CollectionUseCases, Matches, QueryTooShort, Removed
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback, safe_call
 from flashcard.telegram.ui.factories.inline_remove_callback import InlineRemoveCallback
 from flashcard.utils.logger import get_logger
@@ -20,12 +22,8 @@ from flashcard.utils.logger import get_logger
 logger = get_logger(__name__)
 router = Router()
 
-_MIN_INLINE_QUERY_LENGTH = 2
-_MAX_INLINE_QUERY_LENGTH = 150
-_INLINE_RESULT_LIMIT = 50
 
-
-def _build_initial_remove_markup(expression_id: str) -> InlineKeyboardMarkup:
+def _build_initial_remove_markup(i18n: I18nService, expression_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -41,7 +39,7 @@ def _build_initial_remove_markup(expression_id: str) -> InlineKeyboardMarkup:
     )
 
 
-def _build_confirmation_markup(expression_id: str) -> InlineKeyboardMarkup:
+def _build_confirmation_markup(i18n: I18nService, expression_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -86,46 +84,24 @@ async def _edit_inline_reply_markup(
 @router.inline_query()
 async def handle_inline_remove_query(
     inline_query: InlineQuery,
-    expression_service: ExpressionService,
+    collection_use_cases: CollectionUseCases, i18n: I18nService,
 ):
-    query = (inline_query.query or "").strip()
-    if len(query) < _MIN_INLINE_QUERY_LENGTH:
-        await inline_query.answer(results=[], cache_time=1, is_personal=True)
-        return
-    if len(query) > _MAX_INLINE_QUERY_LENGTH:
-        logger.warning(
-            "Skipping inline remove query for user %s because it exceeds %s characters.",
-            inline_query.from_user.id,
-            _MAX_INLINE_QUERY_LENGTH,
-        )
-        await inline_query.answer(results=[], cache_time=2, is_personal=True)
+    result = await collection_use_cases.search(inline_query.from_user.id, inline_query.query or "")
+    if not isinstance(result, Matches):
+        cache_time = 1 if isinstance(result, QueryTooShort) else 2
+        await inline_query.answer(results=[], cache_time=cache_time, is_personal=True)
         return
 
-    expressions = await expression_service.search_expressions(
-        inline_query.from_user.id,
-        query,
-        limit=_INLINE_RESULT_LIMIT,
-    )
-
-    results: list[InlineQueryResultArticle] = []
-    for expression in expressions:
-        expression_id = str(expression.get("_id", ""))
-        value = expression.get("value")
-
-        if not expression_id or not value:
-            logger.warning(f"Skipping malformed inline remove expression: {expression}")
-            continue
-
-        results.append(
-            InlineQueryResultArticle(
-                id=expression_id,
-                title=value,
-                description=i18n.get("callbacks.inline_remove.result_description"),
-                input_message_content=InputTextMessageContent(message_text=value),
-                reply_markup=_build_initial_remove_markup(expression_id),
-            )
+    results = [
+        InlineQueryResultArticle(
+            id=item.id,
+            title=item.value,
+            description=i18n.get("callbacks.inline_remove.result_description"),
+            input_message_content=InputTextMessageContent(message_text=item.value),
+            reply_markup=_build_initial_remove_markup(i18n, item.id),
         )
-
+        for item in result.items
+    ]
     await inline_query.answer(results=results, cache_time=2, is_personal=True)
 
 
@@ -133,7 +109,7 @@ async def handle_inline_remove_query(
 async def handle_inline_remove_callback(
     callback: CallbackQuery,
     callback_data: InlineRemoveCallback,
-    expression_service: ExpressionService,
+    collection_use_cases: CollectionUseCases, i18n: I18nService,
 ):
     expression_id = callback_data.expression_id
 
@@ -141,7 +117,7 @@ async def handle_inline_remove_callback(
         if callback_data.action == "prompt":
             await _edit_inline_reply_markup(
                 callback,
-                reply_markup=_build_confirmation_markup(expression_id),
+                reply_markup=_build_confirmation_markup(i18n, expression_id),
             )
             await safe_answer_callback(
                 callback,
@@ -153,7 +129,7 @@ async def handle_inline_remove_callback(
         if callback_data.action == "cancel":
             await _edit_inline_reply_markup(
                 callback,
-                reply_markup=_build_initial_remove_markup(expression_id),
+                reply_markup=_build_initial_remove_markup(i18n, expression_id),
             )
             await safe_answer_callback(
                 callback,
@@ -162,13 +138,13 @@ async def handle_inline_remove_callback(
             return
 
         if callback_data.action == "confirm":
-            removed = await expression_service.remove_expression(
-                callback.from_user.id,
-                expression_id,
-            )
-            await _edit_inline_reply_markup(callback, reply_markup=None)
+            result = await collection_use_cases.remove(callback.from_user.id, expression_id)
+            # The removal already happened; clearing the buttons is cosmetic, so a stale
+            # message must not turn the answer into "invalid".
+            with suppress(TelegramBadRequest):
+                await _edit_inline_reply_markup(callback, reply_markup=None)
 
-            if removed:
+            if isinstance(result, Removed):
                 await safe_answer_callback(
                     callback,
                     i18n.get("callbacks.inline_remove.removed"),
@@ -180,13 +156,6 @@ async def handle_inline_remove_callback(
                     show_alert=True,
                 )
             return
-
-        logger.warning(f"Unknown inline remove callback action received: {callback_data.action}")
-        await safe_answer_callback(
-            callback,
-            i18n.get("callbacks.inline_remove.invalid"),
-            show_alert=True,
-        )
     except TelegramBadRequest as exc:
         logger.warning(f"TelegramBadRequest while handling inline remove callback: {exc}")
         await safe_call(

@@ -9,10 +9,13 @@ Covers all ExpressionService methods:
   - add_expressions_bulk: duplicate filtering, case-insensitivity, bulk insert
   - update_expression_sent: timestamp + pending message tracking
 """
+from datetime import datetime, timezone
+
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from bson import ObjectId
 
+from flashcard.schemas.expression import ExpressionStats
 from flashcard.services.expression import ExpressionService
 
 
@@ -32,7 +35,7 @@ def _make_service(expressions=None, users=None):
     mock_cols["expression"].delete_one = AsyncMock()
     mock_cols["users"].find_one = AsyncMock(return_value=users)
     mock_cols["users"].update_one = AsyncMock()
-    return ExpressionService(mock_cols), mock_cols
+    return ExpressionService(expressions=mock_cols["expression"]), mock_cols
 
 
 # ===================================================================
@@ -42,7 +45,7 @@ class TestAddExpression:
     """Tests for adding a single expression."""
 
     async def test_add_new_expression(self):
-        """New expression → inserts doc, updates user, returns True."""
+        """New expression → inserts doc, returns True; users are not this service's data."""
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=None)
 
@@ -59,10 +62,7 @@ class TestAddExpression:
         assert inserted["reps"] == 0
         assert inserted["status"] == "active"
 
-        # Verify user update
-        cols["users"].update_one.assert_called_once()
-        user_set = cols["users"].update_one.call_args[0][1]["$set"]
-        assert user_set["has_pending"] is False
+        cols["users"].update_one.assert_not_called()
 
     async def test_add_duplicate_returns_false(self):
         """Duplicate expression → no insert, returns False."""
@@ -80,26 +80,70 @@ class TestAddExpression:
 # get_all_expressions
 # ===================================================================
 class TestGetAllExpressions:
-    """Tests for retrieving all expressions."""
+    """Each active value once, oldest first; one query for /list and /story."""
 
-    async def test_returns_distinct_values(self):
-        service, cols = _make_service()
-        expected = ["exp1", "exp2"]
-        cols["expression"].distinct = AsyncMock(return_value=expected)
+    def _service(self, *docs):
+        from tests.integration.helpers import make_cols
+        cols = make_cols(expressions=[{"user_id": "999", **doc} for doc in docs])
+        return ExpressionService(expressions=cols["expression"])
 
-        result = await service.get_all_expressions(999)
+    async def test_unique_values_oldest_first(self):
+        service = self._service({"value": "b", "created_at": "2026-01-02T00:00:00Z", "status": "active"},
+                                {"value": "a", "created_at": "2026-01-01T00:00:00Z", "status": "active"},
+                                {"value": "b", "created_at": "2026-01-03T00:00:00Z", "status": "active"})
 
-        assert result == expected
-        cols["expression"].distinct.assert_called_once_with(
-            "value", {"user_id": "999"}
-        )
+        assert await service.get_all_expressions(999) == ["a", "b"]
+
+    async def test_documents_without_status_count_as_active(self):
+        service = self._service({"value": "legacy", "created_at": "2025-12-01T00:00:00Z"},
+                                {"value": "gone", "created_at": "2026-01-01T00:00:00Z", "status": "archived"})
+
+        assert await service.get_all_expressions(999) == ["legacy"]
+
+
+class TestActiveDefinition:
+    """search, remove and review candidates use the same definition of an active card."""
+
+    def _service(self, *docs):
+        from tests.integration.helpers import make_cols
+        cols = make_cols(expressions=[{"_id": ObjectId(), "user_id": "123", "created_at": "2000-01-01T00:00:00Z", **doc}
+                                      for doc in docs])
+        return ExpressionService(expressions=cols["expression"]), cols["expression"]
+
+    async def test_search_finds_a_card_without_status(self):
+        service, _ = self._service({"value": "andare"})
+
+        assert [e.value for e in await service.search_expressions(123, "and")] == ["andare"]
+
+    async def test_remove_deletes_a_card_without_status(self):
+        expression_id = ObjectId()
+        service, expressions = self._service({"_id": expression_id, "value": "andare"})
+
+        assert await service.remove_expression(123, str(expression_id)) is True
+        assert expressions.docs == []
+
+    async def test_null_status_is_active_like_a_missing_one(self):
+        """ACTIVE matches a stored null; reading it must not drop the card."""
+        service, _ = self._service({"value": "andare", "status": None})
+
+        assert [e.value for e in await service.search_expressions(123, "and")] == ["andare"]
+        assert (await service.get_review_candidate(123, "standard")).expression.value == "andare"
+
+    async def test_inactive_card_is_neither_found_removed_nor_reviewed(self):
+        expression_id = ObjectId()
+        service, expressions = self._service({"_id": expression_id, "value": "andare", "status": "archived"})
+
+        assert await service.search_expressions(123, "and") == []
+        assert await service.remove_expression(123, str(expression_id)) is False
+        assert await service.get_review_candidate(123, "standard") is None
+        assert len(expressions.docs) == 1
 
 
 class TestSearchExpressions:
     async def test_empty_query_returns_no_results(self):
         service, cols = _make_service()
 
-        result = await service.search_expressions("123", "   ")
+        result = await service.search_expressions(123, "   ")
 
         assert result == []
         cols["expression"].find.assert_not_called()
@@ -107,15 +151,25 @@ class TestSearchExpressions:
     async def test_returns_capped_active_matches(self):
         service, cols = _make_service()
         docs = [
-            {"_id": ObjectId(), "value": "casa"},
-            {"_id": ObjectId(), "value": "casa mia"},
+            {"_id": ObjectId(), "user_id": "123", "value": "casa"},
+            {"_id": ObjectId(), "user_id": "123", "value": "casa mia"},
         ]
         cols["expression"].find = MagicMock(return_value=_AsyncIterator(docs))
 
-        result = await service.search_expressions("123", "cas", limit=1)
+        result = await service.search_expressions(123, "cas", limit=1)
 
-        assert result == [docs[0]]
+        assert [(e.id, e.value) for e in result] == [(str(docs[0]["_id"]), "casa")]
         cols["expression"].find.assert_called_once()
+
+    async def test_unreadable_card_is_skipped_not_fatal(self):
+        service, cols = _make_service()
+        docs = [{"_id": ObjectId(), "user_id": "123", "value": "casa", "reps": "many"},
+                {"_id": ObjectId(), "user_id": "123", "value": ""},
+                {"_id": "", "user_id": "123", "value": "casa nostra"},
+                {"_id": ObjectId(), "user_id": "123", "value": "casa mia"}]
+        cols["expression"].find = MagicMock(return_value=_AsyncIterator(docs))
+
+        assert [e.value for e in await service.search_expressions(123, "cas")] == ["casa mia"]
 
 
 
@@ -153,7 +207,7 @@ class TestGetReviewCandidate:
         service, cols = _make_service()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([]))
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate(123, "standard")
         assert result is None
 
     async def test_returns_best_candidate_by_priority(self):
@@ -172,28 +226,41 @@ class TestGetReviewCandidate:
             return_value=_AsyncIterator([card_a, card_b])
         )
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate(123, "standard")
 
         assert result is not None
-        assert result["doc"]["value"] == "difficile"
-        assert result["direction"] == "forward"
+        assert result.expression.value == "difficile"
+        assert result.direction == "forward"
 
-    async def test_returns_direction_key(self):
-        """Result dict must include a 'direction' key."""
+    async def test_returns_the_expression_as_a_model(self):
         service, cols = _make_service()
         doc = _make_expression_doc()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate(123, "standard")
 
-        assert "doc" in result
-        assert "direction" in result
+        assert result.expression.id == str(doc["_id"])
+        assert result.expression.created_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    async def test_unreadable_card_is_skipped_not_fatal(self):
+        """One bad card must not stop the user's other reviews."""
+        service, cols = _make_service()
+        bad = _make_expression_doc(value="bad", reps="many")
+        good = _make_expression_doc(value="good")
+        cols["expression"].find = MagicMock(return_value=_AsyncIterator([bad, good]))
+
+        assert (await service.get_review_candidate(123, "standard")).expression.value == "good"
+
+    async def test_null_stats_are_read_as_zero(self):
+        service, cols = _make_service()
+        doc = _make_expression_doc(reps=None, lapses=None, ewma_grade=None)
+        cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
+
+        assert (await service.get_review_candidate(123, "standard")).expression.reps == 0
 
     async def test_dual_mode_can_select_reverse(self):
         """In dual mode, reverse direction can win if its priority is higher."""
-        service, cols = _make_service(
-            users={"user_id": "123", "review_mode": "dual"}
-        )
+        service, cols = _make_service()
 
         # Card with strong forward stats but weak reverse stats
         doc = _make_expression_doc(
@@ -209,53 +276,39 @@ class TestGetReviewCandidate:
         )
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate(123, "dual")
 
         assert result is not None
-        assert result["direction"] == "reverse"
+        assert result.direction == "reverse"
 
     async def test_standard_mode_never_returns_reverse(self):
         """In standard mode, direction should always be 'forward'."""
-        service, cols = _make_service(
-            users={"user_id": "123", "review_mode": "standard"}
-        )
+        service, cols = _make_service()
 
         doc = _make_expression_doc(
             reverse_stats={"reps": 0, "ewma_grade": 0.0, "success_streak": 0, "lapses": 0}
         )
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
-        result = await service.get_review_candidate("123")
+        result = await service.get_review_candidate(123, "standard")
 
-        assert result["direction"] == "forward"
+        assert result.direction == "forward"
 
-    async def test_simulated_reverse_stats_inherits_created_at(self):
-        """In dual mode, if reverse_stats is missing, its simulated stats use doc['created_at']."""
-        service, cols = _make_service(
-            users={"user_id": "123", "review_mode": "dual"}
-        )
-
-        created_time = "2026-06-26T12:00:00Z"
-        doc = _make_expression_doc(
-            created_at=created_time,
-            reverse_stats=None
-        )
+    async def test_never_reviewed_reverse_side_counts_from_creation(self):
+        """In dual mode, a reverse side without stats starts empty and uses the card's created_at."""
+        service, cols = _make_service()
+        doc = _make_expression_doc(created_at="2026-06-26T12:00:00Z", reverse_stats=None)
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([doc]))
 
         from unittest.mock import patch
         with patch("flashcard.services.expression.calculate_priority") as mock_calc:
             mock_calc.return_value = 0.5
-            await service.get_review_candidate("123")
-            
-            assert mock_calc.call_count == 2
-            mock_calc.assert_any_call(doc)
-            
-            args_list = [call[0][0] for call in mock_calc.call_args_list]
-            reverse_arg = [arg for arg in args_list if arg is not doc][0]
-            
-            assert reverse_arg["created_at"] == created_time
-            assert reverse_arg["reps"] == 0
-            assert reverse_arg["ewma_grade"] == 0.0
+            await service.get_review_candidate(123, "dual")
+
+        assert mock_calc.call_count == 2
+        reverse_stats, created_at = mock_calc.call_args_list[1].args
+        assert reverse_stats == ExpressionStats()
+        assert created_at == datetime(2026, 6, 26, 12, tzinfo=timezone.utc)
 
 
 # ===================================================================
@@ -264,26 +317,25 @@ class TestGetReviewCandidate:
 class TestGradeExpression:
     """Tests for grading a flashcard after review."""
 
-    async def test_invalid_grade_returns_none(self):
-        """Grade outside 0-5 should be rejected."""
+    @pytest.mark.parametrize("grade, direction", [(6, "forward"), (-1, "forward"), (2.5, "forward"),
+                                                   (True, "forward"), (3, "fwd"), (3, "sideways")])
+    async def test_invalid_grade_or_direction_raises_without_writing(self, grade, direction):
+        """The owner enforces the grading rules; None means only "card not found"."""
         service, cols = _make_service()
 
-        result = await service.grade_expression("123", str(ObjectId()), grade=6)
-        assert result is None
+        with pytest.raises(ValueError):
+            await service.grade_expression(123, str(ObjectId()), grade=grade, direction=direction)
 
-        result = await service.grade_expression("123", str(ObjectId()), grade=-1)
-        assert result is None
-
-        # No DB writes should happen
+        cols["expression"].find_one.assert_not_called()
         cols["expression"].update_one.assert_not_called()
 
-    async def test_missing_expression_returns_none(self):
-        """Expression not found in DB → returns None."""
+    async def test_missing_expression_returns_false(self):
+        """Expression not found in DB → False."""
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=None)
 
-        result = await service.grade_expression("123", str(ObjectId()), grade=4)
-        assert result is None
+        result = await service.grade_expression(123, str(ObjectId()), grade=4)
+        assert result is False
         cols["expression"].update_one.assert_not_called()
 
     async def test_forward_grade_updates_root_stats(self):
@@ -293,10 +345,10 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         result = await service.grade_expression(
-            "123", str(doc["_id"]), grade=4, direction="forward"
+            123, str(doc["_id"]), grade=4, direction="forward"
         )
 
-        assert result is not None
+        assert result is True
         # Check expression was updated
         cols["expression"].update_one.assert_called_once()
         update_args = cols["expression"].update_one.call_args[0]
@@ -317,14 +369,16 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         await service.grade_expression(
-            "123", str(doc["_id"]), grade=5, direction="reverse"
+            123, str(doc["_id"]), grade=5, direction="reverse"
         )
 
         update_args = cols["expression"].update_one.call_args[0]
         set_dict = update_args[1]["$set"]
 
-        # Should use dot notation for existing reverse_stats
-        assert any(k.startswith("reverse_stats.") for k in set_dict)
+        # The whole reverse_stats object, computed from the stored one
+        assert set_dict["reverse_stats"]["reps"] == 3
+        assert set_dict["reverse_stats"]["success_streak"] == 3
+        assert "reps" not in set_dict  # forward stats untouched
 
     async def test_reverse_grade_creates_reverse_stats_if_none(self):
         """If reverse_stats is None, should set the whole object."""
@@ -333,7 +387,7 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         await service.grade_expression(
-            "123", str(doc["_id"]), grade=3, direction="reverse"
+            123, str(doc["_id"]), grade=3, direction="reverse"
         )
 
         update_args = cols["expression"].update_one.call_args[0]
@@ -343,18 +397,15 @@ class TestGradeExpression:
         assert "reverse_stats" in set_dict
         assert isinstance(set_dict["reverse_stats"], dict)
 
-    async def test_grade_updates_user_has_pending(self):
-        """After grading, user's has_pending should be set to False."""
+    async def test_grade_does_not_write_users(self):
+        """Review state (has_pending, last_reviewed_at) is ReviewStateStore's to write."""
         doc = _make_expression_doc()
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
-        await service.grade_expression("123", str(doc["_id"]), grade=4)
+        await service.grade_expression(123, str(doc["_id"]), grade=4)
 
-        cols["users"].update_one.assert_called_once()
-        user_update = cols["users"].update_one.call_args[0][1]["$set"]
-        assert user_update["has_pending"] is False
-        assert "last_reviewed_at" in user_update
+        cols["users"].update_one.assert_not_called()
 
 
 # ===================================================================
@@ -365,7 +416,7 @@ class TestAddExpressionsBulk:
 
     async def test_empty_list_returns_empty(self):
         service, cols = _make_service()
-        result = await service.add_expressions_bulk("123", [])
+        result = await service.add_expressions_bulk(123, [])
         assert result == []
         cols["expression"].insert_many.assert_not_called()
 
@@ -374,7 +425,7 @@ class TestAddExpressionsBulk:
         service, cols = _make_service()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([]))
 
-        result = await service.add_expressions_bulk("123", ["casa", "gatto", "cane"])
+        result = await service.add_expressions_bulk(123, ["casa", "gatto", "cane"])
 
         assert len(result) == 3
         cols["expression"].insert_many.assert_called_once()
@@ -389,7 +440,7 @@ class TestAddExpressionsBulk:
             return_value=_AsyncIterator([{"value": "casa"}])
         )
 
-        result = await service.add_expressions_bulk("123", ["casa", "gatto"])
+        result = await service.add_expressions_bulk(123, ["casa", "gatto"])
 
         assert result == ["gatto"]
         inserted = cols["expression"].insert_many.call_args[0][0]
@@ -403,22 +454,18 @@ class TestAddExpressionsBulk:
             return_value=_AsyncIterator([{"value": "casa"}, {"value": "gatto"}])
         )
 
-        result = await service.add_expressions_bulk("123", ["casa", "gatto"])
+        result = await service.add_expressions_bulk(123, ["casa", "gatto"])
 
         assert result == []
         cols["expression"].insert_many.assert_not_called()
 
-    async def test_updates_user_after_bulk_insert(self):
-        """User's last_push_at should be updated after successful bulk insert."""
+    async def test_bulk_insert_does_not_write_users(self):
         service, cols = _make_service()
         cols["expression"].find = MagicMock(return_value=_AsyncIterator([]))
 
-        await service.add_expressions_bulk("123", ["nuova"])
+        await service.add_expressions_bulk(123, ["nuova"])
 
-        cols["users"].update_one.assert_called_once()
-        user_update = cols["users"].update_one.call_args[0][1]["$set"]
-        assert "last_push_at" in user_update
-        assert user_update["has_pending"] is False
+        cols["users"].update_one.assert_not_called()
 
     async def test_case_insensitive_duplicate_detection(self):
         """'Casa' in DB should prevent 'casa' from being re-inserted."""
@@ -427,7 +474,7 @@ class TestAddExpressionsBulk:
             return_value=_AsyncIterator([{"value": "Casa"}])
         )
 
-        result = await service.add_expressions_bulk("123", ["casa", "gatto"])
+        result = await service.add_expressions_bulk(123, ["casa", "gatto"])
 
         assert "casa" not in result
         assert "gatto" in result
@@ -457,13 +504,28 @@ class TestUpdateExpressionSent:
         assert "last_sent_at" in set_dict
         assert "last_activity_at" in set_dict
         assert set_dict["pending_message_id"] == 42
+        assert "last_card" not in set_dict
+
+    async def test_stores_the_given_card_in_the_same_write(self):
+        from flashcard.schemas.expression import CardSettings, ExpressionCard, StoredCard
+        service, cols = _make_service()
+        card = ExpressionCard(success=True, norm="andare", learning_definition="muoversi", translations=[],
+                              learning_example="Vado.", note=None, suggestions=[])
+        stored = StoredCard(card=card, settings=CardSettings(level="B1", primary_language="en"),
+                            generated_at="2026-10-01T10:00:00Z")
+
+        await service.update_expression_sent(str(ObjectId()), 42, last_card=stored)
+
+        cols["expression"].update_one.assert_called_once()
+        saved = cols["expression"].update_one.call_args[0][1]["$set"]["last_card"]
+        assert StoredCard.model_validate(saved) == stored
 
 
 class TestRemoveExpression:
     async def test_invalid_object_id_returns_false(self):
         service, cols = _make_service()
 
-        result = await service.remove_expression("123", "not-an-object-id")
+        result = await service.remove_expression(123, "not-an-object-id")
 
         assert result is False
         cols["expression"].delete_one.assert_not_called()
@@ -475,7 +537,7 @@ class TestRemoveExpression:
         cols["expression"].delete_one = AsyncMock(return_value=delete_result)
         expression_id = str(ObjectId())
 
-        result = await service.remove_expression("123", expression_id)
+        result = await service.remove_expression(123, expression_id)
 
         assert result is True
         cols["expression"].delete_one.assert_called_once()
@@ -486,6 +548,6 @@ class TestRemoveExpression:
         delete_result.deleted_count = 0
         cols["expression"].delete_one = AsyncMock(return_value=delete_result)
 
-        result = await service.remove_expression("123", str(ObjectId()))
+        result = await service.remove_expression(123, str(ObjectId()))
 
         assert result is False

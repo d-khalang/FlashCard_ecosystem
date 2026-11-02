@@ -15,7 +15,7 @@ from flashcard.services.i18n import I18nService
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def _create_i18n_service(translations: dict) -> I18nService:
+def _create_i18n_service(translations: dict, locale: str = "en", language_name: str = "Italian") -> I18nService:
     """
     Create an I18nService with temp JSON locale files.
 
@@ -28,7 +28,7 @@ def _create_i18n_service(translations: dict) -> I18nService:
         filepath = os.path.join(tmpdir, f"{lang_code}.json")
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f)
-    return I18nService(locales_dir=tmpdir)
+    return I18nService(locale=locale, language_name=language_name, locales_dir=tmpdir)
 
 
 # ===================================================================
@@ -62,34 +62,37 @@ class TestBasicGet:
 # ===================================================================
 class TestLocaleFallback:
 
-    def test_unsupported_locale_falls_back_to_default(self):
-        svc = _create_i18n_service({"en": {"greeting": "Hello"}})
-        result = svc.get("greeting", locale="xx")
-        assert result == "Hello"
+    def test_unsupported_locale_falls_back_to_english(self):
+        svc = _create_i18n_service({"en": {"greeting": "Hello"}}, locale="xx")
+        assert svc.get("greeting") == "Hello"
 
     def test_missing_key_in_locale_falls_back_to_en(self):
         svc = _create_i18n_service({
             "en": {"greeting": "Hello", "farewell": "Goodbye"},
             "it": {"greeting": "Ciao"},  # no "farewell" in Italian
-        })
-        # Italian has no "farewell" → falls back to English
-        assert svc.get("farewell", locale="it") == "Goodbye"
+        }, locale="it")
+        # Italian has no "farewell" → falls back to English, not the raw key
+        assert svc.get("farewell") == "Goodbye"
 
     def test_key_found_in_locale_does_not_fallback(self):
         svc = _create_i18n_service({
             "en": {"greeting": "Hello"},
             "it": {"greeting": "Ciao"},
-        })
-        assert svc.get("greeting", locale="it") == "Ciao"
-
-    def test_default_locale_uses_ui_locale_setting(self, monkeypatch):
-        monkeypatch.setattr("flashcard.services.i18n.settings.UI_LOCALE", "it")
-        svc = _create_i18n_service({
-            "en": {"greeting": "Hello"},
-            "it": {"greeting": "Ciao"},
-        })
-
+        }, locale="it")
         assert svc.get("greeting") == "Ciao"
+
+    def test_key_missing_everywhere_returns_key(self):
+        svc = _create_i18n_service({"en": {}, "it": {}}, locale="it")
+        assert svc.get("nowhere") == "nowhere"
+
+    def test_for_language_uses_the_instance_ui_locale_and_language(self):
+        from dataclasses import replace
+        from tests.helpers import TEST_LANGUAGE
+
+        svc = I18nService.for_language(replace(TEST_LANGUAGE, ui_locale="it", name="Latin"))
+
+        assert svc.locale == "it"
+        assert svc.language_name == "Latin"
 
 
 # ===================================================================
@@ -110,6 +113,10 @@ class TestStringFormatting:
         result = svc.get("stats", count=50, days=7)
         assert result == "50 cards in 7 days"
 
+    def test_language_placeholders_come_from_the_instance(self):
+        svc = _create_i18n_service({"en": {"x": "Learn {language} ({language_lower})"}}, language_name="Latin")
+        assert svc.get("x") == "Learn Latin (latin)"
+
     def test_missing_kwarg_returns_unformatted(self):
         """If a kwarg is missing, return the raw template (don't crash)."""
         svc = _create_i18n_service({
@@ -126,11 +133,11 @@ class TestEdgeCases:
 
     def test_empty_locales_dir(self):
         tmpdir = tempfile.mkdtemp()  # empty dir
-        svc = I18nService(locales_dir=tmpdir)
+        svc = I18nService(locale="en", language_name="Italian", locales_dir=tmpdir)
         assert svc.get("anything") == "anything"
 
     def test_nonexistent_locales_dir(self):
-        svc = I18nService(locales_dir="/nonexistent/path")
+        svc = I18nService(locale="en", language_name="Italian", locales_dir="/nonexistent/path")
         assert svc.get("anything") == "anything"
 
     def test_non_string_value_returned_as_is(self):

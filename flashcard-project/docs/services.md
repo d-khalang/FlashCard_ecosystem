@@ -15,7 +15,10 @@ graph TD
     
     ES --> DB[(MongoDB)]
     US --> DB
-    US --> CS[ConsumptionService]
+    H --> QP[QuotaPolicy]
+    QP --> CS[ConsumptionService]
+    H --> RS[ReviewStateStore]
+    RS --> DB
     VS --> DB
     VS --> SCRAPER[WR Scraper API]
     LLM --> GEMINI[Google Gemini API]
@@ -27,7 +30,9 @@ graph TD
     ALG --> GRD[grading.py]
 ```
 
-All services are instantiated in [`bot.py`](../src/flashcard/telegram/bot.py) and injected into handlers via aiogram's DI system. See [Architecture — Dependency Injection](./architecture.md#dependency-injection).
+All services are built by `build_core` in [`composition.py`](../src/flashcard/composition.py), the only
+place that hands out collections: each service receives only its own collection, never the
+whole `cols` dict (guarded by `tests/unit/test_data_ownership.py`). Handlers do not receive services: they call use cases (`flashcard/app/`), which `build_core` wires to the services. See [Architecture — Dependency Injection](./architecture.md#dependency-injection).
 
 ---
 
@@ -35,19 +40,20 @@ All services are instantiated in [`bot.py`](../src/flashcard/telegram/bot.py) an
 
 **File:** [`services/expression.py`](../src/flashcard/services/expression.py)  
 **Collection:** `expressions`  
-**Dependencies:** `cols` (MongoDB collections dict)
+**Dependencies:** `expressions` (the expression collection only)
 
-Manages flashcard CRUD and the review candidate selection algorithm.
+Manages flashcard CRUD and the review candidate selection algorithm. Every read and remove
+uses one definition of an active card, `ACTIVE`: `status` is `"active"` or missing.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `add_expression` | `(user_id, value) → bool` | Adds expression if not duplicate (case-insensitive). Returns `True` if inserted. Also updates user's `last_push_at` and `has_pending`. |
+| `add_expression` | `(user_id, value) → bool` | Adds expression if not duplicate (case-insensitive). Returns `True` if inserted. Never writes `users`. |
 | `add_expressions_bulk` | `(user_id, expressions) → list[str]` | Bulk insert, skipping duplicates. Returns list of actually inserted values. |
-| `get_all_expressions` | `(user_id, sort_by_time=False) → list[str]` | Returns all user expressions. Optional chronological sort. |
-| `get_review_candidate` | `(user_id) → dict \| None` | Selects the highest-priority card for review using the SRS algorithm. Filters by 12-hour cooldown. Returns `{doc, direction}`. |
+| `get_all_expressions` | `(user_id) → list[str]` | The user's active expressions, each value once, oldest first. |
+| `search_expressions` | `(user_id, query, limit=50) → list[Expression]` | Active cards whose value contains the query (case-insensitive). |
+| `get_review_candidate` | `(user_id, review_mode) → ReviewCandidate \| None` | Selects the highest-priority card for review using the SRS algorithm. Filters by 12-hour cooldown. The caller passes the user's `review_mode`. Returns the `Expression` and the `direction`. |
 | `update_expression_sent` | `(expression_id, message_id)` | Marks expression as sent with the Telegram message ID. |
-| `update_user_last_push` | `(user_id)` | Updates user's `last_push_at` timestamp. |
-| `grade_expression` | `(user_id, expression_id, grade, direction="forward")` | Processes a grade (0–5) using the SRS algorithm and updates stats. |
+| `grade_expression` | `(user_id, expression_id, grade, direction="forward") → bool` | Processes a grade (0–5) using the SRS algorithm and updates the graded direction's stats only. Raises `ValueError` for a bad grade or direction; `False` when the card is not found. |
 
 ### Review Candidate Selection
 
@@ -57,24 +63,35 @@ The `get_review_candidate` method implements the core spaced repetition logic:
 2. **Priority scoring** — Each candidate gets a priority score via `calculate_priority()`.
 3. **Direction selection** — In `"dual"` review mode, both forward and reverse directions are scored. The highest overall priority wins.
 
+Reads return `Expression` (`schemas/expression.py`): the stored document with its `id`.
+Null stat counters read as 0, an unreadable stored card (`last_card`) is dropped, and a
+document that still cannot be read is logged and skipped, so one bad card never blocks a
+user's other cards.
+
 ---
 
 ## UserService
 
 **File:** [`services/user.py`](../src/flashcard/services/user.py)  
 **Collection:** `users`  
-**Dependencies:** `cols`, `consumption_service` ([`ConsumptionService`](../src/flashcard/services/consumption.py))
+**Dependencies:** `users` (the users collection). Quota (limits, trial, own key) lives in [`app/quota.py`](../src/flashcard/app/quota.py) (`QuotaPolicy`).
 
-Manages user profiles and settings.
+Manages user profiles and settings. The only service that creates user documents.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `get_user` | `(user_id) → UserDB` | Returns full user document. Creates default if not found. |
-| `get_user_status` | `(user_id) → bool` | Returns `True` if user is active. |
-| `toggle_active_status` | `(user_id) → bool` | Toggles active/inactive. Returns new status. |
-| `update_user_last_push` | `(user_id)` | Updates `last_push_at` timestamp and sets `has_pending=True`. |
-| `update_setting` | `(user_id, field, value)` | Updates any single field in the user document (used by settings FSM). |
+| `record_seen` | `(user_id, username)` | Called by the trace middleware before every handler. Creates the user on first contact (`created_at`, the trial start) and updates `last_seen_at` and `username`. The only upsert on `users`. |
+| `get_user` | `(user_id) → UserDB` | Returns the user document, or unsaved defaults if not found. |
+| `active_users_reviewed_before` | `(cutoff, *, exclude_pending, on_unreadable) → list[UserDB]` | The scheduler's prefilter. Unreadable documents go to `on_unreadable` and are skipped. |
+| `active_users_possibly_paused` | `(on_unreadable) → list[UserDB]` | Migration only: users the shadow compare reads. |
+| `set_active` | `(user_id, active)` | Pauses (`False`) or resumes (`True`) scheduled reviews. Idempotent. |
+| `set_target_level` / `set_review_interval` / `set_primary_language` / `set_secondary_language` / `set_review_mode` | `(user_id, value)` | One setter per setting, all idempotent single `$set`s. Each enforces the allowed values (rules in `schemas/user.py`) and raises `ValueError`; there is no generic field writer. |
 | `advance_onboarding` | `(user_id, current_step) → bool` | Atomically advances user's onboarding step if it matches `current_step`. |
+| `backfill_created_at` | `(user_id, created_at) → bool` | Migration only: sets a missing `created_at`, never overwrites. |
+
+Only `UserService`, `ConsumptionService` and `ReviewStateStore` read or write `users`
+(guarded by `tests/unit/test_data_ownership.py`; the one-off migrations also read it).
+Other code asks an owner, e.g. the review use case passes `review_mode` to `ExpressionService`.
 
 ### UserDB Schema
 
@@ -89,12 +106,35 @@ Defined in [`schemas/user.py`](../src/flashcard/schemas/user.py):
 | `review_mode` | `str` | `"standard"` | `"standard"` or `"dual"` |
 | `review_interval_minutes` | `int` | `30` | Minutes between review batches |
 | `is_active` | `bool` | `True` | Whether scheduler sends reviews |
-| `has_pending` | `bool` | `False` | Whether user has pending reviews |
+| `has_pending` | `bool` | `False` | Legacy pause flag; replaced by `current_review` + `last_seen_at` (review-state migration) |
+| `current_review` | `CurrentReview?` | `None` | Delivered card still waiting for a grade (`expression_id`, `direction`, `message_id`, `sent_at`) |
 | `onboarding_step` | `int` | `0` | Tracks user's progress through contextual onboarding tips |
-| `last_push_at` | `str?` | `None` | ISO timestamp of last push |
-| `last_reviewed_at` | `str?` | `None` | ISO timestamp of last review |
+| `created_at` | `datetime?` | `None` | First contact (UTC); the trial start |
+| `last_seen_at` | `datetime?` | `None` | The user's last interaction (UTC) |
+| `last_push_at` | `datetime?` | `None` | Legacy, no longer written or read |
+| `last_reviewed_at` | `datetime?` | `None` | Last graded review (UTC; starts the review interval) |
 | `api_config` | `UserAPIConfig?` | `None` | Custom LLM provider/model/key config |
 | `consumption` | `UserConsumption` | `{...}` | Nested usage counters (`cards_generated`, etc.) with daily reset |
+
+---
+
+## ReviewStateStore
+
+**File:** [`services/review_state.py`](../src/flashcard/services/review_state.py)
+**Collection:** `users` (review-state fields)
+**Dependencies:** `users` (the users collection)
+
+Sole writer of the user's review state. Never creates users. See the migration plan in
+[bot-architecture-refactor.md](../../docs/bot-architecture-refactor.md).
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `record_sent` | `(user_id, expression_id, direction, message_id)` | Sets `current_review`; a newer card replaces it. |
+| `record_graded` | `(user_id, expression_id, direction)` | Clears `current_review` if the grade is for it. |
+| `record_removed` | `(user_id, expression_id)` | Clears `current_review` if that card was removed. |
+| `record_reviewed` | `(user_id)` | On grade: sets `last_reviewed_at` and clears the legacy `has_pending`. |
+| `mark_pending` / `clear_pending` | `(user_id)` | Legacy `has_pending` writes (send / save, import, remove). |
+| `backfill_from_legacy` | `(user_id, expression_id, message_id, sent_at) → bool` | Migration only: sets `current_review` from legacy fields, never overwrites. |
 
 ---
 
@@ -102,13 +142,14 @@ Defined in [`schemas/user.py`](../src/flashcard/schemas/user.py):
 
 **File:** [`services/consumption.py`](../src/flashcard/services/consumption.py)
 **Collection:** `users` (subdocument `consumption`)
-**Dependencies:** `cols`
+**Dependencies:** `users` (the users collection)
 
 Tracks resource usage (LLM tokens, API calls) with lazy daily resets.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `increment` | `(user_id, metric, uses_own_key=False)` | Increments a daily counter. Auto-resets if day changed. |
+| `resolve_consumption` | `(consumption) → UserConsumption` | Pure, no DB call: today's counters, or zeroed ones if the stored date is stale. The single source of the daily reset; `QuotaPolicy.check` uses it. |
 | `get_consumption` | `(user_id) → UserConsumption` | Returns current usage stats. Auto-resets if stale. |
 
 ### Metrics
@@ -178,7 +219,7 @@ Trace lifecycle finalization is centralized in [`utils/tracing.py`](../src/flash
 
 **File:** [`services/verb.py`](../src/flashcard/services/verb.py)  
 **Collections:** `conjugation`  
-**Dependencies:** `cols`, `http_client` (httpx)
+**Dependencies:** `conjugations` (the conjugation cache collection), `http_client` (httpx)
 
 Handles verb conjugation lookup with DB caching.
 
@@ -189,7 +230,7 @@ Handles verb conjugation lookup with DB caching.
 | `get_verb_data` | `(verb) → ConjugationResponse?` | Orchestrates: check DB → check API → cache to DB. |
 | `get_verb_from_db` | `(verb) → dict?` | Direct DB lookup. |
 | `get_verb_from_api` | `(verb) → ConjugationResponse?` | Calls WR Scraper API. |
-| `get_verb_keyboard` | `(data) → InlineKeyboardMarkup` | Builds tense selection keyboard. |
+| `get_verb_keyboard` | `(i18n, data) → InlineKeyboardMarkup` | Builds tense selection keyboard. |
 
 ### Lookup Strategy
 
@@ -209,7 +250,10 @@ graph LR
 **File:** [`services/i18n.py`](../src/flashcard/services/i18n.py)  
 **Resources:** [`resources/locales/en.json`](../src/flashcard/resources/locales/en.json)
 
-Manages bot UI strings with dot-notation key access and variable interpolation.
+Manages bot UI strings with dot-notation key access and variable interpolation. One instance per
+runtime, built by the composition root from `LanguageConfig` (`ui_locale`, `name`); handlers receive
+it as `i18n: I18nService`, keyboards and UI helpers take it as their first argument. A key missing
+from the UI locale falls back to English, then to the key itself.
 
 ```python
 # Usage examples
@@ -231,7 +275,7 @@ i18n.get("callbacks.grade.rated", grade="3")           # With formatting
 
 **File:** [`services/algorithm/priority.py`](../src/flashcard/services/algorithm/priority.py)
 
-The `calculate_priority(stats)` function scores each card for review urgency:
+The `calculate_priority(stats, created_at)` function scores one direction (`ExpressionStats`) for review urgency; recency counts from its last review, else from `created_at`:
 
 ```
 Priority = 0.40 × Recency + 0.35 × Difficulty + 0.10 × Stability 
@@ -251,7 +295,7 @@ Priority = 0.40 × Recency + 0.35 × Difficulty + 0.10 × Stability
 
 **File:** [`services/algorithm/grading.py`](../src/flashcard/services/algorithm/grading.py)
 
-The `calculate_new_stats(stats, grade, is_reverse=False)` function updates SRS stats after a grade:
+The `calculate_new_stats(stats, grade) → ExpressionStats` function returns one direction's stats after a grade (reviewed now); the service stores forward stats at the root (`last_interaction_at`) and reverse ones in `reverse_stats`:
 
 - **EWMA grade:** `α × grade + (1-α) × previous` where α = 0.30
 - **Success:** grade ≥ 3 → increment reps, extend streak

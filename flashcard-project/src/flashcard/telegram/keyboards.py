@@ -5,17 +5,17 @@ from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.schemas.conjugations import ConjugationResponse
-from flashcard.services.i18n import i18n
+from flashcard.services.i18n import I18nService
 from flashcard.schemas.languages import get_language_flag, get_language_name
 
-def expression_action_kb(norm: str) -> InlineKeyboardMarkup:
+def expression_action_kb(i18n: I18nService, norm: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text=i18n.get("messages.buttons.save"), callback_data=f"save:{norm}")
     builder.button(text=i18n.get("messages.buttons.regenerate"), callback_data=f"regen:{norm}")
     return builder.as_markup()
 
 
-def get_verb_keyboard(data: ConjugationResponse) -> InlineKeyboardMarkup:
+def get_verb_keyboard(i18n: I18nService, data: ConjugationResponse) -> InlineKeyboardMarkup:
     verb = data.queried
     url = data.url
     
@@ -64,7 +64,7 @@ def get_verb_keyboard(data: ConjugationResponse) -> InlineKeyboardMarkup:
     builder.button(text="📣 IMPERATIVO - Presente", callback_data=VerbCallback(mood="imperativo", tense="presente", verb=verb))
 
     # --- URL SECTION ---
-    builder.button(text="📖 Tabella completa sul web", url=url)
+    builder.button(text=i18n.get("messages.buttons.verb_web_table"), url=url)
 
     # 2. Define the Grid Layout
     builder.adjust(
@@ -82,7 +82,7 @@ def get_verb_keyboard(data: ConjugationResponse) -> InlineKeyboardMarkup:
 
     return builder.as_markup()
 
-def get_review_keyboard(expression_id: str, direction: str = "forward") -> InlineKeyboardMarkup:
+def get_review_keyboard(i18n: I18nService, expression_id: str, direction: str = "forward") -> InlineKeyboardMarkup:
     # Let's use 'fwd' and 'rev'.
     
     dir_code = "rev" if direction == "reverse" else "fwd"
@@ -102,7 +102,7 @@ def get_review_keyboard(expression_id: str, direction: str = "forward") -> Inlin
     builder.adjust(1, 4, 1)
     return builder.as_markup()
 
-def get_reply_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
+def get_reply_settings_keyboard(i18n: I18nService, is_active: bool) -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     
     # Toggle button
@@ -123,7 +123,10 @@ def get_reply_settings_keyboard(is_active: bool) -> ReplyKeyboardMarkup:
 
 from flashcard.schemas.user import UserDB
 
-def get_main_settings_keyboard(user_data: UserDB = None) -> InlineKeyboardMarkup:
+def review_mode_label(i18n: I18nService, mode: str) -> str:
+    return i18n.get("commands.settings.mode_dual" if mode == "dual" else "commands.settings.mode_standard")
+
+def get_main_settings_keyboard(i18n: I18nService, user_data: UserDB = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     # 🌍 Language & Level
@@ -132,15 +135,11 @@ def get_main_settings_keyboard(user_data: UserDB = None) -> InlineKeyboardMarkup
     # 🔔 Schedule/Interval
     builder.button(text=i18n.get("commands.settings.menu_options.interval"), callback_data=SettingsCallback(action="nav", section="interval").pack())
     
-    # 🔄 Review Mode (Standard/Dual)
-    mode = "Standard"
-    if user_data:
-        mode = user_data.review_mode.capitalize()
-        if mode == "Dual": mode = "Dual 🔄" 
-        else: mode = "Standard ➡️"
-        
-    # We use a toggle action effectively
-    builder.button(text=f"Mode: {mode}", callback_data=SettingsCallback(action="select", section="review_mode", value="toggle").pack())
+    # 🔄 Review Mode (Standard/Dual): shows the current mode, the callback names the other one
+    current = user_data.review_mode if user_data else "standard"
+    target = "dual" if current == "standard" else "standard"
+    builder.button(text=i18n.get("commands.settings.menu_options.review_mode", mode=review_mode_label(i18n, current)),
+                   callback_data=SettingsCallback(action="select", section="review_mode", value=target).pack())
 
     # 🔑 API Config
     builder.button(text=i18n.get("commands.settings.menu_options.api"), callback_data=SettingsCallback(action="nav", section="api").pack())
@@ -148,7 +147,7 @@ def get_main_settings_keyboard(user_data: UserDB = None) -> InlineKeyboardMarkup
     builder.adjust(2, 1, 1) # Language|Interval, Mode, API
     return builder.as_markup()
 
-def get_language_settings_keyboard(current_data: UserDB) -> InlineKeyboardMarkup:
+def get_language_settings_keyboard(i18n: I18nService, current_data: UserDB) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     # Get Current Settings
@@ -167,7 +166,7 @@ def get_language_settings_keyboard(current_data: UserDB) -> InlineKeyboardMarkup
     )
     
     # 2. Secondary Language (Can be None)
-    if curr_s and curr_s.lower() != "none":
+    if curr_s:
         flag_s = get_language_flag(curr_s)
     else:
         flag_s = "⚪" # Placeholder for None
@@ -195,7 +194,7 @@ def get_language_settings_keyboard(current_data: UserDB) -> InlineKeyboardMarkup
     builder.adjust(1)
     return builder.as_markup()
 
-def get_level_selection_keyboard(current_level: str = "A2") -> InlineKeyboardMarkup:
+def get_level_selection_keyboard(i18n: I18nService, current_level: str = "A2") -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     levels = ["A1", "A2", "B1", "B2", "C1", "C2"]
     
@@ -214,7 +213,7 @@ def get_level_selection_keyboard(current_level: str = "A2") -> InlineKeyboardMar
     builder.adjust(3, 3, 1)
     return builder.as_markup()
 
-def get_interval_settings_keyboard(current_minutes: int = 30) -> InlineKeyboardMarkup:
+def get_interval_settings_keyboard(i18n: I18nService, current_minutes: int = 30) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     options = [30, 60, 90, 120]

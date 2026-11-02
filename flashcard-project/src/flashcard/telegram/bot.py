@@ -1,17 +1,16 @@
 import asyncio
 import contextlib
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from typing import Optional
 import socket
-import aiohttp
 from aiogram import Bot, Dispatcher
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.utils.chat_action import ChatActionMiddleware
-from fastapi import FastAPI
 
-from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
-from flashcard.services.http_client import close_http_client_on_client, init_and_get_http_client
-from flashcard.services.llm.llm import LLMService
-from flashcard.settings import settings
+from flashcard.composition import Core, build_core, open_resources
+from flashcard.language import LanguageConfig
 from flashcard.telegram.handlers import (
     user_settings, 
     feedback, 
@@ -28,12 +27,7 @@ from flashcard.telegram.handlers import (
 )
 from flashcard.telegram.middlewares.trace_middleware import TraceMiddleware
 from flashcard.telegram.middlewares.timeout_middleware import HandlerTimeoutMiddleware
-from flashcard.services.expression import ExpressionService
-from flashcard.services.verb import VerbService
-from flashcard.services.user import UserService
-from flashcard.services.consumption import ConsumptionService
 from flashcard.services.trace_logger import get_trace_logger
-from flashcard.services.language_validation import get_language_validator
 from flashcard.utils.asyncio_errors import install_asyncio_exception_handler
 
 def _build_ipv4_session() -> "AiohttpSession":
@@ -56,9 +50,9 @@ def _build_ipv4_session() -> "AiohttpSession":
     return session
 
 
-def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
+def build_bot_dispatcher(bot_token: str, language: LanguageConfig) -> tuple[Bot, Dispatcher]:
     bot = Bot(
-        token=settings.BOT_TOKEN,
+        token=bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=_build_ipv4_session(),
     )
@@ -85,7 +79,7 @@ def build_bot_dispatcher() -> tuple[Bot, Dispatcher]:
     # 3. Domain Features
     dp.include_router(start.router)      # /start, /help
     dp.include_router(review.router)     # /get + grade callback
-    if getattr(settings, "ENABLE_CONJUGATION", True):
+    if language.conjugation:
         dp.include_router(verb.router)   # /verb + conjugation callback
     dp.include_router(story.router)      # /story
     dp.include_router(collection.router) # /import, /list_my_flashcards
@@ -113,233 +107,105 @@ def get_allowed_updates(dp: Dispatcher) -> list[str]:
     return dp.resolve_used_update_types()
 
 
-def build_dispatcher_data(
-    cols,
-    http_client,
-    logger_bot,
-    verb_service,
-    expression_service,
-    user_service,
-    consumption_service,
-    llm_service,
-    language_validator
-) -> dict:
-    return {
-        "cols": cols,
-        "http_client": http_client,
-        "logger_bot": logger_bot,
-        "verb_service": verb_service,
-        "expression_service": expression_service,
-        "user_service": user_service,
-        "consumption_service": consumption_service,
-        "llm_service": llm_service,
-        "language_validator": language_validator,
-    }
+@dataclass
+class TelegramRuntime:
+    bot: Bot
+    logger_bot: Bot
+    dispatcher: Dispatcher
+    handler_data: dict
+    mode: str
+    admin_id: int
+    polling_task: Optional[asyncio.Task] = None
+    scheduler_task: Optional[asyncio.Task] = None
 
 
-async def init_telegram_bot(app: FastAPI, settings):
-    bot, dp = build_bot_dispatcher()
-    app.state.bot = bot
-    app.state.dispatcher = dp
-
+async def start_telegram(core: Core, settings, mode: str) -> TelegramRuntime:
+    """Start the bot (webhook or polling) and the review scheduler on top of the core."""
+    bot, dp = build_bot_dispatcher(settings.BOT_TOKEN, core.language)
     logger_bot = Bot(
         token=settings.LOGGER_BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=_build_ipv4_session(),
     )
-    app.state.logger_bot = logger_bot
-    install_asyncio_exception_handler(logger_bot=logger_bot)
-
-    # Initialize Services
-    # May later be removed from app.state if not needed globally as they are passed to handlers
-    mongo_client, db, cols = await init_and_get_mongo(settings)
-    app.state.mongo_client = mongo_client
-    app.state.db = db
-    app.state.cols = cols
-
-    http_client = await init_and_get_http_client()
-    app.state.http_client = http_client
-
-    verb_service = (
-        VerbService(cols=app.state.cols, http_client=app.state.http_client)
-        if getattr(settings, "ENABLE_CONJUGATION", True)
-        else None
+    install_asyncio_exception_handler(logger_bot=logger_bot, admin_id=settings.ADMIN_ID)
+    runtime = TelegramRuntime(
+        bot=bot, logger_bot=logger_bot, dispatcher=dp,
+        handler_data=core.handler_data(logger_bot, settings.ADMIN_ID), mode=mode,
+        admin_id=settings.ADMIN_ID,
     )
-    expression_service = ExpressionService(cols=app.state.cols)
-    consumption_service = ConsumptionService(cols=app.state.cols)
-    user_service = UserService(cols=app.state.cols, consumption_service=consumption_service)
-    llm_service = LLMService()
-    language_validator = get_language_validator(settings)
-    app.state.expression_service = expression_service
-    app.state.user_service = user_service
-    app.state.consumption_service = consumption_service
-    app.state.llm_service = llm_service
 
-    dispatcher_data = build_dispatcher_data(
-        cols=cols,
-        http_client=http_client,
-        logger_bot=logger_bot,
-        verb_service=verb_service,
-        expression_service=expression_service,
-        user_service=user_service,
-        consumption_service=consumption_service,
-        llm_service=llm_service,
-        language_validator=language_validator,
-    )
-    app.state.dispatcher_data = dispatcher_data
-
-    # Run either webhook or polling, based on explicit mode.
-    if settings.TELEGRAM_DELIVERY_MODE == "webhook":
-        await bot.set_webhook(
-            url=settings.webhook_url,
-            secret_token=settings.WEBHOOK_SECRET,
-            allowed_updates=get_allowed_updates(dp),
-        )
-    else:
-        # Polling cannot run while a webhook is active.
-        await bot.delete_webhook(drop_pending_updates=False)
-        app.state.polling_task = asyncio.create_task(
-            dp.start_polling(
-                bot,
+    try:
+        if mode == "webhook":
+            await bot.set_webhook(
+                url=settings.webhook_url,
+                secret_token=settings.WEBHOOK_SECRET,
                 allowed_updates=get_allowed_updates(dp),
-                **dispatcher_data,
+            )
+        else:
+            # Polling cannot run while a webhook is active.
+            await bot.delete_webhook(drop_pending_updates=False)
+            runtime.polling_task = asyncio.create_task(
+                dp.start_polling(
+                    bot,
+                    allowed_updates=get_allowed_updates(dp),
+                    # Signals belong to the host (uvicorn, or asyncio.run in dev_poll):
+                    # aiogram's loop handlers would replace uvicorn's, so SIGTERM would
+                    # stop polling but leave the server running. stop_telegram cancels polling.
+                    handle_signals=False,
+                    **runtime.handler_data,
+                )
+            )
+
+        from flashcard.scheduler.scheduler import scheduler_loop
+        runtime.scheduler_task = asyncio.create_task(
+            scheduler_loop(
+                bot=bot,
+                logger_bot=logger_bot,
+                user_service=core.user_service,
+                review_use_cases=core.review_use_cases,
+                language=core.language,
+                i18n=core.i18n,
+                admin_id=settings.ADMIN_ID,
+                check_interval_seconds=settings.SCHEDULER_CHECK_INTERVAL_SECONDS,
+                pause_rule=settings.REVIEW_PAUSE_RULE,
             )
         )
-    
-    # Start scheduler in background
-    from flashcard.scheduler.scheduler import scheduler_loop
-    app.state.scheduler_task = asyncio.create_task(
-        scheduler_loop(
-            bot=bot,
-            logger_bot=logger_bot,
-            expression_service=expression_service,
-            user_service=user_service,
-            consumption_service=consumption_service,
-            llm_service=llm_service,
-            admin_id=settings.ADMIN_ID
-        )
-    )
+    except BaseException:
+        # A failed start (e.g. Telegram unreachable) must not leave both bot sessions open.
+        await stop_telegram(runtime)
+        raise
+    return runtime
 
 
-async def close_telegram_bot(app: FastAPI):
-    # Stop scheduler task
-    scheduler_task = getattr(app.state, "scheduler_task", None)
-    if scheduler_task:
-        scheduler_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await scheduler_task
+async def stop_telegram(runtime: TelegramRuntime) -> None:
+    for task in (runtime.scheduler_task, runtime.polling_task):
+        if task:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
-    # Stop polling task
-    task = getattr(app.state, "polling_task", None)
-    if task:
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-        
-    bot: Bot = app.state.bot
-    if settings.TELEGRAM_DELIVERY_MODE == "webhook":
+    if runtime.mode == "webhook":
         with contextlib.suppress(Exception):
-            await bot.delete_webhook(drop_pending_updates=False)
-    await bot.session.close()
+            await runtime.bot.delete_webhook(drop_pending_updates=False)
+    # Each close runs even if an earlier one fails.
+    try:
+        await runtime.bot.session.close()
+    finally:
+        try:
+            await runtime.logger_bot.session.close()
+        finally:
+            # Mongo and the HTTP client belong to open_resources, which closes them after this.
+            get_trace_logger().shutdown()
 
-    logger_bot: Bot = app.state.logger_bot
-    await logger_bot.session.close()
 
-    await close_mongo_on_client(app.state.mongo_client)
-    await close_http_client_on_client(app.state.http_client)
-
-    get_trace_logger().shutdown()
-
-
-async def init_telegram_without_fastapi(settings):
-    bot, dp = build_bot_dispatcher()
-
-    logger_bot = Bot(
-        token=settings.LOGGER_BOT_TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-        session=_build_ipv4_session(),
-    )
-    install_asyncio_exception_handler(logger_bot=logger_bot)
-
-    # Initialize Services
-    # May later be removed from app.state if not needed globally as they are passed to handlers
-    mongo_client, db, cols = await init_and_get_mongo(settings)
-
-    http_client = await init_and_get_http_client()
-
-    verb_service = (
-        VerbService(cols=cols, http_client=http_client)
-        if getattr(settings, "ENABLE_CONJUGATION", True)
-        else None
-    )
-    expression_service = ExpressionService(cols=cols)
-    consumption_service = ConsumptionService(cols=cols)
-    user_service = UserService(cols=cols, consumption_service=consumption_service)
-    llm_service = LLMService()
-    language_validator = get_language_validator(settings)
-
-    # Polling cannot run while a webhook is active.
-    await bot.delete_webhook(drop_pending_updates=False)
-
-    # Run polling in background
-    polling_task = asyncio.create_task(
-        dp.start_polling(
-            bot, 
-            allowed_updates=get_allowed_updates(dp),
-            cols=cols, 
-            http_client=http_client,
-            logger_bot=logger_bot,
-            verb_service=verb_service,
-            expression_service=expression_service,
-            user_service=user_service,
-            consumption_service=consumption_service,
-            llm_service=llm_service,
-            language_validator=language_validator,
-        )
-    )
-    
-    # Start scheduler in background
-    from flashcard.scheduler.scheduler import scheduler_loop
-    scheduler_task = asyncio.create_task(
-        scheduler_loop(
-            bot=bot,
-            logger_bot=logger_bot,
-            expression_service=expression_service,
-            user_service=user_service,
-            consumption_service=consumption_service,
-            llm_service=llm_service,
-            admin_id=settings.ADMIN_ID
-        )
-    )
-
-    return {
-        "mongo_client": mongo_client,
-        "bot": bot,
-        "logger_bot": logger_bot,
-        "http_client": http_client,
-        "polling_task": polling_task,
-        "scheduler_task": scheduler_task
-    }
-
-async def close_telegram_without_fastapi(resources: dict):
-    # Stop scheduler task
-    if "scheduler_task" in resources:
-        task = resources["scheduler_task"]
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-    
-    # Stop polling task
-    if "polling_task" in resources:
-        task = resources["polling_task"]
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-
-    await close_mongo_on_client(resources["mongo_client"])
-    
-    await close_http_client_on_client(resources["http_client"])
-    await resources["bot"].session.close()
-    await resources["logger_bot"].session.close()
-    
-    get_trace_logger().shutdown()
+@asynccontextmanager
+async def running_bot(settings, mode: str):
+    """The whole bot: shared clients, the core, then Telegram. Closed in reverse order."""
+    language = LanguageConfig.from_settings(settings)
+    async with open_resources(settings) as resources:
+        core = build_core(resources.cols, resources.http_client, settings, language)
+        runtime = await start_telegram(core, settings, mode)
+        try:
+            yield resources, runtime
+        finally:
+            await stop_telegram(runtime)

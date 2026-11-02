@@ -4,7 +4,6 @@ from typing import Any, Awaitable, Callable, Dict
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Message, CallbackQuery
 
-from flashcard.services.i18n import i18n
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger
 
@@ -41,7 +40,7 @@ class HandlerTimeoutMiddleware(BaseMiddleware):
             )
             # Best-effort user notification — don't let this itself block
             try:
-                msg = i18n.get(_TIMEOUT_KEY)
+                msg = data["i18n"].get(_TIMEOUT_KEY)
                 if isinstance(event, Message):
                     await event.answer(msg)
                 elif isinstance(event, CallbackQuery):

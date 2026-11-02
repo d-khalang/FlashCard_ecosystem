@@ -2,6 +2,7 @@
 
 import copy
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -19,14 +20,17 @@ from aiogram.methods import (
 )
 from aiogram.types import CallbackQuery, Chat, InlineQuery, Message, Update, User
 from bson import ObjectId
+from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.import_model import ImportResponse
 from flashcard.schemas.story import StoryParagraph, StoryResponse
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
+from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.user import UserService
 from flashcard.services.verb import VerbService
+from tests.helpers import TEST_LANGUAGE
 
 
 def _utc_now() -> datetime:
@@ -54,11 +58,39 @@ def _set_nested(doc: dict[str, Any], key: str, value: Any) -> None:
     current[parts[-1]] = value
 
 
+def _unset_nested(doc: dict[str, Any], key: str) -> None:
+    *parents, last = key.split(".")
+    current = _get_nested(doc, ".".join(parents)) if parents else doc
+    if isinstance(current, dict):
+        current.pop(last, None)
+
+
 def _inc_nested(doc: dict[str, Any], key: str, delta: int) -> None:
     current = _get_nested(doc, key)
     if current is None:
         current = 0
     _set_nested(doc, key, current + delta)
+
+
+def _bson_type(value: Any) -> str | None:
+    """The `$type` alias of the value types these tests store."""
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, datetime):
+        return "date"
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, (int, float)):
+        return "number"
+    return None
+
+
+# MongoDB sorts mixed types in this order (numbers < text < ... < dates).
+_SORT_ORDER = {None: 0, "number": 1, "string": 2, "bool": 3, "date": 4}
+
+
+def _sort_key(value: Any) -> tuple:
+    return (_SORT_ORDER.get(_bson_type(value), 0), value if value is not None else 0)
 
 
 def _match_condition(field_value: Any, condition: Any) -> bool:
@@ -69,7 +101,14 @@ def _match_condition(field_value: Any, condition: Any) -> bool:
 
         for op, expected in condition.items():
             if op == "$lt":
-                if field_value is None or field_value >= expected:
+                # MongoDB compares only within one type (text with text, dates with dates).
+                if _bson_type(field_value) != _bson_type(expected) or field_value >= expected:
+                    return False
+            elif op == "$type":
+                if _bson_type(field_value) != expected:
+                    return False
+            elif op == "$ne":
+                if field_value == expected:
                     return False
             elif op == "$exists":
                 exists = field_value is not None
@@ -120,7 +159,7 @@ class AsyncCursorMock:
 
     def sort(self, field: str, direction: int) -> "AsyncCursorMock":
         reverse = direction == -1
-        self._docs.sort(key=lambda doc: _get_nested(doc, field), reverse=reverse)
+        self._docs.sort(key=lambda doc: _sort_key(_get_nested(doc, field)), reverse=reverse)
         return self
 
     def __aiter__(self) -> "AsyncCursorMock":
@@ -135,9 +174,51 @@ class AsyncCursorMock:
         return item
 
 
+def _collation_fold(value: Any) -> Any:
+    """Stand-in for MongoDB's `en` strength-2 collation (case-insensitive, accent-sensitive).
+    NFKC + lower matches it on the pairs checked against MongoDB 7 (ß != ss, NFC == NFD,
+    ligatures); it is an approximation, so real-Mongo checks stay the reference."""
+    return unicodedata.normalize("NFKC", value).lower() if isinstance(value, str) else value
+
+
 class InMemoryCollection:
     def __init__(self, docs: list[dict[str, Any]] | None = None):
         self.docs = [_deepcopy_doc(doc) for doc in (docs or [])]
+        # Unique indexes as (fields, case_insensitive); collation strength 2 ignores case.
+        self.unique_indexes: list[tuple[tuple[str, ...], bool]] = []
+        # Every index built, as (fields, unique, case_insensitive): the same fields with
+        # another collation are a separate index in MongoDB.
+        self.indexes: set[tuple[tuple[str, ...], bool, bool]] = set()
+
+    async def create_index(self, keys, *, unique: bool = False, collation=None, name: str | None = None) -> str:
+        fields = tuple(field for field, _ in keys)
+        document = collation.document if collation is not None else {}
+        case_insensitive = document.get("strength") in (1, 2)
+        if unique:
+            index = (fields, case_insensitive)
+            if index in self.unique_indexes:
+                return name or "_".join(fields)  # create_index is idempotent
+            seen = set()
+            for doc in self.docs:
+                key = self._index_key(doc, index)
+                if key in seen:
+                    raise DuplicateKeyError(f"E11000 duplicate key error building index {name}")
+                seen.add(key)
+            self.unique_indexes.append(index)
+        self.indexes.add((fields, unique, case_insensitive))
+        return name or "_".join(fields)
+
+    @staticmethod
+    def _index_key(doc: dict[str, Any], index: tuple[tuple[str, ...], bool]) -> tuple:
+        fields, case_insensitive = index
+        values = tuple(_get_nested(doc, field) for field in fields)
+        return tuple(_collation_fold(v) if case_insensitive else v for v in values)
+
+    def _check_unique(self, doc: dict[str, Any]) -> None:
+        for index in self.unique_indexes:
+            key = self._index_key(doc, index)
+            if any(self._index_key(other, index) == key for other in self.docs):
+                raise DuplicateKeyError("E11000 duplicate key error")
 
     async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None) -> dict[str, Any] | None:
         for doc in self.docs:
@@ -154,7 +235,8 @@ class InMemoryCollection:
                 return result
         return None
 
-    def find(self, query: dict[str, Any]) -> AsyncCursorMock:
+    def find(self, query: dict[str, Any], projection: dict[str, Any] | None = None) -> AsyncCursorMock:
+        """The projection is ignored: tests see whole documents, which is a superset."""
         return AsyncCursorMock([_deepcopy_doc(doc) for doc in self.docs if _matches(doc, query)])
 
     async def distinct(self, field: str, query: dict[str, Any]) -> list[Any]:
@@ -169,15 +251,46 @@ class InMemoryCollection:
     async def insert_one(self, doc: dict[str, Any]) -> SimpleNamespace:
         stored = _deepcopy_doc(doc)
         stored.setdefault("_id", ObjectId())
+        self._check_unique(stored)
         self.docs.append(stored)
         return SimpleNamespace(inserted_id=stored["_id"])
 
-    async def insert_many(self, docs: list[dict[str, Any]]) -> SimpleNamespace:
-        ids = []
-        for doc in docs:
-            result = await self.insert_one(doc)
+    async def insert_many(self, docs: list[dict[str, Any]], ordered: bool = True) -> SimpleNamespace:
+        ids, write_errors = [], []
+        for index, doc in enumerate(docs):
+            try:
+                result = await self.insert_one(doc)
+            except DuplicateKeyError:
+                write_errors.append({"index": index, "code": 11000})
+                if ordered:
+                    break
+                continue
             ids.append(result.inserted_id)
+        if write_errors:
+            raise BulkWriteError({"writeErrors": write_errors, "nInserted": len(ids)})
         return SimpleNamespace(inserted_ids=ids)
+
+    async def aggregate(self, pipeline: list[dict[str, Any]], collation=None) -> AsyncCursorMock:
+        """Only a single `$group` by fields, pushing `$$ROOT`, honoring a strength-2 collation."""
+        (stage,) = pipeline
+        spec = stage["$group"]
+        (out_field, push) = [(k, v) for k, v in spec.items() if k != "_id"][0]
+        assert push == {"$push": "$$ROOT"}, push
+        fields = {name: path.lstrip("$") for name, path in spec["_id"].items()}
+        fold = collation is not None and collation.document.get("strength") in (1, 2)
+        groups: dict[tuple, dict[str, Any]] = {}
+        for doc in self.docs:
+            values = {name: _get_nested(doc, path) for name, path in fields.items()}
+            key = tuple(_collation_fold(v) if fold else v for v in values.values())
+            group = groups.setdefault(key, {"_id": values, out_field: []})
+            group[out_field].append(_deepcopy_doc(doc))
+        return AsyncCursorMock(list(groups.values()))
+
+    async def delete_many(self, query: dict[str, Any]) -> SimpleNamespace:
+        kept = [doc for doc in self.docs if not _matches(doc, query)]
+        deleted = len(self.docs) - len(kept)
+        self.docs = kept
+        return SimpleNamespace(deleted_count=deleted)
 
     async def update_one(self, query: dict[str, Any], update: dict[str, Any], upsert: bool = False) -> SimpleNamespace:
         for doc in self.docs:
@@ -191,6 +304,9 @@ class InMemoryCollection:
                             _inc_nested(doc, field, value)
                     elif key == "$setOnInsert":
                         continue
+                    elif key == "$unset":
+                        for field in values:
+                            _unset_nested(doc, field)
                     else:
                         raise NotImplementedError(f"Unsupported update operator: {key}")
                 return SimpleNamespace(modified_count=1, upserted_id=None, deleted_count=0)
@@ -398,7 +514,8 @@ class FakeTelegramSession(BaseSession):
             "chat": {"id": int(chat_id), "type": "private"},
             "text": text,
         }
-        if reply_markup is not None:
+        # Like Telegram, a sent message carries only inline keyboards; reply keyboards stay client-side.
+        if isinstance(reply_markup, dict) and "inline_keyboard" in reply_markup:
             data["reply_markup"] = reply_markup
         return Message.model_validate(data, context={"bot": bot})
 
@@ -502,13 +619,15 @@ def make_cols(*, users: list[dict[str, Any]] | None = None, expressions: list[di
 
 
 def make_services(cols: dict[str, InMemoryCollection], http_client: FakeHTTPClient | None = None) -> dict[str, Any]:
-    expression_service = ExpressionService(cols=cols)
-    consumption_service = ConsumptionService(cols=cols)
-    user_service = UserService(cols=cols, consumption_service=consumption_service)
-    verb_service = VerbService(cols=cols, http_client=http_client)
+    expression_service = ExpressionService(expressions=cols["expression"])
+    consumption_service = ConsumptionService(users=cols["users"])
+    user_service = UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults)
+    verb_service = VerbService(conjugations=cols["conjugation"], http_client=http_client)
+    review_state = ReviewStateStore(users=cols["users"])
     return {
         "expression_service": expression_service,
         "user_service": user_service,
         "consumption_service": consumption_service,
         "verb_service": verb_service,
+        "review_state": review_state,
     }

@@ -24,7 +24,7 @@ For detailed architecture and data flow diagrams, see [docs/architecture.md](doc
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.12+
 - MongoDB (local instance or Atlas)
 - Bot tokens from [@BotFather](https://t.me/BotFather) (main bot + logger bot)
 

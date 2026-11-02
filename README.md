@@ -84,6 +84,3 @@ docker compose up --build
 | [Releasing](flashcard-project/docs/releasing.md) | Versioned GHCR images, digests, and release procedure |
 | [Contributing](flashcard-project/docs/contributing.md) | How to add features, conventions |
 
-## License
-
-[MIT](LICENSE)

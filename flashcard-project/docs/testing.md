@@ -49,7 +49,7 @@ tests/
 │   │
 │   ├── algorithm/                  # Pure function tests (no mocking)
 │   │   ├── test_grading.py         # calculate_new_stats
-│   │   └── test_priority.py        # calculate_priority, parse_iso
+│   │   └── test_priority.py        # calculate_priority, hours_since
 │   │
 │   ├── services/                   # Business logic (mocked MongoDB)
 │   │   ├── test_expression_service.py  # CRUD + review candidate
@@ -57,7 +57,6 @@ tests/
 │   │   ├── test_user_service.py        # User CRUD + settings FSM
 │   │   ├── test_i18n_service.py        # Locale loading & dot-notation keys
 │   │   ├── test_consumption_service.py # Daily quota tracking & resolution
-│   │   ├── test_user_quota.py          # Daily resets in local generation checks
 │   │   └── test_llm_service.py         # Multi-provider + fallback + schemas
 │   │
 │   ├── schemas/                    # Pydantic models + language normalization
@@ -81,7 +80,7 @@ tests/
 │   │
 │   └── utils/                      # General utilities
 │       ├── test_tracing.py         # @observe + finalize_trace + TraceLogger
-│       └── test_time_and_settings.py   # now_utc, iso_z, webhook_url
+│       └── test_time_and_settings.py   # now_utc, iso_z, to_utc, webhook_url
 │
 ├── integration/                    # Dispatcher & runtime wiring integration tests
 │   ├── conftest.py                 # Integration environment setup

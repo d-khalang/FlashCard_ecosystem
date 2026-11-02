@@ -1,193 +1,176 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional, Union, Dict, TYPE_CHECKING
+from datetime import datetime
+from typing import Callable, Optional, TYPE_CHECKING, get_args
 from flashcard.utils.logger import get_logger
-from flashcard.schemas.user import UserDB, UserTier
-from flashcard.settings import settings
-from flashcard.utils.time import iso_z, now_utc, parse_iso
+from flashcard.schemas.languages import LANGUAGE_DATA, LanguageLevel
+from flashcard.schemas.user import (
+    MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, ReviewMode, UserDB, UserId, stored_user_id,
+)
+from flashcard.utils.time import now_utc
 
 if TYPE_CHECKING:
-    from flashcard.services.consumption import ConsumptionService
+    from flashcard.language import UserDefaults
 
 logger = get_logger(__name__)
 
-TIER_LIMITS: Dict[UserTier, Dict[str, int]] = {
-    UserTier.normal: {
-        "cards": settings.TIER_LIMITS_NORMAL_CARDS,
-        "stories": settings.TIER_LIMITS_NORMAL_STORIES,
-    },
-    UserTier.digi: {
-        "cards": settings.TIER_LIMITS_DIGI_CARDS,
-        "stories": settings.TIER_LIMITS_DIGI_STORIES,
-    },
-    UserTier.plus: {
-        "cards": settings.TIER_LIMITS_PLUS_CARDS,
-        "stories": settings.TIER_LIMITS_PLUS_STORIES,
-    },
-    UserTier.admin: {
-        "cards": settings.TIER_LIMITS_ADMIN_CARDS,
-        "stories": settings.TIER_LIMITS_ADMIN_STORIES,
-    },  # Effectively unlimited
-}
 
 class UserService:
-    def __init__(self, cols: dict, consumption_service: ConsumptionService | None = None):
-        self.cols = cols
-        self.consumption_service = consumption_service
+    def __init__(
+        self,
+        users,
+        *,
+        defaults: UserDefaults,
+    ):
+        """
+        `users`: the users collection (profile, settings and onboarding fields).
+        `defaults`: this instance's settings for users who have not chosen their own.
+        """
+        self.users = users
+        self.defaults = defaults.as_fields()
 
-    async def update_user_last_push(self, user_id: Union[str, int]):
-        """
-        Updates the user's last_push_at timestamp.
-        """
-        current_iso = iso_z(now_utc())
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {
-                "$set": {
-                    "last_push_at": current_iso,
-                    "has_pending": True 
-                },
-                "$setOnInsert": {
-                    "created_at": current_iso
-                }
-            },
-            upsert=True
-        )
+    async def ensure_indexes(self) -> None:
+        """One document per user, and the scheduler's prefilter. Fails while a user_id repeats."""
+        await self.users.create_index([("user_id", 1)], unique=True)
+        await self.users.create_index([("is_active", 1), ("has_pending", 1), ("last_reviewed_at", 1)])
 
-    async def toggle_active_status(self, user_id: Union[str, int]) -> bool:
-        """
-        Toggles the user's active status.
-        Returns the new status (True=Active, False=Inactive).
-        """
-        user_id_str = str(user_id)
-        user = await self.cols['users'].find_one({"user_id": user_id_str})
-        
-        # Default to True if not present, so we toggle to False. 
-        # If present, toggle existing.
-        current_status = user.get("is_active", True) if user else True
-        new_status = not current_status
-        
-        await self.cols['users'].update_one(
-            {"user_id": user_id_str},
-            {"$set": {"is_active": new_status}},
-            upsert=True
-        )
-        
-        status_str = "Active" if new_status else "Inactive"
-        logger.info(f"User {user_id} status toggled to {status_str}")
-        return new_status
+    def _to_user(self, doc: dict) -> UserDB:
+        """Missing settings fall back to this instance's defaults; stored values win."""
+        return UserDB.model_validate({**self.defaults, **doc})
 
-    async def get_user_status(self, user_id: Union[str, int]) -> bool:
+    async def active_users_reviewed_before(
+        self,
+        cutoff: datetime,
+        *,
+        exclude_pending: bool,
+        on_unreadable: Callable[[str, Exception], None],
+    ) -> list[UserDB]:
         """
-        Returns True if user is active, False otherwise.
-        Default is True.
+        Active users never reviewed or last reviewed before `cutoff` (the scheduler's
+        prefilter). `exclude_pending` drops users with the legacy `has_pending` flag.
+        A document that cannot be read is passed to `on_unreadable` and skipped.
         """
-        user = await self.cols['users'].find_one({"user_id": str(user_id)})
-        if not user:
-            return True
-        return user.get("is_active", True)
+        query = {
+            # Only Pause stores False; a user who never pressed it has no field and is active.
+            "is_active": {"$ne": False},
+            "$or": [
+                {"last_reviewed_at": None},
+                {"last_reviewed_at": {"$lt": cutoff}},
+                # Legacy text (until `convert_dates` has run): the scheduler checks the
+                # exact interval in Python, where an unreadable date is reported.
+                {"last_reviewed_at": {"$type": "string"}},
+            ],
+        }
+        if exclude_pending:
+            query["has_pending"] = False
+        return await self._read_users(query, on_unreadable)
 
-    async def get_user(self, user_id: Union[str, int]) -> UserDB:
+    async def active_users_possibly_paused(self, on_unreadable: Callable[[str, Exception], None]) -> list[UserDB]:
+        """Migration only (shadow compare): active users either pause rule could pause."""
+        query = {"is_active": {"$ne": False}, "$or": [{"has_pending": True}, {"current_review": {"$ne": None}}]}
+        return await self._read_users(query, on_unreadable)
+
+    async def _read_users(self, query: dict, on_unreadable: Callable[[str, Exception], None]) -> list[UserDB]:
+        users = []
+        async for doc in self.users.find(query):
+            try:
+                users.append(self._to_user(doc))
+            except ValueError as e:  # pydantic's ValidationError is a ValueError
+                on_unreadable(str(doc.get("user_id", "?")), e)
+        return users
+
+    async def get_user(self, user_id: UserId) -> UserDB:
         """
         Retrieves the full user document.
         """
-        doc = await self.cols['users'].find_one({"user_id": str(user_id)}) or {}
+        doc = await self.users.find_one({"user_id": stored_user_id(user_id)}) or {}
         if not doc:
-            return UserDB(user_id=str(user_id))
-            
-        return UserDB.model_validate(doc)
+            return self._to_user({"user_id": stored_user_id(user_id)})
 
-    async def update_setting(self, user_id: Union[str, int], field: str, value: any):
-        """
-        Updates a specific field in the user document.
-        """
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
+        return self._to_user(doc)
+
+    async def set_target_level(self, user_id: UserId, level: LanguageLevel) -> None:
+        if level not in get_args(LanguageLevel):
+            raise ValueError(f"Unknown level: {level!r}")
+        await self._set(user_id, "target_level", level)
+
+    async def set_review_interval(self, user_id: UserId, minutes: int) -> None:
+        if type(minutes) is not int or not MIN_INTERVAL_MINUTES <= minutes <= MAX_INTERVAL_MINUTES:
+            raise ValueError(f"Interval must be {MIN_INTERVAL_MINUTES}-{MAX_INTERVAL_MINUTES} minutes: {minutes!r}")
+        await self._set(user_id, "review_interval_minutes", minutes)
+
+    async def set_primary_language(self, user_id: UserId, code: str) -> None:
+        if code not in LANGUAGE_DATA:
+            raise ValueError(f"Unsupported language code: {code!r}")
+        await self._set(user_id, "primary_language", code)
+
+    async def set_secondary_language(self, user_id: UserId, code: Optional[str]) -> None:
+        """A language code, or None to turn it off (stored as null)."""
+        if code is not None and code not in LANGUAGE_DATA:
+            raise ValueError(f"Unsupported language code: {code!r}")
+        await self._set(user_id, "secondary_language", code)
+
+    async def set_review_mode(self, user_id: UserId, mode: ReviewMode) -> None:
+        if mode not in get_args(ReviewMode):
+            raise ValueError(f"Unknown review mode: {mode!r}")
+        await self._set(user_id, "review_mode", mode)
+
+    async def set_active(self, user_id: UserId, active: bool) -> None:
+        """Pause or resume scheduled reviews. Idempotent: a repeated tap changes nothing."""
+        if type(active) is not bool:
+            raise ValueError(f"active must be a bool: {active!r}")
+        await self._set(user_id, "is_active", active)
+        logger.info(f"User {user_id} status set to {'Active' if active else 'Inactive'}")
+
+    async def _set(self, user_id: UserId, field: str, value) -> None:
+        """Only for the validated setters above; never creates a user."""
+        await self.users.update_one(
+            {"user_id": stored_user_id(user_id)},
             {"$set": {field: value}},
-            upsert=True
         )
 
-    async def advance_onboarding(self, user_id: Union[str, int], current_step: int) -> bool:
+    async def advance_onboarding(self, user_id: UserId, current_step: int) -> bool:
         """
         Advances the onboarding step if the user is at the expected step.
         Returns True if advanced, False if already past this step.
         """
-        query = {"user_id": str(user_id)}
+        query = {"user_id": stored_user_id(user_id)}
         if current_step == 0:
             query["$or"] = [{"onboarding_step": 0}, {"onboarding_step": {"$exists": False}}]
         else:
             query["onboarding_step"] = current_step
 
-        result = await self.cols['users'].update_one(
+        result = await self.users.update_one(
             query,
             {"$set": {"onboarding_step": current_step + 1}}
         )
         return result.modified_count > 0
 
-    async def update_username(self, user_id: Union[str, int], username: Optional[str]):
+    async def record_seen(self, user_id: UserId, username: Optional[str]):
         """
-        Updates the user's Telegram username.
+        Records that the user interacted with the bot, and syncs their Telegram username.
+
+        The only writer that creates user documents, so `created_at` (the trial start)
+        is always the first interaction. Every other writer updates existing users only.
         """
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
+        now = now_utc()
+        await self.users.update_one(
+            {"user_id": stored_user_id(user_id)},
             {
-                "$set": {"username": username},
-                # Ensure created_at is initialized on first insert for this user.
-                "$setOnInsert": {"created_at": iso_z(now_utc())},
+                "$set": {"username": username, "last_seen_at": now},
+                "$setOnInsert": {"created_at": now},
             },
             upsert=True
         )
 
-    def _get_effective_limits(self, user: UserDB) -> Dict[str, int]:
+    async def backfill_created_at(self, user_id: UserId, created_at: datetime) -> bool:
         """
-        Returns the tier-based limits, accounting for the 14-day trial for 'normal' users.
+        Migration only: set a missing `created_at`. Never overwrites one, so it can
+        never move a trial start. True when it wrote.
         """
-        if user.tier == UserTier.admin:
-            return TIER_LIMITS[UserTier.admin]
-
-        # Check for trial period if normal
-        if user.tier == UserTier.normal:
-            if user.created_at is None:
-                # Haven't saved or been pushed a card yet -> Trial is effectively starting or hasn't started
-                return TIER_LIMITS[UserTier.plus]
-                
-            created_at = parse_iso(user.created_at)
-            # Ensure it's offset-aware if needed, but parse_iso usually handles it
-            trial_delta = now_utc() - created_at
-            if trial_delta.days < 14:
-                return TIER_LIMITS[UserTier.plus]
-        
-        return TIER_LIMITS.get(user.tier, TIER_LIMITS[UserTier.normal])
-
-    def _get_today_usage(self, user: UserDB, metric: str) -> int:
-        """
-        Returns the user's usage for a specific metric today.
-        Delegates daily-reset logic to ConsumptionService (single source of truth).
-        """
-        resolved = self.consumption_service.resolve_consumption(user.consumption)
-        return getattr(resolved.system_api, metric, 0)
-
-    def can_generate_card(self, user: UserDB, uses_own_key: bool = False) -> bool:
-        """
-        Checks if the user can generate a card today.
-        """
-        if uses_own_key or user.tier == UserTier.admin:
-            return True
-        
-        limits = self._get_effective_limits(user)
-        current_usage = self._get_today_usage(user, "cards_generated")
-            
-        return current_usage < limits["cards"]
-
-    def can_generate_story(self, user: UserDB, uses_own_key: bool = False) -> bool:
-        """
-        Checks if the user can generate a story today.
-        """
-        if uses_own_key or user.tier == UserTier.admin:
-            return True
-            
-        limits = self._get_effective_limits(user)
-        current_usage = self._get_today_usage(user, "stories_generated")
-            
-        return current_usage < limits["stories"]
+        result = await self.users.update_one(
+            # Matches a missing field and an explicit null alike.
+            {"user_id": stored_user_id(user_id), "created_at": None},
+            {"$set": {"created_at": created_at}},
+        )
+        return bool(getattr(result, "modified_count", 0))

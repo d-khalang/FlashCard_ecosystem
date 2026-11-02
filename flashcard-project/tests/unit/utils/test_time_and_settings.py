@@ -4,11 +4,19 @@ Unit tests for time utilities and settings.
 Tests:
   - now_utc: returns aware UTC datetime
   - iso_z: formats to ISO 8601 with Z suffix
+  - to_utc / UtcDatetime / OptionalUtcDatetime: stored dates and legacy ISO text read as aware UTC
   - Settings.webhook_url: property combining base + path
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-from flashcard.utils.time import now_utc, iso_z
+import pytest
+from pydantic import BaseModel, ValidationError
+
+from flashcard.schemas import user as user_schema
+from flashcard.schemas.expression import Expression, ExpressionStats
+from flashcard.schemas.user import UserDB
+from flashcard.utils.time import OptionalUtcDatetime, UtcDatetime, iso_z, now_utc, to_utc
 
 
 # ===================================================================
@@ -71,14 +79,87 @@ class TestIsoZ:
 
 
 # ===================================================================
+# to_utc / UtcDatetime
+# ===================================================================
+class TestToUtc:
+    SEP_1 = datetime(2026, 9, 1, 10, tzinfo=timezone.utc)
+
+    @pytest.mark.parametrize("value", [
+        "2026-09-01T10:00:00Z", "2026-09-01T10:00:00+00:00", "2026-09-01T12:00:00+02:00",
+        "2026-09-01T10:00:00", datetime(2026, 9, 1, 10), datetime(2026, 9, 1, 10, tzinfo=timezone.utc),
+        datetime(2026, 9, 1, 12, tzinfo=timezone(timedelta(hours=2))),
+    ])
+    def test_reads_as_aware_utc(self, value):
+        result = to_utc(value)
+        assert result == self.SEP_1 and result.tzinfo == timezone.utc
+
+    @pytest.mark.parametrize("value", [None, ""])
+    def test_missing_is_none(self, value):
+        assert to_utc(value) is None
+
+    @pytest.mark.parametrize("value", ["not a date", "zzz", 42, 4.2])
+    def test_anything_else_raises(self, value):
+        with pytest.raises(ValueError):
+            to_utc(value)
+
+    def test_model_field_reads_both_forms_and_rejects_garbage(self):
+        class Doc(BaseModel):
+            at: UtcDatetime
+
+        assert Doc(at="2026-09-01T10:00:00Z").at == Doc(at=self.SEP_1).at == self.SEP_1
+        assert Doc(at=self.SEP_1).model_dump()["at"] == self.SEP_1  # dumped as a date, not text
+        with pytest.raises(ValidationError):
+            Doc(at="not a date")
+
+    def test_required_field_rejects_empty_text(self):
+        class Doc(BaseModel):
+            at: UtcDatetime
+
+        with pytest.raises(ValidationError):
+            Doc(at="")
+
+    @pytest.mark.parametrize("value", [None, ""])
+    def test_optional_field_reads_empty_text_as_missing(self, value):
+        class Doc(BaseModel):
+            at: OptionalUtcDatetime = None
+
+        assert Doc(at=value).at is None
+        assert Doc(at="2026-09-01T10:00:00Z").at == self.SEP_1
+        with pytest.raises(ValidationError):
+            Doc(at="not a date")
+
+    @pytest.mark.parametrize("field", ["created_at", "last_push_at", "last_reviewed_at", "last_seen_at"])
+    def test_user_with_empty_date_is_readable(self, field):
+        user = UserDB.model_validate({
+            "user_id": "7", "primary_language": "en", "secondary_language": None,
+            "target_level": "A2", field: "",
+        })
+        assert getattr(user, field) is None
+
+    @pytest.mark.parametrize("field", ["created_at", "last_sent_at", "last_interaction_at", "last_activity_at"])
+    def test_expression_with_empty_date_is_readable(self, field):
+        doc = {"_id": "abc", "user_id": "7", "value": "ciao", "created_at": self.SEP_1, field: ""}
+        assert getattr(Expression.model_validate(doc), field) is None
+
+    def test_reverse_stats_with_empty_date_is_readable(self):
+        assert ExpressionStats.model_validate({"last_review_at": ""}).last_review_at is None
+
+    def test_no_schema_wraps_utc_datetime_in_optional(self):
+        """Optional[UtcDatetime] rejects "": use OptionalUtcDatetime."""
+        schemas = Path(user_schema.__file__).parent
+        for path in schemas.glob("*.py"):
+            assert "Optional[UtcDatetime]" not in path.read_text(encoding="utf-8"), path.name
+
+
+# ===================================================================
 # Settings.webhook_url property
 # ===================================================================
 class TestSettingsWebhookUrl:
 
     def test_combines_base_and_path(self):
-        from flashcard.settings import settings
+        from flashcard.settings import get_setting
 
-        url = settings.webhook_url
+        url = get_setting().webhook_url
 
         # Should be a valid URL combining base + path
         assert url.startswith("http")
@@ -86,9 +167,9 @@ class TestSettingsWebhookUrl:
 
     def test_no_double_slashes(self):
         """Base trailing slash + path leading slash should not produce '//'."""
-        from flashcard.settings import settings
+        from flashcard.settings import get_setting
 
-        url = settings.webhook_url
+        url = get_setting().webhook_url
         # Remove protocol ://
         after_protocol = url.split("://", 1)[1]
         assert "//" not in after_protocol
@@ -143,6 +224,7 @@ class TestSettingsLanguageAndConjugation:
             **self._base_settings_kwargs(),
             ENABLE_CONJUGATION=False,
             DEFAULT_SECONDARY_LANGUAGE="",
+            LANGUAGE_VALIDATOR="",
             SCRAPER_API_KEY="",
             SCRAPER_URL="   ",
             SCRAPER_PORT=None,
@@ -150,6 +232,7 @@ class TestSettingsLanguageAndConjugation:
         )
 
         assert settings.DEFAULT_SECONDARY_LANGUAGE is None
+        assert settings.LANGUAGE_VALIDATOR is None
         assert settings.SCRAPER_API_KEY is None
         assert settings.SCRAPER_URL is None
         assert settings.LLM_KEY_FILE is None

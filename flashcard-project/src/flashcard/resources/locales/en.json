@@ -1,7 +1,6 @@
 {
     "callbacks": {
         "save": {
-            "success_alert": "Saved to collection received!",
             "success_message": "Saved to collection!",
             "success_tag": "\n\n🔒 <b>{norm}</b> saved",
             "already_exists": "Already exists among your FlashCards 🧐"
@@ -60,7 +59,7 @@
         },
         "import": {
             "usage_guide": "Got a list? Let's add them all! 📦\n\nJust type `/import` followed by your words (on new lines or separated by commas):\n\nExample:\n/import\nandare a casa\nfare colazione",
-            "processing_error": "Yikes, getting dizzy! 💫 Couldn't process that list right now.",
+            "too_long": "That list is a bit too long! ✂️ Please send at most {limit} characters per /import.",
             "import_failed": "Hmm, I got a bit confused: {log_msg} 🤔",
             "no_items_found": "I couldn't spot any {language} there! 🕵️‍♂️ Check your spelling?",
             "success": "Woohoo! 🎉 Saved {count} new cards:\n{items_str}",
@@ -74,22 +73,25 @@
             "controls": "Controls:",
             "switched_mode": "Switched to {mode} Mode",
             "saved": "Saved!",
+            "invalid_value": "That option isn't available. 🤔",
             "mode_dual": "Dual 🔄",
             "mode_standard": "Standard ➡️",
+            "no_language": "None",
             "menu": {
                 "heading": "⚙️ <b>Make Kartino yours</b>",
                 "status": "Current Status: <b>{status}</b>",
                 "primary_lang": "Primary Language: <b>{primary_lang}</b>",
                 "secondary_lang": "Secondary Language: <b>{secondary_lang}</b>",
                 "target_level": "Target Level: <b>{target_level}</b>",
-                "review_interval": "Review Interval: <b>{review_interval_minutes} minutes</b>"
+                "review_interval": "Review Interval: <b>{review_interval_minutes} minutes</b>",
+                "review_mode": "Review Mode: <b>{review_mode}</b>"
             },
             "status_active": "Active ✅",
             "status_paused": "Paused ⏸",
-            "status_info": "Current Status: {status}",
             "menu_options": {
                 "language": "🌍 Language & Level",
                 "interval": "🔔 Review Interval",
+                "review_mode": "Mode: {mode}",
                 "api": "🔑 API Config"
             },
             "sections": {
@@ -102,7 +104,9 @@
                 "secondary_lang": "Any secondary language? (e.g. your mother tongue, or 'none') 🗣️",
                 "invalid_lang": "Hmm, I didn't recognize that one. 🤔 Try language name or code. e.g. English, DE, Farsi.",
                 "success_lang": "Got it! {type} language is now <b>{lang}</b> {flag}.",
-                "level_select": "What's your current {language} level? 📈"
+                "level_select": "What's your current {language} level? 📈",
+                "primary_label": "Primary",
+                "secondary_label": "Secondary"
             },
             "buttons": {
                 "set_primary": "Primary Language",
@@ -121,6 +125,8 @@
     "messages": {
         "working": "Let me think... 🤔",
         "llm_fallback": "This intelligent engine is not available right now, so let me try another one...",
+        "saved_card": "🗂 Saved version",
+        "saved_card_older_settings": "🗂 Saved version · older settings",
         "collection": {
             "empty": "<b>📇 Your Deck</b>\n\nIt's quiet in here... Send me a word to get started! ✨",
             "header": "<b>📇 Your Deck</b>\n<i>{count} words growing strong 🌱</i>\n"
@@ -152,8 +158,8 @@
             "first_review": "💡 <b>Did you know?</b> Try <b>Dual Mode</b> in /settings — it quizzes you in both directions for deeper retention! 🔄"
         },
         "notifications": {
-             "resumed": "Welcome back! 🌱 I'll start sending you review cards again.",
-             "paused": "Taking a break — no worries! 😴 I won't send any reviews until you're ready."
+            "resumed": "Welcome back! 🌱 I'll start sending you review cards again.",
+            "paused": "Taking a break — no worries! 😴 I won't send any reviews until you're ready."
         }
     }
 }

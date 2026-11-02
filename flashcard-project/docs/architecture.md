@@ -39,36 +39,56 @@ graph LR
 flashcard-project/src/flashcard/
 ├── __main__.py              # Entry points (FastAPI app + local dev polling shortcut)
 ├── settings.py              # Pydantic settings (env vars)
+├── language.py              # LanguageConfig: the instance's language, built once per startup
+├── composition.py           # Composition root: shared clients, services, use cases
+│
+├── app/                     # Use cases: the flows handlers and the scheduler call
+│   ├── review.py            # Prepare, send and grade reviews (+ stored-card fallback)
+│   ├── review_schedule.py   # Pure scheduler rules (interval, pause, shadow compare)
+│   ├── cards.py             # Card settings + the one LLM card call (creation and review)
+│   ├── creation.py          # Text-to-card, regenerate, save
+│   ├── collection.py        # /import, list, search, remove
+│   ├── settings.py          # /settings, pause/resume
+│   ├── story.py             # /story
+│   ├── verb.py              # /verb lookups
+│   ├── quota.py             # QuotaPolicy: tier limits, trial, own key
+│   └── shadow.py            # Shadow writes for the review-state migration (temporary)
 │
 ├── api/                     # FastAPI layer
-│   ├── main.py              # App factory & lifespan
-│   ├── lifecycle/           # Startup & shutdown hooks
+│   ├── main.py              # App and routers
+│   ├── lifecycle/           # Lifespan: runs the bot via running_bot
 │   ├── routes/              # HTTP endpoints (health, webhook)
 │   └── schemas/             # API request/response models
 │
 ├── db/                      # Database
-│   └── mongo.py             # MongoDB connection management
+│   └── mongo.py             # MongoDB client, collections, pool monitoring
+│
+├── migrations/              # One-off data migrations for the rollout (removed after)
 │
 ├── scheduler/               # Background scheduler
 │   └── scheduler.py         # Periodic review push loop
 │
 ├── schemas/                 # Shared data models
-│   ├── defaults.py          # Centralized constants
+│   ├── defaults.py          # Scheduler interval constant
 │   ├── user.py              # UserDB model
-│   ├── expression.py        # ExpressionDB / ExpressionCard
+│   ├── expression.py        # ExpressionDB / ExpressionCard / StoredCard
 │   ├── languages.py         # Language codes, levels, flags
 │   ├── conjugations.py      # Verb conjugation models
 │   ├── story.py             # Story response model
 │   ├── import_model.py      # Import parsing model
+│   ├── api_key.py           # LLM API key file model and loader
 │   └── trace.py             # TraceData / Span schema models
 │
-├── services/                # Business logic
-│   ├── trace_logger.py      # Flat-file async execution tracing
-│   ├── expression.py        # CRUD + review candidate selection
-│   ├── user.py              # User CRUD + settings
+├── services/                # Data owners: each gets only its own collection
+│   ├── expression.py        # Cards: CRUD + review candidate selection
+│   ├── user.py              # User profile, settings, onboarding, last_seen_at
+│   ├── consumption.py       # Usage counters
+│   ├── review_state.py      # ReviewStateStore: current review, last graded
 │   ├── verb.py              # Verb lookup (DB cache + scraper API)
+│   ├── language_validation.py # Input validators per language
 │   ├── i18n.py              # Internationalization (JSON locale files)
 │   ├── http_client.py       # Shared httpx client
+│   ├── trace_logger.py      # Flat-file async execution tracing
 │   ├── llm/                 # LLM integration
 │   │   ├── llm.py           # LLMService (card gen, stories, import parsing)
 │   │   ├── llm_key.py       # API key resolution
@@ -78,16 +98,19 @@ flashcard-project/src/flashcard/
 │       └── grading.py       # Grade processing & scheduling
 │
 ├── telegram/                # Telegram bot layer
-│   ├── bot.py               # Bot & dispatcher setup, service wiring
+│   ├── bot.py               # Dispatcher setup and Telegram runtime (start/stop, running_bot)
 │   ├── middlewares/         # aiogram middlewares
-│   │   └── trace_middleware.py # Injects trace context per update and propagates trace_id
+│   │   ├── trace_middleware.py   # Trace context per update; records the user as seen
+│   │   └── timeout_middleware.py # Per-handler timeout
 │   ├── keyboards.py         # Reply keyboard builder
+│   ├── filters.py           # ButtonText: reply-button filter using the injected i18n
 │   ├── handlers/            # Command, callback & message handlers
 │   ├── helpers/             # Telegram-specific utilities
-│   │   └── card_generator.py
+│   │   └── callback_utils.py
 │   ├── ui/                  # Message formatters
 │   │   ├── expression.py    # Review card formatting
 │   │   ├── expression_lists.py
+│   │   ├── review_label.py  # "Saved version" label
 │   │   ├── verb.py          # Verb conjugation formatting
 │   │   ├── story.py         # Story formatting
 │   │   └── factories/       # Callback data factories
@@ -96,23 +119,28 @@ flashcard-project/src/flashcard/
 ├── utils/                   # General utilities
 │   ├── logger.py            # Logging setup
 │   ├── tracing.py           # Trace/span helpers, @observe, and finalize_trace lifecycle helper
+│   ├── asyncio_errors.py    # Reports unhandled asyncio errors to the logger bot
 │   └── time.py              # UTC time helpers
 │
 └── resources/               # Static resources
     └── locales/
-        └── en.json          # English UI strings
+        ├── en.json          # English UI strings
+        └── it.json          # Italian UI strings
 
-tests/                           # Test suite (413 tests - unit, integration, smoke)
+tests/                           # Test suite (unit, integration, smoke)
 ├── conftest.py                  # Env var setup & autouse router state isolation fixtures
-├── helpers.py                   # Shared unit test utilities (AsyncCursorMock)
-├── unit/                        # Mocked unit tests
+├── helpers.py                   # Shared test utilities (TEST_LANGUAGE, AsyncCursorMock)
+├── unit/                        # Mocked unit tests + architecture guards (test_*_contract, test_data_ownership, test_composition_root)
 │   ├── algorithm/               # Grading & priority tests
+│   ├── api/                     # Webhook route tests
+│   ├── app/                     # Use-case tests
+│   ├── migrations/              # Migration tests
 │   ├── services/                # Service layer tests
 │   ├── schemas/                 # Pydantic model tests
-│   ├── telegram/                # UI, keyboards, callback tests
+│   ├── telegram/                # UI, keyboards, callback, handler flow tests
 │   ├── scheduler/               # Scheduler logic tests
 │   └── utils/                   # Tracing & time utility tests
-├── integration/                 # Dispatcher and full lifecycle runtime integration tests
+├── integration/                 # Dispatcher, review-state, stored-card and lifecycle tests
 └── smoke/                       # System-level ecosystem smoke checks
 ```
 
@@ -209,7 +237,7 @@ The bot supports two modes:
 | Mode | Entry Point | How it works |
 |------|-------------|--------------|
 | **FastAPI App** | `flashcard-bot` / `flashcard-bot-dev` | FastAPI app with health + webhook endpoints; Telegram delivery chosen by config |
-| **Standalone Dev Polling** | `flashcard-bot-dev-poll` | Direct `dp.start_polling()`, no HTTP server, for local development only |
+| **Standalone Dev Polling** | `flashcard-bot-dev-poll` | `running_bot` in polling mode, no HTTP server, for local development only |
 
 The production app initializes the same services and scheduler in both polling and webhook mode. The difference is how Telegram updates arrive (`TELEGRAM_DELIVERY_MODE=webhook` vs `polling`). `flashcard-bot-dev-poll` remains as a lightweight local shortcut when no HTTP server is needed.
 
@@ -223,14 +251,19 @@ The production app initializes the same services and scheduler in both polling a
 
 ## Dependency Injection
 
-Services are injected into handlers via aiogram's middleware system. In `bot.py`, services are passed as keyword arguments to `dp.start_polling()` (or set on the dispatcher for webhook mode). aiogram automatically provides these to handler functions that declare matching parameter names:
+One composition root, [`composition.py`](../src/flashcard/composition.py), wires everything:
+`open_resources` opens Mongo and the HTTP client once, and `build_core` builds every service and
+use case into a `Core`. [`bot.py`](../src/flashcard/telegram/bot.py) runs Telegram on top of it
+(`running_bot` → `start_telegram`); the FastAPI lifespan and the dev polling entry point both use
+`running_bot`, so wiring is identical in every mode.
+
+Handlers receive `Core.handler_data(logger_bot)` through aiogram's keyword injection: use cases,
+`language` and `logger_bot` (plus `user_service`, for `TraceMiddleware` only). Handlers never get a
+service directly (guarded by `tests/unit/test_composition_root.py`):
 
 ```python
-# In bot.py
-dp.start_polling(bot, expression_service=expression_service, user_service=user_service, consumption_service=consumption_service, ...)
-
-# In any handler — aiogram injects automatically by parameter name
-async def cmd_get(message: Message, expression_service: ExpressionService, user_service: UserService, consumption_service: ConsumptionService):
+# In any handler — aiogram injects by parameter name
+async def cmd_get(message: Message, review_use_cases: ReviewUseCases, language: LanguageConfig):
     ...
 ```
 

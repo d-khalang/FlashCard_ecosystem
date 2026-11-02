@@ -10,21 +10,29 @@ import json
 from datetime import timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 
+import pytest
+
 from flashcard.schemas.user import UserDB
+from flashcard.services.user import UserService
 from flashcard.utils.time import now_utc, iso_z
 from tests.helpers import AsyncCursorMock as _AsyncCursor
+from tests.helpers import TEST_I18N, TEST_LANGUAGE
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Telegram user ids are numbers; the names keep the cases readable.
+(FREE, BOTH, RESUMED, GAP, INACTIVE, WAITING, STUCK, RECENT,
+ BAD, OK, DUE, NOT_DUE, NEW, U1) = range(1, 15)
 
-def _make_user_doc(user_id="123", is_active=True, has_pending=False,
+
+def _make_user_doc(user_id=123, is_active=True, has_pending=False,
                    last_reviewed_at=None, review_interval_minutes=30, **extra):
     """Create a user doc that UserDB.model_validate can accept."""
     doc = {
-        "user_id": user_id,
+        "user_id": str(user_id),  # stored form
         "is_active": is_active,
         "has_pending": has_pending,
         "last_reviewed_at": last_reviewed_at,
@@ -43,29 +51,27 @@ class TestFindUsersDueForReview:
     async def test_never_reviewed_user_is_due(self):
         from flashcard.scheduler.scheduler import find_users_due_for_review
 
-        mock_user_service = MagicMock()
-        mock_user_service.cols = {"users": MagicMock()}
-        mock_user_service.cols["users"].find = MagicMock(
+        mock_user_service = UserService(users=MagicMock(), defaults=TEST_LANGUAGE.user_defaults)
+        mock_user_service.users.find = MagicMock(
             return_value=_AsyncCursor([
-                _make_user_doc(user_id="100", last_reviewed_at=None)
+                _make_user_doc(user_id=100, last_reviewed_at=None)
             ])
         )
 
         result = await find_users_due_for_review(mock_user_service)
 
         assert len(result) == 1
-        assert result[0].user_id == "100"
+        assert result[0].user_id == 100
 
     async def test_recently_reviewed_user_is_not_due(self):
         from flashcard.scheduler.scheduler import find_users_due_for_review
 
         # Reviewed 5 minutes ago, interval is 30 min → NOT due
         recent = iso_z(now_utc() - timedelta(minutes=5))
-        mock_user_service = MagicMock()
-        mock_user_service.cols = {"users": MagicMock()}
-        mock_user_service.cols["users"].find = MagicMock(
+        mock_user_service = UserService(users=MagicMock(), defaults=TEST_LANGUAGE.user_defaults)
+        mock_user_service.users.find = MagicMock(
             return_value=_AsyncCursor([
-                _make_user_doc(user_id="200", last_reviewed_at=recent,
+                _make_user_doc(user_id=200, last_reviewed_at=recent,
                                review_interval_minutes=30)
             ])
         )
@@ -79,11 +85,10 @@ class TestFindUsersDueForReview:
 
         # Reviewed 60 minutes ago, interval is 30 min → due
         old = iso_z(now_utc() - timedelta(minutes=60))
-        mock_user_service = MagicMock()
-        mock_user_service.cols = {"users": MagicMock()}
-        mock_user_service.cols["users"].find = MagicMock(
+        mock_user_service = UserService(users=MagicMock(), defaults=TEST_LANGUAGE.user_defaults)
+        mock_user_service.users.find = MagicMock(
             return_value=_AsyncCursor([
-                _make_user_doc(user_id="300", last_reviewed_at=old,
+                _make_user_doc(user_id=300, last_reviewed_at=old,
                                review_interval_minutes=30)
             ])
         )
@@ -98,22 +103,21 @@ class TestFindUsersDueForReview:
         recent = iso_z(now_utc() - timedelta(minutes=5))
         old = iso_z(now_utc() - timedelta(minutes=60))
 
-        mock_user_service = MagicMock()
-        mock_user_service.cols = {"users": MagicMock()}
-        mock_user_service.cols["users"].find = MagicMock(
+        mock_user_service = UserService(users=MagicMock(), defaults=TEST_LANGUAGE.user_defaults)
+        mock_user_service.users.find = MagicMock(
             return_value=_AsyncCursor([
-                _make_user_doc(user_id="due", last_reviewed_at=old),
-                _make_user_doc(user_id="not_due", last_reviewed_at=recent),
-                _make_user_doc(user_id="new", last_reviewed_at=None),
+                _make_user_doc(user_id=DUE, last_reviewed_at=old),
+                _make_user_doc(user_id=NOT_DUE, last_reviewed_at=recent),
+                _make_user_doc(user_id=NEW, last_reviewed_at=None),
             ])
         )
 
         result = await find_users_due_for_review(mock_user_service)
         ids = {u.user_id for u in result}
 
-        assert "due" in ids
-        assert "new" in ids
-        assert "not_due" not in ids
+        assert DUE in ids
+        assert NEW in ids
+        assert NOT_DUE not in ids
 
 
 # ===================================================================
@@ -133,13 +137,15 @@ class TestSendAdminMetrics:
             await send_admin_metrics(
                 logger_bot=mock_bot,
                 admin_id=12345,
-                successful_ids=["u1", "u2"],
+                successful_ids=[101, 102],
                 failed_details=[],
                 total_time=1.23,
             )
 
             mock_notify.assert_called_once()
             msg = mock_notify.call_args[0][1]
+
+            assert "101, 102" in msg
 
             assert "Scheduler Cycle Report" in msg
             assert "✅ Successful: 2" in msg
@@ -155,14 +161,14 @@ class TestSendAdminMetrics:
             await send_admin_metrics(
                 logger_bot=mock_bot,
                 admin_id=12345,
-                successful_ids=["u1"],
-                failed_details=[{"user_id": "u2", "error": "Timeout"}],
+                successful_ids=[101],
+                failed_details=[{"user_id": 102, "error": "Timeout"}],
                 total_time=2.5,
             )
 
             msg = mock_notify.call_args[0][1]
             assert "Failed Users" in msg
-            assert "u2" in msg
+            assert "102" in msg
             assert "Timeout" in msg
 
     async def test_long_report_splits_messages(self):
@@ -201,10 +207,7 @@ class TestSchedulerLoopTracing:
 
         mock_bot = MagicMock()
         mock_logger_bot = MagicMock()
-        mock_expression_service = MagicMock()
         mock_user_service = MagicMock()
-        mock_consumption_service = MagicMock()
-        mock_llm_service = MagicMock()
         mock_trace_logger = MagicMock()
 
         async def _break_sleep(_seconds):
@@ -220,11 +223,12 @@ class TestSchedulerLoopTracing:
                 await scheduler_loop(
                     bot=mock_bot,
                     logger_bot=mock_logger_bot,
-                    expression_service=mock_expression_service,
                     user_service=mock_user_service,
-                    consumption_service=mock_consumption_service,
-                    llm_service=mock_llm_service,
+                    review_use_cases=MagicMock(),
+                    language=TEST_LANGUAGE,
+                    i18n=TEST_I18N,
                     admin_id=12345,
+                    check_interval_seconds=600,
                 )
             except _BreakLoop:
                 pass
@@ -238,18 +242,14 @@ class TestSchedulerLoopTracing:
 
         mock_bot = MagicMock()
         mock_logger_bot = MagicMock()
-        mock_expression_service = MagicMock()
-        mock_user_service = MagicMock()
-        mock_consumption_service = MagicMock()
-        mock_llm_service = MagicMock()
+        mock_user_service = UserService(users=MagicMock(), defaults=TEST_LANGUAGE.user_defaults)
         mock_trace_logger = MagicMock()
 
         # One due user to trigger metrics path and observed wrappers.
         old = iso_z(now_utc() - timedelta(minutes=60))
-        mock_user_service.cols = {"users": MagicMock()}
-        mock_user_service.cols["users"].find = MagicMock(
+        mock_user_service.users.find = MagicMock(
             return_value=_AsyncCursor([
-                _make_user_doc(user_id="u1", last_reviewed_at=old, review_interval_minutes=30)
+                _make_user_doc(user_id=U1, last_reviewed_at=old, review_interval_minutes=30)
             ])
         )
 
@@ -258,7 +258,7 @@ class TestSchedulerLoopTracing:
 
         with (
             patch("flashcard.scheduler.scheduler.send_scheduled_review", new_callable=AsyncMock, return_value=True),
-            patch("flashcard.scheduler.scheduler.notify_admin_with_trace", new_callable=AsyncMock),
+            patch("flashcard.scheduler.scheduler.notify_admin_with_trace", new_callable=AsyncMock) as notify,
             patch("flashcard.services.trace_logger.get_trace_logger", return_value=mock_trace_logger),
             patch("flashcard.scheduler.scheduler.asyncio.sleep", side_effect=_break_sleep),
         ):
@@ -266,11 +266,12 @@ class TestSchedulerLoopTracing:
                 await scheduler_loop(
                     bot=mock_bot,
                     logger_bot=mock_logger_bot,
-                    expression_service=mock_expression_service,
                     user_service=mock_user_service,
-                    consumption_service=mock_consumption_service,
-                    llm_service=mock_llm_service,
+                    review_use_cases=MagicMock(),
+                    language=TEST_LANGUAGE,
+                    i18n=TEST_I18N,
                     admin_id=12345,
+                    check_interval_seconds=600,
                 )
             except _BreakLoop:
                 pass
@@ -280,3 +281,280 @@ class TestSchedulerLoopTracing:
         span_names = {s["name"] for s in payload["spans"]}
         assert "scheduler.find_users_due_for_review" in span_names
         assert "scheduler.send_admin_metrics" in span_names
+        # The span is recorded even when the report fails, so check the report itself was sent.
+        notify.assert_awaited_once()
+        assert str(U1) in notify.call_args[0][1]
+
+    async def test_blocked_user_is_reported_once_across_ticks(self):
+        """End to end through the loop: reported on the first tick, then paused, so not due again."""
+        from aiogram.exceptions import TelegramForbiddenError
+        from flashcard.scheduler.scheduler import scheduler_loop
+        from tests.integration.helpers import make_cols
+
+        user_service = UserService(users=make_cols(users=[_make_user_doc(user_id=U1)])["users"],
+                                   defaults=TEST_LANGUAGE.user_defaults)
+
+        async def pause(user_id):
+            await user_service.set_active(user_id, False)
+
+        review_use_cases = MagicMock()
+        review_use_cases.prepare_next = AsyncMock(return_value=MagicMock())
+        review_use_cases.pause_undeliverable = pause
+        bot = MagicMock()
+        bot.send_message = AsyncMock(side_effect=TelegramForbiddenError(
+            method=MagicMock(), message="Forbidden: bot was blocked by the user"))
+        ticks = []
+
+        async def _stop_after_two_ticks(_seconds):
+            ticks.append(_seconds)
+            if len(ticks) == 2:
+                raise _BreakLoop()
+
+        with (
+            patch("flashcard.scheduler.scheduler.format_review_message", return_value="TEXT"),
+            patch("flashcard.scheduler.scheduler.review_label", return_value=None),
+            patch("flashcard.scheduler.scheduler.get_review_keyboard", return_value=None),
+            patch("flashcard.scheduler.scheduler.notify_admin_with_trace", new_callable=AsyncMock) as notify,
+            patch("flashcard.services.trace_logger.get_trace_logger", return_value=MagicMock()),
+            patch("flashcard.scheduler.scheduler.asyncio.sleep", side_effect=_stop_after_two_ticks),
+        ):
+            try:
+                await scheduler_loop(
+                    bot=bot,
+                    logger_bot=MagicMock(),
+                    user_service=user_service,
+                    review_use_cases=review_use_cases,
+                    language=TEST_LANGUAGE,
+                    i18n=TEST_I18N,
+                    admin_id=12345,
+                    check_interval_seconds=600,
+                )
+            except _BreakLoop:
+                pass
+
+        bot.send_message.assert_awaited_once()
+        notify.assert_awaited_once()
+        report = notify.call_args[0][1]
+        assert str(U1) in report and "bot was blocked" in report
+
+
+# ===================================================================
+# compare_pause_rules (review-state shadow compare)
+# ===================================================================
+class TestComparePauseRules:
+
+    def _service(self, *users):
+        from tests.integration.helpers import make_cols
+        return UserService(users=make_cols(users=list(users))["users"], defaults=TEST_LANGUAGE.user_defaults)
+
+    def _review(self, sent_at):
+        return {"expression_id": "e1", "direction": "forward", "message_id": 1, "sent_at": sent_at}
+
+    async def test_counts_only_users_either_rule_could_pause(self):
+        from flashcard.scheduler.scheduler import compare_pause_rules
+        sent = iso_z(now_utc() - timedelta(hours=2))
+        service = self._service(
+            _make_user_doc(user_id=FREE),
+            _make_user_doc(user_id=BOTH, has_pending=True, current_review=self._review(sent)),
+            _make_user_doc(user_id=RESUMED, has_pending=True, current_review=self._review(sent),
+                           last_seen_at=iso_z(now_utc())),
+            _make_user_doc(user_id=GAP, has_pending=True),
+            _make_user_doc(user_id=INACTIVE, is_active=False, has_pending=True),
+        )
+
+        report = await compare_pause_rules(service)
+
+        assert report.counts == {"agree": 1, "resumed_by_interaction": 1, "missing_current_review": 1}
+        assert sorted(report.mismatches) == sorted([(GAP, "missing_current_review"), (RESUMED, "resumed_by_interaction")])
+
+    async def test_compare_failure_never_breaks_the_cycle(self, caplog):
+        from flashcard.scheduler.scheduler import _log_pause_comparison
+        service = MagicMock()
+        service.active_users_possibly_paused = AsyncMock(side_effect=RuntimeError("mongo down"))
+
+        await _log_pause_comparison(service)
+
+        assert "shadow compare failed" in caplog.text
+
+
+# ===================================================================
+# find_users_due_for_review with the current_review pause rule
+# ===================================================================
+class TestFindUsersDueCurrentReviewRule:
+
+    def _service(self, *users):
+        from tests.integration.helpers import make_cols
+        return UserService(users=make_cols(users=list(users))["users"], defaults=TEST_LANGUAGE.user_defaults)
+
+    def _review(self, hours_ago):
+        return {"expression_id": "e1", "direction": "forward", "message_id": 1,
+                "sent_at": iso_z(now_utc() - timedelta(hours=hours_ago))}
+
+    async def _due(self, service, rule):
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        return sorted(user.user_id for user in await find_users_due_for_review(service, rule))
+
+    async def test_rules_differ_only_on_the_pause(self):
+        seen_after = iso_z(now_utc() - timedelta(hours=1))
+        service = self._service(
+            _make_user_doc(user_id=FREE),
+            _make_user_doc(user_id=WAITING, has_pending=True, current_review=self._review(2)),
+            _make_user_doc(user_id=RESUMED, has_pending=True, current_review=self._review(2),
+                           last_seen_at=seen_after),
+            _make_user_doc(user_id=STUCK, has_pending=True),
+        )
+
+        assert await self._due(service, "legacy") == [FREE]
+        assert await self._due(service, "current_review") == sorted([FREE, RESUMED, STUCK])
+
+    async def test_interval_and_active_still_apply(self):
+        service = self._service(
+            _make_user_doc(user_id=RECENT, last_reviewed_at=iso_z(now_utc() - timedelta(minutes=5))),
+            _make_user_doc(user_id=INACTIVE, is_active=False),
+        )
+
+        assert await self._due(service, "current_review") == []
+
+    @pytest.mark.parametrize("rule", ["legacy", "current_review"])
+    async def test_user_who_never_pressed_pause_is_active(self, rule):
+        """record_seen stores no is_active, and /settings shows such a user as active."""
+        never_pressed = _make_user_doc(user_id=NEW)
+        del never_pressed["is_active"]
+        service = self._service(
+            never_pressed,
+            _make_user_doc(user_id=OK, is_active=True),
+            _make_user_doc(user_id=INACTIVE, is_active=False),
+        )
+
+        assert await self._due(service, rule) == sorted([NEW, OK])
+
+    async def test_new_user_saving_a_card_becomes_due(self):
+        """The whole path of a new user: created by record_seen, has_pending set by the first save."""
+        from flashcard.services.review_state import ReviewStateStore
+        service = self._service()
+        await service.users.insert_one({"user_id": str(NEW)})  # what record_seen's upsert leaves
+        assert await self._due(service, "legacy") == []  # no has_pending yet, and nothing to review
+
+        await ReviewStateStore(users=service.users).clear_pending(NEW)
+
+        assert await self._due(service, "legacy") == [NEW]
+
+    async def test_compare_includes_a_user_who_never_pressed_pause(self):
+        from flashcard.scheduler.scheduler import compare_pause_rules
+        waiting = _make_user_doc(user_id=NEW, has_pending=True, current_review=self._review(2))
+        del waiting["is_active"]
+
+        report = await compare_pause_rules(self._service(waiting))
+
+        assert report.counts == {"agree": 1}
+
+
+class TestBadStoredReviewMode:
+
+    async def test_unknown_review_mode_does_not_break_the_tick(self):
+        """One bad stored value must not stop reviews for every user."""
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        from tests.integration.helpers import make_cols
+        cols = make_cols(users=[_make_user_doc(user_id=BAD, review_mode="weird"), _make_user_doc(user_id=OK)])
+        service = UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults)
+
+        due = await find_users_due_for_review(service)
+
+        assert sorted(user.user_id for user in due) == sorted([BAD, OK])
+
+
+# ===================================================================
+# Per-user isolation: one unreadable user document never stops a tick
+# ===================================================================
+class TestPerUserIsolation:
+
+    def _service(self, *users):
+        from tests.integration.helpers import make_cols
+        return UserService(users=make_cols(users=list(users))["users"], defaults=TEST_LANGUAGE.user_defaults)
+
+    @pytest.mark.parametrize("bad_fields", [
+        {"target_level": "Z9"},                       # schema validation error
+        {"review_interval_minutes": "often"},          # wrong type
+        {"last_reviewed_at": "2000-13-45T00:00:00Z"},  # passes the DB prefilter, fails parsing
+        {"current_review": {"expression_id": "e1"}},   # incomplete embedded review
+    ])
+    async def test_bad_user_is_skipped_and_reported(self, bad_fields):
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        service = self._service(_make_user_doc(user_id=BAD, **bad_fields), _make_user_doc(user_id=OK))
+        skipped = []
+
+        due = await find_users_due_for_review(service, skipped=skipped)
+
+        assert [user.user_id for user in due] == [OK]
+        assert [entry["user_id"] for entry in skipped] == [str(BAD)]
+        assert skipped[0]["error"].startswith("Unreadable user document")
+
+    async def test_naive_date_reads_as_utc(self):
+        """Every writer used UTC, so a date without a timezone compares as UTC (seen after the send)."""
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        review = {"expression_id": "e1", "direction": "forward", "message_id": 1, "sent_at": "2026-10-01T10:00:00"}
+        service = self._service(
+            _make_user_doc(user_id=NEW, current_review=review, last_seen_at="2026-10-02T10:00:00Z"),
+            _make_user_doc(user_id=OK),
+        )
+        skipped = []
+
+        due = await find_users_due_for_review(service, "current_review", skipped)
+
+        assert sorted(user.user_id for user in due) == sorted([NEW, OK])
+        assert skipped == []
+
+    async def test_unreadable_text_date_passes_the_prefilter_and_is_reported(self):
+        """Legacy text dates reach Python, so a bad one is reported instead of silently never due."""
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        service = self._service(_make_user_doc(user_id=BAD, last_reviewed_at="zzz"), _make_user_doc(user_id=OK))
+        skipped = []
+
+        due = await find_users_due_for_review(service, "current_review", skipped)
+
+        assert [user.user_id for user in due] == [OK]
+        assert [entry["user_id"] for entry in skipped] == [str(BAD)]
+
+    async def test_without_a_collector_bad_users_are_only_logged(self, caplog):
+        from flashcard.scheduler.scheduler import find_users_due_for_review
+        service = self._service(_make_user_doc(user_id=BAD, target_level="Z9"), _make_user_doc(user_id=OK))
+
+        due = await find_users_due_for_review(service)
+
+        assert [user.user_id for user in due] == [OK]
+        assert f"Skipping user {BAD}" in caplog.text
+
+    async def test_shadow_compare_counts_unreadable_users(self):
+        from flashcard.scheduler.scheduler import compare_pause_rules
+        service = self._service(_make_user_doc(user_id=BAD, has_pending=True, target_level="Z9"),
+                                _make_user_doc(user_id=OK, has_pending=True))
+
+        report = await compare_pause_rules(service)
+
+        assert report.counts == {"unreadable": 1, "missing_current_review": 1}
+
+    async def test_skipped_users_reach_the_admin_report(self):
+        from flashcard.scheduler.scheduler import scheduler_loop
+
+        async def find_users(user_service, pause_rule, skipped):
+            skipped.append({"user_id": "bad", "error": "Unreadable user document: ValidationError"})
+            return []
+
+        async def _break_sleep(_seconds):
+            raise _BreakLoop()
+
+        with (
+            patch("flashcard.scheduler.scheduler._observed_find_users_due_for_review", side_effect=find_users),
+            patch("flashcard.scheduler.scheduler._log_pause_comparison", new_callable=AsyncMock),
+            patch("flashcard.scheduler.scheduler._observed_send_admin_metrics", new_callable=AsyncMock) as metrics,
+            patch("flashcard.scheduler.scheduler.asyncio.sleep", side_effect=_break_sleep),
+        ):
+            try:
+                await scheduler_loop(bot=MagicMock(), logger_bot=MagicMock(), user_service=MagicMock(),
+                                     review_use_cases=MagicMock(), language=TEST_LANGUAGE, i18n=TEST_I18N, admin_id=12345,
+                                     check_interval_seconds=600)
+            except _BreakLoop:
+                pass
+
+        assert metrics.call_args.kwargs["failed_details"] == [
+            {"user_id": "bad", "error": "Unreadable user document: ValidationError"}]

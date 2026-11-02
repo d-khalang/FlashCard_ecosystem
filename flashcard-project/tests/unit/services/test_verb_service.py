@@ -1,14 +1,14 @@
 """
 Unit tests for flashcard.services.verb.VerbService
 
-Tests validation, extraction, and the DB→API fallback orchestration.
-Pure methods (is_valid_verb, extract_verb) need no mocking.
+Tests validation and the DB→API fallback orchestration.
+The pure method is_valid_verb needs no mocking.
 get_verb_data orchestration uses mocked DB + HTTP.
 """
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from flashcard.services.verb import VerbService
+from flashcard.services.verb import ScraperConfig, VerbService
 
 
 # ---------------------------------------------------------------------------
@@ -21,7 +21,11 @@ def _make_service():
     mock_cols["conjugation"].replace_one = AsyncMock()
     mock_http = MagicMock()
     mock_http.get = AsyncMock()
-    return VerbService(mock_cols, http_client=mock_http), mock_cols, mock_http
+    return VerbService(
+        conjugations=mock_cols["conjugation"],
+        http_client=mock_http,
+        scraper=ScraperConfig(url="http://localhost", port=5000, api_key="test-key"),
+    ), mock_cols, mock_http
 
 
 # ===================================================================
@@ -37,13 +41,15 @@ class TestIsValidVerb:
         service, _, _ = _make_service()
         assert service.is_valid_verb("être") is True
 
-    def test_with_verb_command_prefix(self):
+    def test_surrounding_whitespace_is_ignored(self):
         service, _, _ = _make_service()
-        assert service.is_valid_verb("/verb parlare") is True
+        assert service.is_valid_verb("  parlare ") is True
 
-    def test_with_verb_command_prefix_without_space(self):
+    def test_command_text_is_not_a_verb(self):
+        """Command parsing belongs to the handler (command.args); the service checks format only."""
         service, _, _ = _make_service()
-        assert service.is_valid_verb("/verbparlare") is True
+        assert service.is_valid_verb("/verb parlare") is False
+        assert service.is_valid_verb("/verbparlare") is False
 
     def test_numbers_rejected(self):
         service, _, _ = _make_service()
@@ -69,40 +75,6 @@ class TestIsValidVerb:
     def test_none_input_rejected(self):
         service, _, _ = _make_service()
         assert service.is_valid_verb(None) is False
-
-
-# ===================================================================
-# extract_verb — pure function
-# ===================================================================
-class TestExtractVerb:
-
-    def test_normal_extraction(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verb parlare") == "parlare"
-
-    def test_just_command_returns_none(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verb") is None
-
-    def test_just_command_with_space_returns_none(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verb ") is None
-
-    def test_empty_string_returns_none(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("") is None
-
-    def test_none_returns_none(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb(None) is None
-
-    def test_preserves_original_case(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verb Parlare") == "Parlare"
-
-    def test_with_verb_command_prefix_without_space(self):
-        service, _, _ = _make_service()
-        assert service.extract_verb("/verbparlare") == "parlare"
 
 
 # ===================================================================

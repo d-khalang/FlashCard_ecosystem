@@ -1,14 +1,16 @@
 """
 Unit tests for flashcard.services.user.UserService
 
-Tests all 5 methods: update_user_last_push, toggle_active_status,
-get_user_status, get_user, update_setting.
+Tests get_user, the settings setters (incl. set_active), advance_onboarding. Review-state writes live in ReviewStateStore.
 All use mocked MongoDB.
 """
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import ANY, MagicMock, AsyncMock
+
+import pytest
 
 from flashcard.services.user import UserService
 from flashcard.schemas.user import UserDB
+from tests.helpers import TEST_LANGUAGE
 
 
 # ---------------------------------------------------------------------------
@@ -19,105 +21,7 @@ def _make_service(user_doc=None):
     mock_cols = {"users": MagicMock()}
     mock_cols["users"].find_one = AsyncMock(return_value=user_doc)
     mock_cols["users"].update_one = AsyncMock()
-    return UserService(mock_cols), mock_cols
-
-
-# ===================================================================
-# update_user_last_push
-# ===================================================================
-class TestUpdateUserLastPush:
-
-    async def test_sets_last_push_and_has_pending(self):
-        service, cols = _make_service()
-
-        await service.update_user_last_push(123)
-
-        cols["users"].update_one.assert_called_once()
-        call_args = cols["users"].update_one.call_args
-        assert call_args[0][0] == {"user_id": "123"}
-        set_dict = call_args[0][1]["$set"]
-        assert "last_push_at" in set_dict
-        assert set_dict["has_pending"] is True
-
-    async def test_upserts_for_new_user(self):
-        service, cols = _make_service()
-
-        await service.update_user_last_push(999)
-
-        call_kwargs = cols["users"].update_one.call_args[1]
-        assert call_kwargs.get("upsert") is True
-
-
-# ===================================================================
-# toggle_active_status
-# ===================================================================
-class TestToggleActiveStatus:
-
-    async def test_active_to_inactive(self):
-        service, cols = _make_service(user_doc={"user_id": "123", "is_active": True})
-
-        result = await service.toggle_active_status(123)
-
-        assert result is False
-        set_dict = cols["users"].update_one.call_args[0][1]["$set"]
-        assert set_dict["is_active"] is False
-
-    async def test_inactive_to_active(self):
-        service, cols = _make_service(user_doc={"user_id": "123", "is_active": False})
-
-        result = await service.toggle_active_status(123)
-
-        assert result is True
-        set_dict = cols["users"].update_one.call_args[0][1]["$set"]
-        assert set_dict["is_active"] is True
-
-    async def test_new_user_defaults_true_toggles_to_false(self):
-        """No user doc → default is True → toggles to False."""
-        service, cols = _make_service(user_doc=None)
-
-        result = await service.toggle_active_status(123)
-
-        assert result is False
-
-    async def test_missing_is_active_field_defaults_true(self):
-        """User doc exists but no is_active field → defaults True → toggles False."""
-        service, cols = _make_service(user_doc={"user_id": "123"})
-
-        result = await service.toggle_active_status(123)
-
-        assert result is False
-
-    async def test_double_toggle_returns_to_original(self):
-        """Toggling twice should return to the original state."""
-        service, cols = _make_service(user_doc={"user_id": "123", "is_active": True})
-
-        first = await service.toggle_active_status(123)
-        assert first is False
-
-        # Update mock to reflect the toggle
-        cols["users"].find_one = AsyncMock(
-            return_value={"user_id": "123", "is_active": False}
-        )
-        second = await service.toggle_active_status(123)
-        assert second is True
-
-
-# ===================================================================
-# get_user_status
-# ===================================================================
-class TestGetUserStatus:
-
-    async def test_existing_active_user(self):
-        service, _ = _make_service(user_doc={"user_id": "123", "is_active": True})
-        assert await service.get_user_status(123) is True
-
-    async def test_existing_inactive_user(self):
-        service, _ = _make_service(user_doc={"user_id": "123", "is_active": False})
-        assert await service.get_user_status(123) is False
-
-    async def test_missing_user_defaults_to_true(self):
-        service, _ = _make_service(user_doc=None)
-        assert await service.get_user_status(999) is True
+    return UserService(users=mock_cols["users"], defaults=TEST_LANGUAGE.user_defaults), mock_cols
 
 
 # ===================================================================
@@ -131,7 +35,7 @@ class TestGetUser:
         result = await service.get_user(999)
 
         assert isinstance(result, UserDB)
-        assert result.user_id == "999"
+        assert result.user_id == 999
         assert result.is_active is True
         assert result.target_level == "A2"  # default
 
@@ -148,7 +52,7 @@ class TestGetUser:
         result = await service.get_user(123)
 
         assert isinstance(result, UserDB)
-        assert result.user_id == "123"
+        assert result.user_id == 123
         assert result.is_active is False
         assert result.primary_language == "fa"
         assert result.target_level == "B1"
@@ -156,35 +60,55 @@ class TestGetUser:
 
 
 # ===================================================================
-# update_setting
+# setters: the owner enforces which fields and values can be written
 # ===================================================================
-class TestUpdateSetting:
+class TestSetters:
 
-    async def test_updates_arbitrary_field(self):
+    @pytest.mark.parametrize("method, value, field", [
+        ("set_target_level", "C1", "target_level"),
+        ("set_review_interval", 60, "review_interval_minutes"),
+        ("set_primary_language", "de", "primary_language"),
+        ("set_secondary_language", "fa", "secondary_language"),
+        ("set_secondary_language", None, "secondary_language"),
+        ("set_review_mode", "dual", "review_mode"),
+        ("set_active", False, "is_active"),
+        ("set_active", True, "is_active"),
+    ])
+    async def test_valid_value_is_written_without_creating_a_user(self, method, value, field):
         service, cols = _make_service()
 
-        await service.update_setting(123, "primary_language", "de")
+        await getattr(service, method)(42, value)
 
-        call_args = cols["users"].update_one.call_args[0]
-        assert call_args[0] == {"user_id": "123"}
-        assert call_args[1] == {"$set": {"primary_language": "de"}}
+        args, kwargs = cols["users"].update_one.call_args
+        assert args == ({"user_id": "42"}, {"$set": {field: value}})
+        assert not kwargs.get("upsert")
 
-    async def test_upserts_for_new_user(self):
+    @pytest.mark.parametrize("method, value", [
+        ("set_target_level", "Z9"),
+        ("set_target_level", "c1"),
+        ("set_review_interval", 14),
+        ("set_review_interval", 241),
+        ("set_review_interval", 30.0),
+        ("set_review_interval", True),
+        ("set_primary_language", "none"),
+        ("set_primary_language", "English"),
+        ("set_secondary_language", "klingon"),
+        ("set_secondary_language", "none"),  # turned off is None, never the word
+        ("set_review_mode", "triple"),
+        ("set_active", "yes"),
+        ("set_active", 1),
+        ("set_active", None),
+    ])
+    async def test_invalid_value_is_rejected_without_writing(self, method, value):
         service, cols = _make_service()
 
-        await service.update_setting(999, "target_level", "C1")
+        with pytest.raises(ValueError):
+            await getattr(service, method)(42, value)
+        cols["users"].update_one.assert_not_called()
 
-        call_kwargs = cols["users"].update_one.call_args[1]
-        assert call_kwargs.get("upsert") is True
-
-    async def test_converts_int_user_id_to_string(self):
-        """Integer user_id should be converted to string in the query."""
-        service, cols = _make_service()
-
-        await service.update_setting(42, "target_level", "B2")
-
-        call_args = cols["users"].update_one.call_args[0]
-        assert call_args[0]["user_id"] == "42"  # string, not int
+    @pytest.mark.parametrize("removed", ["update_setting", "toggle_active_status", "get_user_status"])
+    def test_removed_methods_stay_removed(self, removed):
+        assert not hasattr(UserService, removed)
 
 
 # ===================================================================
@@ -230,3 +154,19 @@ class TestAdvanceOnboarding:
         call_args = cols["users"].update_one.call_args[0]
         assert call_args[0] == {"user_id": "123", "onboarding_step": 1}
         assert call_args[1] == {"$set": {"onboarding_step": 2}}
+
+
+# ===================================================================
+# record_seen
+# ===================================================================
+class TestRecordSeen:
+
+    async def test_sets_username_and_first_seen(self):
+        service, cols = _make_service()
+        await service.record_seen(123, "new_handle")
+
+        cols["users"].update_one.assert_called_once_with(
+            {"user_id": "123"},
+            {"$set": {"username": "new_handle", "last_seen_at": ANY}, "$setOnInsert": {"created_at": ANY}},
+            upsert=True
+        )

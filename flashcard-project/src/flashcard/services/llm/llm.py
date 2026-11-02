@@ -13,7 +13,6 @@ from pydantic import BaseModel
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.import_model import ImportResponse
 from flashcard.schemas.story import StoryResponse
-from flashcard.settings import settings
 from flashcard.services.llm.llm_key import LLMKeyProvider
 from flashcard.services.llm.prompts import (
     EXPRESSION_PROMPT_TEMPLATE,
@@ -37,7 +36,25 @@ TRANSIENT_ERROR_MARKERS = (
     "rate_limit",
     "timeout",
 )
-GROQ_TIMEOUT_SECONDS = settings.LLM_GROQ_FALLBACK_DELAY_SECONDS
+@dataclass(frozen=True)
+class LLMConfig:
+    google_model: str
+    groq_model: str
+    groq_fallback_delay_seconds: float
+    max_attempts: int
+    request_timeout_seconds: float
+    key_file: str | None
+
+    @classmethod
+    def from_settings(cls, settings) -> "LLMConfig":
+        return cls(
+            google_model=settings.LLM_GOOGLE_MODEL,
+            groq_model=settings.LLM_GROQ_MODEL,
+            groq_fallback_delay_seconds=settings.LLM_GROQ_FALLBACK_DELAY_SECONDS,
+            max_attempts=settings.LLM_MAX_ATTEMPTS,
+            request_timeout_seconds=settings.LLM_REQUEST_TIMEOUT_SECONDS,
+            key_file=settings.LLM_KEY_FILE,
+        )
 
 
 @dataclass(frozen=True)
@@ -144,15 +161,15 @@ def _require_all_properties(node: Any) -> None:
 
 
 class LLMService:
-    def __init__(self) -> None:
-        self.google_model = settings.LLM_GOOGLE_MODEL
-        self.groq_model = settings.LLM_GROQ_MODEL
-        self.groq_fallback_delay_seconds = max(
-            0.0,
-            settings.LLM_GROQ_FALLBACK_DELAY_SECONDS,
-        )
-        self.max_attempts = max(1, settings.LLM_MAX_ATTEMPTS)
-        self.providers = self._create_providers()
+    def __init__(self, *, learning_language_name: str, config: LLMConfig) -> None:
+        """`learning_language_name`: the language this instance teaches, used in every prompt."""
+        self.learning_language_name = learning_language_name
+        self.google_model = config.google_model
+        self.groq_model = config.groq_model
+        self.groq_fallback_delay_seconds = max(0.0, config.groq_fallback_delay_seconds)
+        self.max_attempts = max(1, config.max_attempts)
+        self.request_timeout_seconds = config.request_timeout_seconds
+        self.providers = self._create_providers(config.key_file)
         self.google_providers = self._providers_by_name("google")
         self.groq_providers = self._providers_by_name("groq")
         self.google_cycle = itertools.cycle(self.google_providers.items())
@@ -186,8 +203,8 @@ class LLMService:
         logger.info("Using %s LLM provider: %s", provider, name)
         return strategy
 
-    def _create_providers(self) -> Dict[str, LLMProviderStrategy]:
-        key_provider = LLMKeyProvider()
+    def _create_providers(self, key_file: str | None) -> Dict[str, LLMProviderStrategy]:
+        key_provider = LLMKeyProvider(key_file)
         providers: Dict[str, LLMProviderStrategy] = {}
 
         for entry in key_provider.get_core_entries():
@@ -196,7 +213,10 @@ class LLMService:
                 providers[provider_key] = GoogleGenAIProvider(
                     name=entry.name,
                     provider="google",
-                    client=genai.Client(api_key=entry.api_key),
+                    client=genai.Client(
+                        api_key=entry.api_key,
+                        http_options=types.HttpOptions(timeout=int(self.request_timeout_seconds * 1000)),
+                    ),
                 )
             elif entry.provider == "groq":
                 try:
@@ -208,7 +228,9 @@ class LLMService:
                 providers[provider_key] = GroqProvider(
                     name=entry.name,
                     provider="groq",
-                    client=Groq(api_key=entry.api_key),
+                    # No SDK retries: LLM_MAX_ATTEMPTS is the one retry setting, and each
+                    # retry would hold the thread for another timeout.
+                    client=Groq(api_key=entry.api_key, timeout=self.request_timeout_seconds, max_retries=0),
                 )
             else:
                 logger.warning(
@@ -227,7 +249,7 @@ class LLMService:
         response_schema: type[ResponseModel],
         fallback_triggered: bool = False,
     ) -> LLMGenerationResult[ResponseModel]:
-        model = getattr(self, "google_model", settings.LLM_GOOGLE_MODEL)
+        model = self.google_model
         return await self._generate_with_retry(
             provider_name="google",
             model=model,
@@ -242,7 +264,7 @@ class LLMService:
         contents: str,
         response_schema: type[ResponseModel],
     ) -> LLMGenerationResult[ResponseModel]:
-        model = getattr(self, "groq_model", settings.LLM_GROQ_MODEL)
+        model = self.groq_model
         return await self._generate_with_retry(
             provider_name="groq",
             model=model,
@@ -262,8 +284,7 @@ class LLMService:
     ) -> LLMGenerationResult[ResponseModel]:
         last_error: Exception | None = None
 
-        max_attempts = getattr(self, "max_attempts", settings.LLM_MAX_ATTEMPTS)
-        max_attempts = max(1, max_attempts)
+        max_attempts = max(1, self.max_attempts)
 
         for attempt in range(max_attempts):
             provider = self._get_provider(provider_name)
@@ -330,46 +351,52 @@ class LLMService:
             self._generate_groq(contents=contents, response_schema=response_schema),
             name="llm-groq",
         )
-        done, _ = await asyncio.wait(
-            {groq_task},
-            timeout=getattr(
-                self,
-                "groq_fallback_delay_seconds",
-                GROQ_TIMEOUT_SECONDS,
-            ),
-            return_when=asyncio.FIRST_COMPLETED,
-        )
+        tasks = [groq_task]
+        try:
+            done, _ = await asyncio.wait(
+                {groq_task},
+                timeout=self.groq_fallback_delay_seconds,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
 
-        if groq_task in done:
-            try:
-                return await groq_task
-            except Exception as exc:
-                logger.warning("Groq LLM failed before fallback delay: %s", exc)
-                if on_fallback is not None:
-                    await on_fallback()
-                return await self._generate_google(
+            if groq_task in done:
+                try:
+                    return await groq_task
+                except Exception as exc:
+                    logger.warning("Groq LLM failed before fallback delay: %s", exc)
+                    if on_fallback is not None:
+                        await on_fallback()
+                    return await self._generate_google(
+                        contents=contents,
+                        response_schema=response_schema,
+                        fallback_triggered=True,
+                    )
+
+            logger.warning(
+                "Groq LLM did not finish within %ss; starting Google fallback",
+                self.groq_fallback_delay_seconds,
+            )
+            if on_fallback is not None:
+                await on_fallback()
+
+            google_task = asyncio.create_task(
+                self._generate_google(
                     contents=contents,
                     response_schema=response_schema,
                     fallback_triggered=True,
-                )
+                ),
+                name="llm-google",
+            )
+            tasks.append(google_task)
 
-        logger.warning(
-            "Groq LLM did not finish within %ss; starting Google fallback",
-            getattr(self, "groq_fallback_delay_seconds", GROQ_TIMEOUT_SECONDS),
-        )
-        if on_fallback is not None:
-            await on_fallback()
-
-        google_task = asyncio.create_task(
-            self._generate_google(
-                contents=contents,
-                response_schema=response_schema,
-                fallback_triggered=True,
-            ),
-            name="llm-google",
-        )
-
-        return await self._first_successful([groq_task, google_task])
+            return await self._first_successful(tasks)
+        finally:
+            # A caller's timeout cancels only this coroutine. Without this the provider tasks
+            # run on, and a later failure of theirs reaches the admin as an unhandled task error.
+            # Each thread still runs until the client's own timeout (request_timeout_seconds).
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _first_successful(
         self,
@@ -441,7 +468,7 @@ class LLMService:
         prompt = EXPRESSION_PROMPT_TEMPLATE.format(
             raw=raw,
             level=level,
-            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
+            learning_language_name=self.learning_language_name,
             target_langs=", ".join(langs),
             target_labels="\n".join(labels),
         )
@@ -467,7 +494,7 @@ class LLMService:
         """
         prompt = IMPORT_PROMPT_TEMPLATE.format(
             raw_input=raw_text,
-            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
+            learning_language_name=self.learning_language_name,
         )
 
         output = await self._generate_with_fallback(
@@ -500,7 +527,7 @@ class LLMService:
             level=target_level,
             length=story_length,
             target_lang=target_lang,
-            learning_language_name=settings.LEARNING_LANGUAGE_NAME,
+            learning_language_name=self.learning_language_name,
         )
 
         output = await self._generate_with_fallback(

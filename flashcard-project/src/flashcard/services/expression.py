@@ -1,29 +1,47 @@
 import re
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Optional, get_args
 
 from flashcard.utils.time import iso_z, now_utc
 
-from flashcard.schemas.expression import ExpressionDB
+from flashcard.schemas.expression import (
+    MAX_GRADE, MIN_GRADE, Direction, Expression, ExpressionDB, ReviewCandidate, StoredCard, error_fields,
+)
+from flashcard.schemas.user import UserId, stored_user_id
 from flashcard.services.algorithm.priority import calculate_priority
 from flashcard.services.algorithm.grading import calculate_new_stats
 from flashcard.utils.logger import get_logger
 from flashcard.utils.tracing import observe
 from bson import ObjectId
+from pymongo.collation import Collation, CollationStrength
+from pydantic import ValidationError
+from pymongo.errors import BulkWriteError, DuplicateKeyError
 
 logger = get_logger(__name__)
 
+# One card per user and value, ignoring case but not accents: "Ciao" == "ciao",
+# "perché" != "perche". The database enforces it once the dedupe migration
+# (flashcard.migrations.dedupe_expressions) has built the index.
+UNIQUE_VALUE_INDEX = "user_value_unique_ci"
+VALUE_COLLATION = Collation(locale="en", strength=CollationStrength.SECONDARY)
+DUPLICATE_KEY = 11000
+
+# Every read and remove uses this one definition of an active card. Documents saved
+# before `status` existed have none and count as active; nothing sets another status yet.
+ACTIVE = {"$in": ["active", None]}
+
 class ExpressionService:
-    def __init__(self, cols: dict):
-        self.cols = cols
+    def __init__(self, expressions):
+        """`expressions`: the expression collection, the only data this service touches."""
+        self.expressions = expressions
 
     async def search_expressions(
         self,
-        user_id: Union[str, int],
+        user_id: UserId,
         query: str,
         *,
         limit: int = 50,
-    ) -> list[dict]:
+    ) -> list[Expression]:
         """
         Search a user's active expressions by value, case-insensitively.
         """
@@ -32,69 +50,61 @@ class ExpressionService:
             return []
 
         escaped_query = re.escape(normalized_query)
-        cursor = self.cols["expression"].find(
+        cursor = self.expressions.find(
             {
-                "user_id": str(user_id),
-                "status": "active",
+                "user_id": stored_user_id(user_id),
+                "status": ACTIVE,
                 "value": {"$regex": escaped_query, "$options": "i"},
             }
         )
 
-        results: list[dict] = []
+        results: list[Expression] = []
         async for doc in cursor:
-            results.append(doc)
+            expression = _read(doc)
+            if expression is not None:
+                results.append(expression)
             if len(results) >= limit:
                 break
 
         return results
 
-    async def add_expression(self, user_id: Union[str, int], value: str) -> bool:
+    async def add_expression(self, user_id: UserId, value: str) -> bool:
         """
         Adds a new expression if it doesn't already exist.
         1. Check for duplicates (case-insensitive)
-        2. If not exists:
-           - Update user stats (last_push_at, has_pending=False)
-           - Insert new expression document
-        
+        2. If not exists, insert the new expression document; the unique index
+           rejects a concurrent save of the same value.
+
         Returns:
             bool: True if inserted, False if duplicate
         """
-        # 1. Check for duplicates
+        # 1. Check for duplicates. Only needed until the unique index exists (contract step).
         # Escaping regex to prevent issues with special characters in 'value'
         escaped_value = re.escape(value)
-        existing = await self.cols['expression'].find_one({
-            "user_id": str(user_id),
+        existing = await self.expressions.find_one({
+            "user_id": stored_user_id(user_id),
             "value": {"$regex": f"^{escaped_value}$", "$options": "i"}
         })
 
         if existing:
             return False
 
-        # 2. Update User Data (do not touch created_at here; handled by user/consumption services)
-        current_iso = iso_z(now_utc())
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {
-                "$set": {
-                    "last_push_at": current_iso,
-                    "has_pending": False
-                }
-            },
-            upsert=True
-        )
-
-        # 3. Insert Expression
+        # 2. Insert Expression
         new_expression = ExpressionDB(
-            user_id=str(user_id),
+            user_id=stored_user_id(user_id),
             value=value,
-            created_at=current_iso
+            created_at=now_utc()
         )
 
-        await self.cols['expression'].insert_one(new_expression.model_dump())
+        try:
+            await self.expressions.insert_one(new_expression.model_dump())
+        except DuplicateKeyError:
+            # A concurrent save of the same value (double tap, retry) won the race.
+            return False
         logger.info(f"Inserted new expression for user {user_id}: {value}")
         return True
 
-    async def add_expressions_bulk(self, user_id: Union[str, int], expressions: list[str]) -> list[str]:
+    async def add_expressions_bulk(self, user_id: UserId, expressions: list[str]) -> list[str]:
         """
         Adds multiple expressions at once, ignoring duplicates.
         Returns the list of values that were actually inserted.
@@ -102,13 +112,17 @@ class ExpressionService:
         if not expressions:
             return []
 
-        # 1. Normalize input: remove duplicates within the user input inside logic if needed,        
-        # We need case-insensitive check. 
-        unique_inputs = list(set(expressions))
+        # 1. Drop repeats within the input, case-insensitively; the first spelling wins.
+        seen, unique_inputs = set(), []
+        for value in expressions:
+            if value.lower() not in seen:
+                seen.add(value.lower())
+                unique_inputs.append(value)
+        # Skip values already saved. Only needed until the unique index exists (contract step).
         regex_list = [re.compile(f"^{re.escape(v)}$", re.I) for v in unique_inputs]
-        
-        existing_cursor = self.cols['expression'].find({
-            "user_id": str(user_id),
+
+        existing_cursor = self.expressions.find({
+            "user_id": stored_user_id(user_id),
             "value": {"$in": regex_list}
         })
         
@@ -119,7 +133,7 @@ class ExpressionService:
             
         # 2. Filter new items
         new_items = []
-        current_iso = iso_z(now_utc())
+        now = now_utc()
         
         to_insert = []
         for val in unique_inputs:
@@ -127,54 +141,66 @@ class ExpressionService:
                 new_items.append(val)
                 # Prepare for bulk insert
                 new_expr = ExpressionDB(
-                    user_id=str(user_id),
+                    user_id=stored_user_id(user_id),
                     value=val,
-                    created_at=current_iso
+                    created_at=now
                 )
                 to_insert.append(new_expr.model_dump())
         
         if not to_insert:
             return []
             
-        # 3. Bulk Insert
-        await self.cols['expression'].insert_many(to_insert)
-        
-        # 4. Update User Data (once; created_at handled elsewhere)
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {
-                "$set": {
-                    "last_push_at": current_iso,
-                    "has_pending": False
-                }
-            },
-            upsert=True
-        )
-        
+        # 3. Bulk Insert. Unordered, so a value the unique index rejects (saved
+        # concurrently) does not stop the rest.
+        try:
+            await self.expressions.insert_many(to_insert, ordered=False)
+        except BulkWriteError as error:
+            write_errors = error.details.get("writeErrors", [])
+            if any(e.get("code") != DUPLICATE_KEY for e in write_errors):
+                raise
+            rejected = {e["index"] for e in write_errors}
+            new_items = [value for i, value in enumerate(new_items) if i not in rejected]
+
         logger.info(f"Bulk inserted {len(new_items)} expressions for user {user_id}")
         return new_items
 
 
-    async def get_all_expressions(self, user_id: Union[str, int], sort_by_time: bool = False) -> list[str]:
-        """
-        Retrieves all active expressions for a given user.
-        :param sort_by_time: If True, returns expressions sorted by creation time (oldest first).
-        """
-        if sort_by_time:
-            # Use find() and sort by created_at. 1 = Ascending (Oldest first)
-            cursor = self.cols['expression'].find({"user_id": str(user_id)}).sort("created_at", 1)
-            expressions = []
-            async for doc in cursor:
-                if 'value' in doc:
-                    expressions.append(doc['value'])
-            return expressions
-        else:
-            # Default: use distinct which is likely faster for uniqueness, 
-            # though it doesn't guarantee specific order (UI handles alphabetical sort)
-            expressions = await self.cols['expression'].distinct("value", {"user_id": str(user_id)})
-            return expressions
+    async def ensure_unique_value_index(self) -> None:
+        """Build the unique (user_id, value) index. Fails while duplicates exist."""
+        await self.expressions.create_index(
+            [("user_id", 1), ("value", 1)],
+            name=UNIQUE_VALUE_INDEX,
+            unique=True,
+            collation=VALUE_COLLATION,
+        )
 
-    async def remove_expression(self, user_id: Union[str, int], expression_id: str) -> bool:
+    async def ensure_indexes(self) -> None:
+        """The unique value index, plus the lookups by user. Fails while duplicates exist."""
+        await self.ensure_unique_value_index()
+        # The unique index has a collation, so plain user_id/value queries cannot use it.
+        await self.expressions.create_index([("user_id", 1), ("value", 1)])
+        await self.expressions.create_index([("user_id", 1), ("last_activity_at", 1), ("created_at", 1)])
+        await self.expressions.create_index([("user_id", 1), ("created_at", 1)])
+
+    async def remove_duplicates(self, expression_ids: list) -> int:
+        """Migration only (dedupe_expressions): delete these cards. Returns how many."""
+        result = await self.expressions.delete_many({"_id": {"$in": expression_ids}})
+        return result.deleted_count
+
+    async def get_all_expressions(self, user_id: UserId) -> list[str]:
+        """
+        The user's active expressions, each value once, oldest first.
+        """
+        cursor = self.expressions.find(
+            {"user_id": stored_user_id(user_id), "status": ACTIVE}, {"value": 1}
+        ).sort("created_at", 1)
+        values: dict[str, None] = {}  # keeps first-seen order
+        async for doc in cursor:
+            if doc.get("value"):
+                values.setdefault(doc["value"], None)
+        return list(values)
+
+    async def remove_expression(self, user_id: UserId, expression_id: str) -> bool:
         """
         Delete an active expression owned by the given user.
         """
@@ -182,11 +208,11 @@ class ExpressionService:
             logger.warning(f"Invalid expression id received for removal: {expression_id}")
             return False
 
-        result = await self.cols["expression"].delete_one(
+        result = await self.expressions.delete_one(
             {
                 "_id": ObjectId(expression_id),
-                "user_id": str(user_id),
-                "status": "active",
+                "user_id": stored_user_id(user_id),
+                "status": ACTIVE,
             }
         )
         deleted = bool(getattr(result, "deleted_count", 0))
@@ -199,169 +225,100 @@ class ExpressionService:
         return deleted
 
     @observe(name="ExpressionService.get_review_candidate")
-    async def get_review_candidate(self, user_id: Union[str, int]) -> Optional[dict]:
+    async def get_review_candidate(self, user_id: UserId, review_mode: str) -> Optional[ReviewCandidate]:
         """
         Selects the best expression for review based on priority algorithm.
-        Filters out expressions sent in the last 12 hours.
-        Returns dictionay with 'doc' (ExpressionDB) and 'direction' ('forward' or 'reverse')
+        Filters out expressions sent in the last 12 hours. `review_mode` is the user's
+        setting ("dual" also scores the reverse direction); users are not this service's data.
+        An unreadable card is logged and skipped.
         """
-        # 0. Get user review mode
-        user = await self.cols['users'].find_one({"user_id": str(user_id)})
-        review_mode = user.get("review_mode", "standard") if user else "standard"
-        
-        # 1. Filter candidates
-        # Active status (implicit if we only have active ones, but good to be explicit if we add status later)
-        # Not sent in last 12 hours
         #TODO: change 12 hours to get from a config file
-        cutoff_time = iso_z(now_utc() - timedelta(hours=12))
-        
-        # We find documents where last_activity_at is null OR last_activity_at < cutoff (New COOLDOWN field)
-        
+        cutoff = now_utc() - timedelta(hours=12)
+        # MongoDB compares only values of the same type, so until `convert_dates` has run,
+        # each condition is given for dates and for the legacy ISO text.
+        before_cutoff = [{"$lt": cutoff}, {"$lt": iso_z(cutoff)}]
+
+        # Last send/grade before the cutoff; never interacted: created_at is the reference.
         query = {
-            "user_id": str(user_id),
+            "user_id": stored_user_id(user_id),
+            "status": ACTIVE,
             "$or": [
-                {"last_activity_at": {"$lt": cutoff_time}},
-                # Never interacted: use created_at as cooldown reference
-                {"last_activity_at": None, "created_at": {"$lt": cutoff_time}}
+                *({"last_activity_at": condition} for condition in before_cutoff),
+                *({"last_activity_at": None, "created_at": condition} for condition in before_cutoff),
             ]
         }
-        
-        cursor = self.cols['expression'].find(query)
-        candidates = []
-        async for doc in cursor:
-            candidates.append(doc)
-            
-        if not candidates:
-            return None
-            
-        #TODO: change to scheduled priority setter on all items of expressions
-        # 2. Calculate priority for each
-        # We select the one with Max priority
-        best_candidate = None
-        best_direction = "forward"
-        max_priority = -1.0
-        
-        for doc in candidates:
-            # 2a. Forward Priority
-            p_fwd = calculate_priority(doc)
-            
-            if p_fwd > max_priority:
-                max_priority = p_fwd
-                best_candidate = doc
-                best_direction = "forward"
-                
-            # 2b. Reverse Priority (if Dual Mode)
-            if review_mode == "dual":
-                rev_stats = doc.get("reverse_stats") or {
-                    "reps": 0,
-                    "ewma_grade": 0.0,
-                    "success_streak": 0,
-                    "lapses": 0,
-                    "created_at": doc.get("created_at")
-                }
-                p_rev = calculate_priority(rev_stats)
-                
-                if p_rev > max_priority:
-                    max_priority = p_rev
-                    best_candidate = doc
-                    best_direction = "reverse"
-                
-        if best_candidate:
-            return {
-                "doc": best_candidate,
-                "direction": best_direction
-            }
-        return None
 
-    async def update_expression_sent(self, expression_id: str, message_id: int):
+        #TODO: change to scheduled priority setter on all items of expressions
+        # The highest priority over every candidate and direction wins.
+        directions: tuple[Direction, ...] = ("forward", "reverse") if review_mode == "dual" else ("forward",)
+        best: Optional[ReviewCandidate] = None
+        max_priority = -1.0
+        async for doc in self.expressions.find(query):
+            expression = _read(doc)
+            if expression is None:
+                continue
+            for direction in directions:
+                priority = calculate_priority(expression.stats(direction), expression.created_at)
+                if priority > max_priority:
+                    max_priority = priority
+                    best = ReviewCandidate(expression=expression, direction=direction)
+        return best
+
+    async def update_expression_sent(
+        self, expression_id: str, message_id: int, last_card: Optional[StoredCard] = None,
+    ):
         """
         Updates the expression after it has been sent to the user.
+        `last_card` (a freshly generated card) replaces the stored one in the same write.
         """
-        await self.cols['expression'].update_one(
-            {"_id": ObjectId(expression_id)},
-            {
-                "$set": {
-                    "last_sent_at": iso_z(now_utc()),
-                    "last_activity_at": iso_z(now_utc()),
-                    "pending_message_id": message_id
-                }
-            }
+        now = now_utc()
+        fields = {
+            "last_sent_at": now,
+            "last_activity_at": now,
+            "pending_message_id": message_id,
+        }
+        if last_card is not None:
+            fields["last_card"] = last_card.model_dump()
+        await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": fields})
+
+    async def grade_expression(self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward") -> bool:
+        """
+        Updates the graded direction's stats. False when the card does not exist (or
+        cannot be read); raises ValueError for an out-of-range grade or unknown
+        direction (nothing is written).
+        """
+        if type(grade) is not int or not MIN_GRADE <= grade <= MAX_GRADE:
+            raise ValueError(f"grade must be an integer {MIN_GRADE}-{MAX_GRADE}, got {grade!r}")
+        if direction not in get_args(Direction):
+            raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
+
+        doc = await self.expressions.find_one(
+            {"_id": ObjectId(expression_id), "user_id": stored_user_id(user_id)}
         )
-
-    async def update_user_last_push(self, user_id: Union[str, int]):
-        """
-        Updates the user's last_push_at timestamp.
-        TODO: Remove — This is redundant and should only exist in UserService.
-        """
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {
-                "$set": {
-                    "last_push_at": iso_z(now_utc()),
-                    "has_pending": True 
-                }
-            },
-            upsert=True
-        )
-
-    async def grade_expression(self, user_id: str, expression_id: str, grade: int, direction: str = "forward") -> Optional[dict]:
-        """
-        Updates the expression with the new grade stats.
-        """
-
-        if not (0 <= grade <= 5):
-            logger.warning(f"Invalid grade {grade} for user {user_id}")
-            return None
-
-        # 1. Get current document
-        doc = await self.cols['expression'].find_one(
-            {"_id": ObjectId(expression_id), "user_id": str(user_id)}
-        )
-        
-        if not doc:
+        expression = _read(doc) if doc else None
+        if expression is None:
             logger.warning(f"Expression {expression_id} not found for user {user_id} during grading")
-            return None
-            
-        # 2. Calculate updates
-        is_reverse = direction == "reverse"
-        # For reverse, we pass the existing reverse_stats (or empty dict which implies new)
-        stats_input = doc if not is_reverse else (doc.get("reverse_stats") or {})
-        
-        updates_dict = calculate_new_stats(stats_input, float(grade), is_reverse=is_reverse)
-        
-        # 3. Apply Updates
-        mongo_updates = {}
-        if is_reverse:
-            if doc.get("reverse_stats") is None:
-                # reverse_stats is null — set the whole object at once
-                mongo_updates["reverse_stats"] = updates_dict
-            else:
-                # reverse_stats exists — use dot-notation for partial update
-                for k, v in updates_dict.items():
-                    mongo_updates[f"reverse_stats.{k}"] = v
-        else:
-            mongo_updates = updates_dict
+            return False
 
-        # Global updates (Cooldown + Clear Pending)
-        mongo_updates["last_activity_at"] = iso_z(now_utc())
-        mongo_updates["pending_message_id"] = None
-            
-        await self.cols['expression'].update_one(
-            {"_id": ObjectId(expression_id)},
-            {"$set": mongo_updates}
-        )
-        
-        # 4. Update User (has_pending = False, last_reviewed_at)
-        # Track when user last interacted with a review for scheduler timing
-        # TODO: Refactor — Delegate this to UserService.update_user_last_review(user_id)
-        await self.cols['users'].update_one(
-            {"user_id": str(user_id)},
-            {"$set": {
-                "has_pending": False,
-                "last_reviewed_at": iso_z(now_utc())
-            }}
-        )
-        
-        # Return updated document (merged) for UI - approximate sync
-        # Note: this might not be perfect in-memory representation but enough for immediate feedback if needed
-        return doc # UI usually doesn't need the exact new stats immediately
+        stats = calculate_new_stats(expression.stats(direction), grade)
+        if direction == "reverse":
+            updates = {"reverse_stats": stats.model_dump()}
+        else:
+            # Forward stats live at the root; their review time is `last_interaction_at`.
+            updates = stats.model_dump(exclude={"last_review_at"})
+            updates["last_interaction_at"] = stats.last_review_at
+        # Global cooldown, and the card is no longer waiting for an answer.
+        updates["last_activity_at"] = stats.last_review_at
+        updates["pending_message_id"] = None
+
+        await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": updates})
+        return True
+
+
+def _read(doc: dict) -> Optional[Expression]:
+    """The stored expression, or None (logged) if the document cannot be read."""
+    try:
+        return Expression.model_validate(doc)
+    except ValidationError as error:
+        logger.warning("Skipping unreadable expression %s: %s", doc.get("_id"), error_fields(error))
+        return None

@@ -1,33 +1,38 @@
 import asyncio
 import html
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError
 
+from flashcard.app.review_schedule import PauseComparison, PauseRule, interval_elapsed, paused
+from flashcard.language import LanguageConfig
+from flashcard.services.i18n import I18nService
 from flashcard.schemas.trace import TraceData
-from flashcard.schemas.user import UserDB
-from flashcard.schemas.languages import get_language_flag
-from flashcard.services.expression import ExpressionService
+from flashcard.schemas.user import UserDB, UserId
+from flashcard.app.review import NoCandidate, QuotaExceeded, ReviewUseCases
 from flashcard.services.user import UserService
-from flashcard.services.consumption import ConsumptionService
-from flashcard.services.llm.llm import LLMService
 from flashcard.telegram.ui.expression import format_review_message
+from flashcard.telegram.ui.review_label import review_label
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
-from flashcard.settings import settings
 from flashcard.utils.time import now_utc, iso_z
 from flashcard.utils.tracing import set_current_trace, finalize_trace, observe
 
 logger = get_logger(__name__)
 
-# Scheduler configuration
-SCHEDULER_CHECK_INTERVAL_SECONDS = settings.SCHEDULER_CHECK_INTERVAL_SECONDS
+from flashcard.schemas.defaults import DEFAULT_SCHEDULER_INTERVAL_MINUTES
 
-from flashcard.schemas.defaults import DEFAULT_LANG_LEVEL, DEFAULT_LANG_1_CODE, DEFAULT_LANG_1_LABEL, DEFAULT_SCHEDULER_INTERVAL_MINUTES
+# Telegram's 403 reasons that are about the user, not about this bot.
+USER_GONE_REASONS = ("bot was blocked by the user", "user is deactivated")
 
 
-async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
+async def find_users_due_for_review(
+    user_service: UserService,
+    pause_rule: PauseRule = "legacy",
+    skipped: Optional[list[dict]] = None,
+) -> list[UserDB]:
     """
     Finds active users who are due for a review.
 
@@ -36,9 +41,14 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
 
     Returns:
         List of UserDB objects for users who meet all criteria:
-        - is_active == True (scheduler not paused)
-        - has_pending == False (no ungraded flashcard)
+        - is_active is not False (not paused with the Pause button; a missing field is active)
+        - not paused by `pause_rule` (legacy: has_pending; current_review: a card
+          is waiting and the user has not been seen since it was sent)
         - last_reviewed_at + review_interval_minutes < now (or never reviewed)
+
+    A user whose document cannot be read is skipped, logged and, when `skipped` is
+    given, appended to it as {"user_id", "error"}, so one bad document never stops
+    reviews for everyone.
     """
 
     now = now_utc()
@@ -47,119 +57,120 @@ async def find_users_due_for_review(user_service: UserService) -> list[UserDB]:
     # This filters out definitely-not-due users at database level for performance
     # We still check exact intervals per-user in Python since intervals vary by user
     min_interval_minutes = DEFAULT_SCHEDULER_INTERVAL_MINUTES
-    cutoff_time = iso_z(now - timedelta(minutes=min_interval_minutes))
+    cutoff_time = now - timedelta(minutes=min_interval_minutes)
 
-    # Optimized MongoDB query: pre-filter by approximate timing
-    users_cursor = user_service.cols['users'].find({
-        "is_active": True,
-        "has_pending": False,
-        "$or": [
-            {"last_reviewed_at": None},  # Never reviewed
-            {"last_reviewed_at": {"$lt": cutoff_time}}  # Reviewed before cutoff
-        ]
-    })
+    def skip(user_id: str, error: Exception) -> None:
+        _skip_unreadable_user(user_id, error, skipped)
+
+    # Pre-filter by approximate timing in the DB. The current_review rule compares two
+    # fields per user, so it is checked in Python.
+    candidates = await user_service.active_users_reviewed_before(
+        cutoff_time, exclude_pending=pause_rule == "legacy", on_unreadable=skip)
 
     users_due = []
-    async for user_doc in users_cursor:
-        # Parse to UserDB for type safety
-        user = UserDB.model_validate(user_doc)
-
-        # Check if enough time has passed since last review
-        last_reviewed = user.last_reviewed_at
-
-        if not last_reviewed:
-            # Never reviewed, they're due
-            users_due.append(user)
-            continue
-
-        # Parse timestamp and check user's specific interval
-        interval_minutes = user.review_interval_minutes
-        last_reviewed_dt = datetime.fromisoformat(last_reviewed.replace('Z', '+00:00'))
-
-        # Calculate time elapsed
-        elapsed_seconds = (now - last_reviewed_dt).total_seconds()
-
-        if elapsed_seconds >= interval_minutes * 60:
-            users_due.append(user)
+    for user in candidates:
+        try:
+            if not paused(user, pause_rule) and interval_elapsed(user, now):
+                users_due.append(user)
+        except (ValueError, TypeError) as e:  # unparseable or mixed-timezone dates
+            skip(str(user.user_id), e)
 
     return users_due
+
+
+def _skip_unreadable_user(user_id: str, error: Exception, skipped: Optional[list[dict]]) -> None:
+    logger.warning(f"Skipping user {user_id}: unreadable document ({type(error).__name__})", exc_info=True)
+    if skipped is not None:
+        skipped.append({"user_id": user_id,
+                        "error": f"Unreadable user document: {type(error).__name__}"})
+
+
+async def compare_pause_rules(user_service: UserService) -> PauseComparison:
+    """
+    Shadow compare for the review-state migration: legacy `has_pending` vs the
+    current_review + last_seen_at rule. Reads only; changes nothing.
+
+    Only active users where either rule could pause are read; everyone else agrees.
+    """
+    comparison = PauseComparison()
+
+    def count_unreadable(_user_id: str, _error: Exception) -> None:
+        comparison.counts["unreadable"] = comparison.counts.get("unreadable", 0) + 1
+
+    for user in await user_service.active_users_possibly_paused(count_unreadable):
+        try:
+            comparison.add(user)
+        except (ValueError, TypeError) as e:  # unparseable or mixed-timezone dates
+            count_unreadable(str(user.user_id), e)
+    return comparison
+
+
+async def _log_pause_comparison(user_service: UserService) -> None:
+    """Never lets the shadow compare break a scheduler cycle."""
+    try:
+        comparison = await compare_pause_rules(user_service)
+    except Exception:
+        logger.warning("Review-state shadow compare failed", exc_info=True)
+        return
+    counts = " ".join(f"{name}={count}" for name, count in sorted(comparison.counts.items()))
+    logger.info(f"Review-state shadow compare: {counts or 'no paused users'}")
+    for user_id, result in comparison.mismatches:
+        logger.debug(f"Review-state shadow mismatch: user={user_id} {result}")
 
 
 @observe(name="scheduler.send_scheduled_review", include_output=False)
 async def send_scheduled_review(
     bot: Bot,
     user: UserDB,
-    expression_service: ExpressionService,
-    llm_service: LLMService,
-    user_service: UserService,
-    consumption_service: ConsumptionService,
+    review_use_cases: ReviewUseCases,
+    language: LanguageConfig,
+    i18n: I18nService,
 ) -> bool:
     """
     Sends a scheduled review to a user.
-    Replicates the /get command logic but uses bot.send_message instead of message.answer.
-    Uses user preferences for language and level.
 
     Returns:
-        True if a flashcard was actually sent, False if no candidate was available.
+        True if a flashcard was actually sent, False if no candidate was available
+        or the user is over quota (skipped silently).
 
     Raises exceptions on failure (caught by per-user error handler in scheduler loop).
+    A user who blocked the bot is paused first.
     """
     user_id = user.user_id
-    # 1. Get review candidate
-    result = await expression_service.get_review_candidate(user_id)
+    result = await review_use_cases.prepare_next(user_id, user=user)
 
-    if not result:
-        # No cards to review, skip silently
+    if isinstance(result, NoCandidate):
         logger.debug(f"No review candidate for user {user_id}")
         return False
 
-    candidate = result["doc"]
-    direction = result.get("direction", "forward")
-
-    # Quota check
-    uses_own_key = user.api_config is not None
-    if not user_service.can_generate_card(user, uses_own_key=uses_own_key):
-        logger.info(f"Skipping scheduled review for user {user_id} due to quota limits (tier={user.tier.value})")
+    if isinstance(result, QuotaExceeded):
+        logger.info(f"Skipping scheduled review for user {user_id} due to quota limits (tier={result.tier})")
         return False
 
-    # 2. Generate card content using user preferences
-    card = await llm_service.generate_expression_card(
-        raw=candidate['value'],
-        level=user.target_level or DEFAULT_LANG_LEVEL,
-        lang1_code=user.primary_language or DEFAULT_LANG_1_CODE,
-        lang2_code=user.secondary_language,
-        lang1_label=get_language_flag(user.primary_language),
-        lang2_label=get_language_flag(user.secondary_language)
-    )
+    text = format_review_message(
+        result.card, result.value, direction=result.direction, learning_flag=language.flag,
+        label=review_label(i18n, result))
+    keyboard = get_review_keyboard(i18n, result.expression_id, direction=result.direction)
+    try:
+        sent_msg = await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard)
+    except TelegramForbiddenError as error:
+        # Otherwise every tick pays for a card that can never arrive (and is never counted).
+        # Only these reasons: "bot can't initiate conversation" is what every user answers
+        # when the token belongs to another bot, and that must not pause them all.
+        if any(reason in error.message for reason in USER_GONE_REASONS):
+            await review_use_cases.pause_undeliverable(user_id)
+            logger.info(f"Paused scheduled reviews for user {user_id}: cannot be messaged")
+        raise  # reported to the admin; a paused user is not due again, so only once
+    await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
 
-    # 3. Format message
-    text = format_review_message(card, candidate['value'], direction=direction)
-
-    # 4. Get keyboard
-    keyboard = get_review_keyboard(str(candidate['_id']), direction=direction)
-
-    # 5. Send via bot
-    sent_msg = await bot.send_message(
-        chat_id=user_id,
-        text=text,
-        reply_markup=keyboard
-    )
-
-    # 6. Update database
-    await expression_service.update_expression_sent(str(candidate['_id']), sent_msg.message_id)
-    await user_service.update_user_last_push(user_id)
-
-    # Track consumption
-    await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)
-
-    logger.info(f"Scheduled review sent to user {user_id}: {candidate['value']}")
+    logger.info(f"Scheduled review sent to user {user_id}: {result.value}")
     return True
 
 
 async def send_admin_metrics(
     logger_bot: Bot,
     admin_id: int,
-    successful_ids: list[str],
+    successful_ids: list[UserId],
     failed_details: list[dict],
     total_time: float
 ) -> None:
@@ -189,7 +200,7 @@ async def send_admin_metrics(
 
     # Add successful users
     if successful_ids:
-        success_text = f"<b>Successful Users:</b>\n" + ", ".join(successful_ids) + "\n\n"
+        success_text = f"<b>Successful Users:</b>\n" + ", ".join(str(user_id) for user_id in successful_ids) + "\n\n"
         if len(current_msg + success_text) > 4000:  # Leave margin for safety
             messages.append(current_msg)
             current_msg = success_text
@@ -219,21 +230,23 @@ async def send_admin_metrics(
 
     # Send all messages
     for msg in messages:
-        await notify_admin_with_trace(logger_bot, msg)
+        await notify_admin_with_trace(logger_bot, msg, admin_id=admin_id)
 
     logger.info(f"Admin metrics sent: {len(successful_ids)} successful, {len(failed_details)} failed")
 
 
 @observe(name="scheduler.find_users_due_for_review", include_output=False)
-async def _observed_find_users_due_for_review(user_service: UserService) -> list[UserDB]:
-    return await find_users_due_for_review(user_service)
+async def _observed_find_users_due_for_review(
+    user_service: UserService, pause_rule: PauseRule, skipped: list[dict]
+) -> list[UserDB]:
+    return await find_users_due_for_review(user_service, pause_rule, skipped)
 
 
 @observe(name="scheduler.send_admin_metrics", include_output=False)
 async def _observed_send_admin_metrics(
     logger_bot: Bot,
     admin_id: int,
-    successful_ids: list[str],
+    successful_ids: list[UserId],
     failed_details: list[dict],
     total_time: float
 ) -> None:
@@ -249,16 +262,18 @@ async def _observed_send_admin_metrics(
 async def scheduler_loop(
     bot: Bot,
     logger_bot: Bot,
-    expression_service: ExpressionService,
     user_service: UserService,
-    consumption_service: ConsumptionService,
-    llm_service: LLMService,
-    admin_id: int
+    review_use_cases: ReviewUseCases,
+    language: LanguageConfig,
+    i18n: I18nService,
+    admin_id: int,
+    check_interval_seconds: int,
+    pause_rule: PauseRule = "legacy",
 ) -> None:
     """
     Main scheduler loop that runs indefinitely.
 
-    Every SCHEDULER_CHECK_INTERVAL_SECONDS:
+    Every `check_interval_seconds` (SCHEDULER_CHECK_INTERVAL_SECONDS):
     1. Finds users due for review
     2. Sends scheduled reviews with per-user error isolation
     3. Sends admin metrics report
@@ -266,7 +281,7 @@ async def scheduler_loop(
     On consecutive failures: backs off exponentially (30s → 60s → 120s → 5min cap).
     On success: resets to normal interval.
     """
-    logger.info(f"Scheduler started. Check interval: {SCHEDULER_CHECK_INTERVAL_SECONDS}s")
+    logger.info(f"Scheduler started. Check interval: {check_interval_seconds}s, pause rule: {pause_rule}")
 
     consecutive_failures = 0
     PER_USER_TIMEOUT = 20  # seconds — don't let one user block the cycle
@@ -277,7 +292,7 @@ async def scheduler_loop(
             trace_id=str(uuid.uuid4()),
             timestamp=iso_z(cycle_start),
             update_type="scheduler",
-            text=f"interval_seconds={SCHEDULER_CHECK_INTERVAL_SECONDS}",
+            text=f"interval_seconds={check_interval_seconds}",
             spans=[],
         )
         token = set_current_trace(trace)
@@ -288,8 +303,10 @@ async def scheduler_loop(
 
         try:
             # Find users who need reviews
-            users_to_push = await _observed_find_users_due_for_review(user_service)
+            # Unreadable users are reported to the admin with the send failures.
+            users_to_push = await _observed_find_users_due_for_review(user_service, pause_rule, failed_details)
             logger.info(f"Found {len(users_to_push)} users due for review")
+            await _log_pause_comparison(user_service)
 
             # Process each user with isolated error handling + per-user timeout
             for user in users_to_push:
@@ -298,10 +315,9 @@ async def scheduler_loop(
                         send_scheduled_review(
                             bot=bot,
                             user=user,
-                            expression_service=expression_service,
-                            llm_service=llm_service,
-                            user_service=user_service,
-                            consumption_service=consumption_service,
+                            review_use_cases=review_use_cases,
+                            language=language,
+                            i18n=i18n,
                         ),
                         timeout=PER_USER_TIMEOUT,
                     )
@@ -354,7 +370,7 @@ async def scheduler_loop(
             logger.error(f"Scheduler loop error: {e}", exc_info=True)
             try:
                 error_text = html.escape(f"{type(e).__name__}: {str(e)[:300]}")
-                await notify_admin_with_trace(logger_bot, f"🚨 <b>Scheduler Loop Error</b>\n\n{error_text}")
+                await notify_admin_with_trace(logger_bot, f"🚨 <b>Scheduler Loop Error</b>\n\n{error_text}", admin_id=admin_id)
             except Exception as notify_error:
                 logger.error(f"Failed to notify admin about scheduler error: {notify_error}")
 
@@ -367,4 +383,4 @@ async def scheduler_loop(
             logger.warning(f"Scheduler backing off: {backoff}s (failure #{consecutive_failures})")
             await asyncio.sleep(backoff)
         else:
-            await asyncio.sleep(SCHEDULER_CHECK_INTERVAL_SECONDS)
+            await asyncio.sleep(check_interval_seconds)

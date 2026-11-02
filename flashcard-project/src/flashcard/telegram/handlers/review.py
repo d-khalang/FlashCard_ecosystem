@@ -5,18 +5,14 @@ from aiogram.enums import ChatAction
 
 import asyncio
 
-from flashcard.settings import settings
-from flashcard.services.expression import ExpressionService
-from flashcard.services.llm.llm import LLMService
-from flashcard.services.user import UserService
-from flashcard.services.consumption import ConsumptionService
-from flashcard.services.i18n import i18n
+from flashcard.app.review import CardNotFound, NoCandidate, QuotaExceeded, ReviewUseCases
+from flashcard.language import LanguageConfig
+from flashcard.services.i18n import I18nService
 from flashcard.telegram.ui.expression import format_review_message
+from flashcard.telegram.ui.review_label import review_label
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback, safe_call
-from flashcard.schemas.languages import get_language_flag
-from flashcard.schemas.defaults import DEFAULT_LANG_LEVEL, DEFAULT_LANG_1_CODE
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
 
 logger = get_logger(__name__)
@@ -25,72 +21,36 @@ router = Router()
 
 @router.message(Command("get"))
 @flags.chat_action(ChatAction.TYPING)
-async def cmd_get(message: Message, expression_service: ExpressionService, llm_service: LLMService, user_service: UserService, consumption_service: ConsumptionService):
+async def cmd_get(message: Message, review_use_cases: ReviewUseCases, language: LanguageConfig, i18n: I18nService):
     """
     Handle /get command to review a flashcard.
     """
     user_id = message.from_user.id
-    
-    # 1. Get review candidate
-    # Result is now a dict {doc: ..., direction: ...} or None
-    result = await expression_service.get_review_candidate(user_id)
-    
-    if not result:
-        # No cards to review
-        # Using the message from n8n or similar intent
+    result = await review_use_cases.prepare_next(user_id)
+
+    if isinstance(result, NoCandidate):
         await message.answer(i18n.get("commands.get.no_memory"))
         return
-        
-    candidate = result["doc"]
-    direction = result.get("direction", "forward")
 
-    # 2. Get user preferences
-    user = await user_service.get_user(user_id)
-    
-    # Quota check
-    uses_own_key = user.api_config is not None
-    if not user_service.can_generate_card(user, uses_own_key=uses_own_key):
-        limits = user_service._get_effective_limits(user)
-        quota_msg = i18n.get(
+    if isinstance(result, QuotaExceeded):
+        await message.answer(i18n.get(
             "messages.errors.quota_exceeded",
             type="card",
-            tier=user.tier.value,
-            limit=limits["cards"]
-        )
-        await message.answer(quota_msg)
+            tier=result.tier,
+            limit=result.limit,
+        ))
         return
 
-    # 3. Generate content (Definition, Translations, Example)
-    # Using user preferences
-    card = await llm_service.generate_expression_card(
-        raw=candidate['value'],
-        level=user.target_level or DEFAULT_LANG_LEVEL,
-        lang1_code=user.primary_language or DEFAULT_LANG_1_CODE,
-        lang2_code=user.secondary_language,
-        lang1_label=get_language_flag(user.primary_language),  
-        lang2_label=get_language_flag(user.secondary_language)  
-    )
-
-    # 4. Format Message
-    # We pass direction to formatter to decide what to show/hide
-    text = format_review_message(card, candidate['value'], direction=direction)
-
-    # 5. Keyboard
-    keyboard = get_review_keyboard(str(candidate['_id']), direction=direction)
-    
-    # 6. Send & Update
+    text = format_review_message(
+        result.card, result.value, direction=result.direction, learning_flag=language.flag,
+        label=review_label(i18n, result))
+    keyboard = get_review_keyboard(i18n, result.expression_id, direction=result.direction)
     sent_msg = await message.answer(text, reply_markup=keyboard)
-    
-    # Update DB
-    await expression_service.update_expression_sent(str(candidate['_id']), sent_msg.message_id)
-    await user_service.update_user_last_push(user_id)
-    
-    # Track consumption
-    await consumption_service.increment(user_id, "cards_generated", uses_own_key=user.api_config is not None)
+    await review_use_cases.mark_sent(user_id, result, sent_msg.message_id)
 
 
 @router.callback_query(GradeCallback.filter())
-async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, expression_service: ExpressionService, user_service: UserService, logger_bot: Bot):
+async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, review_use_cases: ReviewUseCases, logger_bot: Bot, admin_id: int, i18n: I18nService):
     """
     Handle grading callbacks: grade:{expression_id}:{grade}:{direction_code}
     direction_code: 'fwd' | 'rev' (optional, defaults to 'fwd' for backward compat)
@@ -104,27 +64,25 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, ex
         
         user_id = callback.from_user.id
         
-        updated_doc = await expression_service.grade_expression(user_id, expression_id, grade, direction)
-        
-        if updated_doc:
-            value = updated_doc.get("value", "Unknown")
-            await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
-            await safe_answer_callback(callback, i18n.get("callbacks.grade.success"))
-            
-            # Onboarding tip: after first review, nudge about Dual Mode
-            user = await user_service.get_user(user_id)
-            if user.onboarding_step == 1:
-                await callback.message.answer(i18n.get("messages.tips.first_review"))
-                await user_service.advance_onboarding(user_id, 1)
-        else:
+        result = await review_use_cases.grade(user_id, expression_id, grade, direction)
+
+        if isinstance(result, CardNotFound):
             await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
+            return
+
+        await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")
+        await safe_answer_callback(callback, i18n.get("callbacks.grade.success"))
+
+        # Onboarding tip: after first review, nudge about Dual Mode
+        if await review_use_cases.claim_first_review_tip(user_id):
+            await callback.message.answer(i18n.get("messages.tips.first_review"))
         
     except ValueError:
         #TODO: Have a consistent schema for logging errors to logger bot
         await safe_call(safe_answer_callback(callback, i18n.get("callbacks.grade.invalid_data"), show_alert=True))
-        await safe_call(notify_admin_with_trace(logger_bot, f"Invalid callback data: {callback.data}"))
+        await safe_call(notify_admin_with_trace(logger_bot, f"Invalid callback data: {callback.data}", admin_id=admin_id))
 
     except Exception as e:
         logger.error(f"Error handling grade callback: {e}", exc_info=True)
         await safe_call(safe_answer_callback(callback, i18n.get("callbacks.grade.error_generic"), show_alert=True))
-        await safe_call(notify_admin_with_trace(logger_bot, f"Error handling grade callback: {e}"))
+        await safe_call(notify_admin_with_trace(logger_bot, f"Error handling grade callback: {e}", admin_id=admin_id))

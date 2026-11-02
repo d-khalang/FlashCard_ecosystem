@@ -1,60 +1,46 @@
 import re
+from dataclasses import dataclass
 from typing import Optional
 
-from aiogram.types import InlineKeyboardMarkup
-
-from flashcard.settings import settings
 from flashcard.schemas.conjugations import ConjugationDBResponse, ConjugationAPIResponse, ConjugationResponse
-from flashcard.telegram.keyboards import get_verb_keyboard
 from flashcard.utils.logger import get_logger
 from flashcard.utils.tracing import observe
 
 logger = get_logger(__name__)
 
+
+@dataclass(frozen=True)
+class ScraperConfig:
+    url: str
+    port: int
+    api_key: str
+
+    @classmethod
+    def from_settings(cls, settings) -> Optional["ScraperConfig"]:
+        """None when incomplete (Settings requires all three when conjugation is on)."""
+        if not settings.SCRAPER_URL or settings.SCRAPER_PORT is None or not settings.SCRAPER_API_KEY:
+            return None
+        return cls(url=settings.SCRAPER_URL, port=settings.SCRAPER_PORT, api_key=settings.SCRAPER_API_KEY)
+
+
 class VerbService:
     REGEX_VERB = r"^[A-Za-zÀ-ÖØ-öø-ÿ']+$"
 
-    def __init__(self, cols: dict, http_client=None):
-        self.cols = cols
+    def __init__(self, conjugations, http_client=None, scraper: Optional[ScraperConfig] = None):
+        """`conjugations`: the conjugation cache collection; `scraper`: the conjugation API."""
+        self.conjugations = conjugations
         self.http_client = http_client
+        self.scraper = scraper
 
     def is_valid_verb(self, verb: str) -> bool:
         """
-        Validates if the input string is a valid verb format.
+        Validates the verb's format only. Callers pass the verb itself: command
+        parsing (e.g. "/verb ...") belongs to the Telegram handler.
         """
-        if not verb:
+        if not isinstance(verb, str) or not verb.strip():
             return False
-        
-        # Clean the verb: remove /verb command if present, strip whitespace
-        cleaned = verb.replace("/verb", "").strip()
-        
-        if len(cleaned) == 0:
-            return False
-            
-        return bool(re.match(self.REGEX_VERB, cleaned))
+        return bool(re.match(self.REGEX_VERB, verb.strip()))
 
-
-    def extract_verb(self, message_text: str) -> Optional[str]:
-        """
-        Extracts the verb from the message text.
-        Returns None if extraction fails or text is too short logic applies.
-        """
-        if not message_text:
-            return None
-            
-        clean_verb = message_text.replace("/verb", "").strip()
-        
-        # Basic check to avoid empty strings after strip if message was just "/verb"
-        if not clean_verb:
-            return None
-            
-        return clean_verb
-
-    def get_verb_keyboard(self, data: ConjugationResponse) -> InlineKeyboardMarkup:
-        """
-        Gets the verb keyboard.
-        """
-        return get_verb_keyboard(data)
 
     @observe(name="VerbService.get_verb_data")
     async def get_verb_data(self, verb: str) -> Optional[ConjugationResponse]:
@@ -94,7 +80,7 @@ class VerbService:
         Gets the verb from the database. returns None if not found.
         """
         try:
-            return await self.cols['conjugation'].find_one({'verb': verb})
+            return await self.conjugations.find_one({'verb': verb})
         except Exception as e:
             logger.error(f"Failed to get verb from db: {e}")
             return None
@@ -104,17 +90,13 @@ class VerbService:
         """
         Gets the verb from the API.
         """
-        if not settings.ENABLE_CONJUGATION:
-            logger.info("Conjugation lookup skipped because ENABLE_CONJUGATION=False")
-            return None
-
-        if not settings.SCRAPER_URL or not settings.SCRAPER_PORT or not settings.SCRAPER_API_KEY:
+        if self.scraper is None:
             raise RuntimeError("Conjugation service is enabled but its settings are incomplete")
 
         try:
-            res = await self.http_client.get(f"{settings.SCRAPER_URL}:{settings.SCRAPER_PORT}/conjugate",
+            res = await self.http_client.get(f"{self.scraper.url}:{self.scraper.port}/conjugate",
                 params={"v": verb},
-                headers={"X-API-Key": settings.SCRAPER_API_KEY})
+                headers={"X-API-Key": self.scraper.api_key})
             
             if res.status_code != 200:
                 logger.warning(f"API returned status {res.status_code} for verb {verb}")
@@ -141,7 +123,7 @@ class VerbService:
         try:
             db_entry = ConjugationDBResponse(verb=verb, data=data)
             # Use upsert to prevent duplicates if created in parallel
-            await self.cols['conjugation'].replace_one(
+            await self.conjugations.replace_one(
                 {'verb': verb}, 
                 db_entry.model_dump(), 
                 upsert=True

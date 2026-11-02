@@ -32,12 +32,16 @@ class Settings(BaseSettings):
     DEFAULT_TARGET_LEVEL: str = "A2"
     UI_LOCALE: str = "en"
     ENABLE_CONJUGATION: bool = True
-    LANGUAGE_VALIDATOR: str = "auto"
+    # Required at startup (no guess per language): see get_language_validator.
+    LANGUAGE_VALIDATOR: Optional[str] = None
     SCHEDULER_CHECK_INTERVAL_SECONDS: int = 600  # 10 minutes
+    # Review-state migration switch; see docs/bot-architecture-refactor.md (rollout).
+    REVIEW_PAUSE_RULE: Literal["legacy", "current_review"] = "legacy"
     LLM_GOOGLE_MODEL: str = "gemini-2.5-flash-lite"
     LLM_GROQ_MODEL: str = "openai/gpt-oss-120b"
     LLM_GROQ_FALLBACK_DELAY_SECONDS: float = 4.0
     LLM_MAX_ATTEMPTS: int = 2
+    LLM_REQUEST_TIMEOUT_SECONDS: float = 15.0
     LLM_KEY_FILE: Optional[str] = None
 
     # ──────────────────────────────────────────────
@@ -76,6 +80,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "DEFAULT_SECONDARY_LANGUAGE",
+        "LANGUAGE_VALIDATOR",
         "SCRAPER_API_KEY",
         "SCRAPER_URL",
         "LLM_KEY_FILE",
@@ -125,8 +130,10 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_setting() -> Settings:
+    """
+    Load settings from the environment. Only entry points call this (`__main__`,
+    `api.main.create_app`, migration `main`s); everything else receives what it
+    needs from the composition root (docs/bot-architecture-refactor.md, #7).
+    """
     secrets_dir = Path("/run/secrets")
     return Settings(_secrets_dir=secrets_dir if secrets_dir.is_dir() else None)
-
-
-settings = get_setting()

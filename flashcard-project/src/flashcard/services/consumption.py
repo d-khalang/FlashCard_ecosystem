@@ -1,8 +1,6 @@
-from typing import Union
-
-from flashcard.schemas.user import UserConsumption
+from flashcard.schemas.user import UserConsumption, UserId, stored_user_id
 from flashcard.utils.logger import get_logger
-from flashcard.utils.time import now_utc, iso_z
+from flashcard.utils.time import now_utc
 
 logger = get_logger(__name__)
 
@@ -16,8 +14,9 @@ VALID_METRICS = LLM_METRICS | TOP_LEVEL_METRICS
 
 
 class ConsumptionService:
-    def __init__(self, cols: dict):
-        self.cols = cols
+    def __init__(self, users):
+        """`users`: the users collection; this service owns only `consumption`."""
+        self.users = users
 
     def _today(self) -> str:
         """Returns today's UTC date as ISO string (e.g. '2026-02-19')."""
@@ -25,7 +24,7 @@ class ConsumptionService:
 
     async def increment(
         self,
-        user_id: Union[str, int],
+        user_id: UserId,
         metric: str,
         uses_own_key: bool = False,
     ) -> None:
@@ -45,11 +44,11 @@ class ConsumptionService:
             logger.warning(f"Unknown consumption metric: {metric}")
             return
 
-        user_id_str = str(user_id)
+        user_id_str = stored_user_id(user_id)
         today = self._today()
 
         # Check if we need a daily reset
-        user_doc = await self.cols["users"].find_one(
+        user_doc = await self.users.find_one(
             {"user_id": user_id_str},
             {"consumption.consumption_date": 1},
         )
@@ -60,8 +59,7 @@ class ConsumptionService:
 
         if stored_date != today:
             # Reset all daily counters and set today's date.
-            # Also ensure created_at is initialized on first insert for this user.
-            await self.cols["users"].update_one(
+            await self.users.update_one(
                 {"user_id": user_id_str},
                 {
                     "$set": {
@@ -69,11 +67,7 @@ class ConsumptionService:
                             consumption_date=today
                         ).model_dump()
                     },
-                    "$setOnInsert": { # Can be ommited as it is handled by user service triggered by trace middleware
-                        "created_at": iso_z(now_utc()) # Let it stay for now as this manipulation on the middleware imposes complexity
-                    },
                 },
-                upsert=True,
             )
 
         # Build the $inc path
@@ -85,10 +79,9 @@ class ConsumptionService:
             # Top-level metric (verb_lookups)
             inc_path = f"consumption.{metric}"
 
-        await self.cols["users"].update_one(
+        await self.users.update_one(
             {"user_id": user_id_str},
             {"$inc": {inc_path: 1}},
-            upsert=True,
         )
 
         logger.debug(f"Consumption incremented: user={user_id_str} {inc_path}")
@@ -105,13 +98,13 @@ class ConsumptionService:
             return UserConsumption(consumption_date=self._today())
         return consumption
 
-    async def get_consumption(self, user_id: Union[str, int]) -> UserConsumption:
+    async def get_consumption(self, user_id: UserId) -> UserConsumption:
         """
         Returns the current UserConsumption for a user.
         Auto-resets if the stored date is stale.
         """
-        user_id_str = str(user_id)
-        doc = await self.cols["users"].find_one(
+        user_id_str = stored_user_id(user_id)
+        doc = await self.users.find_one(
             {"user_id": user_id_str},
             {"consumption": 1},
         )
