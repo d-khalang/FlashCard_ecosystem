@@ -4,15 +4,19 @@ Unit tests for time utilities and settings.
 Tests:
   - now_utc: returns aware UTC datetime
   - iso_z: formats to ISO 8601 with Z suffix
-  - to_utc / UtcDatetime: stored dates and legacy ISO text read as aware UTC
+  - to_utc / UtcDatetime / OptionalUtcDatetime: stored dates and legacy ISO text read as aware UTC
   - Settings.webhook_url: property combining base + path
 """
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from flashcard.utils.time import UtcDatetime, iso_z, now_utc, to_utc
+from flashcard.schemas import user as user_schema
+from flashcard.schemas.expression import Expression, ExpressionStats
+from flashcard.schemas.user import UserDB
+from flashcard.utils.time import OptionalUtcDatetime, UtcDatetime, iso_z, now_utc, to_utc
 
 
 # ===================================================================
@@ -106,6 +110,45 @@ class TestToUtc:
         assert Doc(at=self.SEP_1).model_dump()["at"] == self.SEP_1  # dumped as a date, not text
         with pytest.raises(ValidationError):
             Doc(at="not a date")
+
+    def test_required_field_rejects_empty_text(self):
+        class Doc(BaseModel):
+            at: UtcDatetime
+
+        with pytest.raises(ValidationError):
+            Doc(at="")
+
+    @pytest.mark.parametrize("value", [None, ""])
+    def test_optional_field_reads_empty_text_as_missing(self, value):
+        class Doc(BaseModel):
+            at: OptionalUtcDatetime = None
+
+        assert Doc(at=value).at is None
+        assert Doc(at="2026-09-01T10:00:00Z").at == self.SEP_1
+        with pytest.raises(ValidationError):
+            Doc(at="not a date")
+
+    @pytest.mark.parametrize("field", ["created_at", "last_push_at", "last_reviewed_at", "last_seen_at"])
+    def test_user_with_empty_date_is_readable(self, field):
+        user = UserDB.model_validate({
+            "user_id": "7", "primary_language": "en", "secondary_language": None,
+            "target_level": "A2", field: "",
+        })
+        assert getattr(user, field) is None
+
+    @pytest.mark.parametrize("field", ["created_at", "last_sent_at", "last_interaction_at", "last_activity_at"])
+    def test_expression_with_empty_date_is_readable(self, field):
+        doc = {"_id": "abc", "user_id": "7", "value": "ciao", "created_at": self.SEP_1, field: ""}
+        assert getattr(Expression.model_validate(doc), field) is None
+
+    def test_reverse_stats_with_empty_date_is_readable(self):
+        assert ExpressionStats.model_validate({"last_review_at": ""}).last_review_at is None
+
+    def test_no_schema_wraps_utc_datetime_in_optional(self):
+        """Optional[UtcDatetime] rejects "": use OptionalUtcDatetime."""
+        schemas = Path(user_schema.__file__).parent
+        for path in schemas.glob("*.py"):
+            assert "Optional[UtcDatetime]" not in path.read_text(encoding="utf-8"), path.name
 
 
 # ===================================================================

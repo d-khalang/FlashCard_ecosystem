@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_serializer, field_validator
 from flashcard.schemas.languages import NONE_MAP, LanguageCode, LanguageLevel
 from flashcard.utils.logger import get_logger
-from flashcard.utils.time import UtcDatetime
+from flashcard.utils.time import OptionalUtcDatetime, UtcDatetime
 
 logger = get_logger(__name__)
 
@@ -77,11 +77,11 @@ class UserTier(str, Enum):
 class UserDB(BaseModel):
     user_id: UserId = Field(..., description="Telegram user id (stored as text)")
     username: Optional[str] = Field(None, description="Telegram username")
-    created_at: Optional[UtcDatetime] = Field(None, description="User creation (trial start)")
+    created_at: OptionalUtcDatetime = Field(None, description="User creation (trial start)")
     tier: UserTier = Field(UserTier.normal, description="User subscription tier")
-    last_push_at: Optional[UtcDatetime] = Field(None, description="Legacy: last push")
-    last_reviewed_at: Optional[UtcDatetime] = Field(None, description="Last graded review")
-    last_seen_at: Optional[UtcDatetime] = Field(None, description="The user's last interaction with the bot")
+    last_push_at: OptionalUtcDatetime = Field(None, description="Legacy: last push")
+    last_reviewed_at: OptionalUtcDatetime = Field(None, description="Last graded review")
+    last_seen_at: OptionalUtcDatetime = Field(None, description="The user's last interaction with the bot")
     has_pending: bool = Field(False, description="If user has pending reviews")
     current_review: Optional[CurrentReview] = Field(None, description="Ungraded delivered card, if any")
     is_active: bool = Field(True, description="If user is active for scheduler")

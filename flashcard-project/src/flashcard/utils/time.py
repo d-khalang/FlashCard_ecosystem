@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
 from pydantic import BeforeValidator
 
@@ -52,3 +52,6 @@ def to_utc(value) -> "datetime | None":
 
 # A stored instant: read with `to_utc`, written as a BSON date.
 UtcDatetime = Annotated[datetime, BeforeValidator(to_utc)]
+# The same, for a field that may be missing. Not Optional[UtcDatetime]: there the None
+# that `to_utc` returns for "" still reaches the datetime check and is rejected.
+OptionalUtcDatetime = Annotated[Optional[datetime], BeforeValidator(to_utc)]

@@ -6,7 +6,7 @@ from bson import ObjectId
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from flashcard.utils.logger import get_logger
-from flashcard.utils.time import UtcDatetime
+from flashcard.utils.time import OptionalUtcDatetime, UtcDatetime
 
 logger = get_logger(__name__)
 
@@ -77,7 +77,7 @@ class ExpressionStats(BaseModel):
     success_streak: int = 0
     ewma_grade: float = 0.0
     last_grade: int = 0
-    last_review_at: Optional[UtcDatetime] = None
+    last_review_at: OptionalUtcDatetime = None
     # next_review_at: Optional[str] = None # Calculated next review time
 
     _stats_null_as_zero = field_validator(*_STATS_FIELDS, mode="before")(_null_as_zero)
@@ -86,9 +86,9 @@ class ExpressionDB(BaseModel):
     user_id: str = Field(..., description="Stored user id (text); services write it with stored_user_id")
     value: str = Field(..., description="The expression text")
     created_at: UtcDatetime = Field(..., description="Creation time")
-    last_sent_at: Optional[UtcDatetime] = Field(None, description="Last send of either side")
-    last_interaction_at: Optional[UtcDatetime] = Field(None, description="Last review of the forward side")
-    last_activity_at: Optional[UtcDatetime] = Field(None, description="Last send/grade event (global cooldown)")
+    last_sent_at: OptionalUtcDatetime = Field(None, description="Last send of either side")
+    last_interaction_at: OptionalUtcDatetime = Field(None, description="Last review of the forward side")
+    last_activity_at: OptionalUtcDatetime = Field(None, description="Last send/grade event (global cooldown)")
     
     # Forward Stats (Root Level - Backward Compatibility)
     reps: int = 0
@@ -117,7 +117,7 @@ class Expression(ExpressionDB):
 
     id: str = Field(..., alias="_id", min_length=1)
     value: str = Field(..., min_length=1, description="The expression text; an empty one is unreadable")
-    created_at: Optional[UtcDatetime] = Field(None, description="Missing on some legacy cards")
+    created_at: OptionalUtcDatetime = Field(None, description="Missing on some legacy cards")
 
     _stats_null_as_zero = field_validator(*_STATS_FIELDS, mode="before")(_null_as_zero)
 
