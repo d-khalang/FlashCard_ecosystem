@@ -186,9 +186,12 @@ class InMemoryCollection:
         self.docs = [_deepcopy_doc(doc) for doc in (docs or [])]
         # Unique indexes as (fields, case_insensitive); collation strength 2 ignores case.
         self.unique_indexes: list[tuple[tuple[str, ...], bool]] = []
+        # Every index asked for, unique or not, once each.
+        self.indexes: set[tuple[str, ...]] = set()
 
     async def create_index(self, keys, *, unique: bool = False, collation=None, name: str | None = None) -> str:
         fields = tuple(field for field, _ in keys)
+        self.indexes.add(fields)
         if unique:
             document = collation.document if collation is not None else {}
             index = (fields, document.get("strength") in (1, 2))

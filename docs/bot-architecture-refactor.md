@@ -24,14 +24,28 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 Nothing from this refactor is deployed yet. Everything ships in **one update** once the
 refactor is finished, then these production steps run in order:
 
-1. Back up each language database. In `kartino-deploy`, set `LANGUAGE_VALIDATOR` in each
-   instance's env (`italian` for IT, `latin` for EN); without it the new image does not start.
+**Fix forward only.** The new image writes BSON dates from its first grade or new user, and
+the old image cannot read them (its scheduler stops for everyone). After step 2, never go
+back to the old image on the live data: ship a fixed image instead. So for this deploy:
+
+- `kartino-deploy/scripts/deploy.sh` rolls back to the previous images on its own when a
+  later service or the smoke test fails, after the English canary has already run the new
+  image. Turn that off first, and do not use `scripts/rollback.sh`.
+- Two backups, both kept apart from `scripts/prune-backups.sh` (it deletes
+  `mongodb-*.archive.gz` after 14 days): **Backup A (legacy)** in step 2 and **Backup B
+  (migrated)** in step 3. Restoring B is the fast repair. Restoring A with the old image is
+  the last resort, and the migrations can be run again from it. Either one loses what was
+  written after it.
+
+1. In `kartino-deploy`, set `LANGUAGE_VALIDATOR` in each instance's env (`italian` for IT,
+   `latin` for EN); both say `auto` today, and the new image does not start with that.
    Run `python -m flashcard.migrations.convert_dates` (dry run, writes nothing) with the new
    image against each database: fix every document it lists under `unreadable_ids` before
    deploying, because the new image cannot read a user whose stored date is not a date.
-2. Deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes (`current_review`,
+2. Stop both bots and take **Backup A** (`scripts/backup.sh`), so it holds only legacy data.
+   Then deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes (`current_review`,
    `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
-3. Backfill each language DB (dry run, check counts, then `--apply`):
+3. Backfill each language DB (dry run, check counts, then `--apply`), then take **Backup B**:
    - `python -m flashcard.migrations.convert_dates` first: legacy ISO text becomes dates
      (`unreadable` must be 0, see step 1). Empty text becomes null, so `backfill_created_at`
      then fills those trial starts too. Run it soon after the deploy: until then `/list`
@@ -43,8 +57,11 @@ refactor is finished, then these production steps run in order:
      in `trial_ends_now` lose their permanent trial at once; that is intended.
    - `python -m flashcard.migrations.dedupe_expressions` (after `backfill_current_review`):
      removes duplicate cards and builds the unique `(user_id, value)` index. Deletes data,
-     so only after the step-1 backup. A new, empty database also needs this run once
-     (`--apply` builds the index); nothing else creates it.
+     so only after Backup A.
+   - `python -m flashcard.migrations.ensure_indexes` (after `dedupe_expressions`): builds the
+     unique `users.user_id` index and the lookup indexes. Today IT has hand-made copies, which
+     stay as they are, and EN has none. A new, empty database needs this once (`--apply`);
+     nothing else creates its indexes.
 4. Observe the `Review-state shadow compare` log line for a few days:
    `missing_current_review` ≈ 0, no unexplained `new_pauses`.
 5. Switch: set `REVIEW_PAUSE_RULE=current_review` and restart (no new image).
@@ -128,7 +145,7 @@ card is a fallback when every provider call fails (not counted against quota).
 A separate `review_attempts` collection was tried and dropped: nothing needed history,
 and it split the scheduler's "due" query across two collections.
 
-Migration (each step deployable and reversible):
+Migration (each step deployable; the pause rule can be switched back, the image cannot, see "Fix forward only"):
 
 - [x] Characterization tests (`tests/integration/test_review_state_flow.py`)
 - [x] Fix: removing a card clears `has_pending` (it used to pause the scheduler forever)
@@ -211,7 +228,8 @@ Temporary code that becomes dead once the switch is proven in production:
   tests `TestComparePause`, `TestComparePauseRules`.
 - **Shadow writes:** `app/shadow.py`; review-state writes become authoritative, so a
   failure must propagate. Drop the "survives a … failure" use-case tests.
-- **Backfill:** `flashcard/migrations/` and `tests/unit/migrations/` (all three);
+- **Backfill:** `flashcard/migrations/` and `tests/unit/migrations/` (all but `ensure_indexes`,
+  which new databases still need; then drop `has_pending` from the index it builds);
   `ExpressionService.remove_duplicates`; the regex duplicate pre-checks in
   `add_expression` / `add_expressions_bulk` (the unique index rejects duplicates);
   `UserService.backfill_created_at`, `UserService.active_users_possibly_paused`;

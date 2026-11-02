@@ -29,6 +29,11 @@ class UserService:
         self.users = users
         self.defaults = defaults.as_fields()
 
+    async def ensure_indexes(self) -> None:
+        """One document per user, and the scheduler's prefilter. Fails while a user_id repeats."""
+        await self.users.create_index([("user_id", 1)], unique=True)
+        await self.users.create_index([("is_active", 1), ("has_pending", 1), ("last_reviewed_at", 1)])
+
     def _to_user(self, doc: dict) -> UserDB:
         """Missing settings fall back to this instance's defaults; stored values win."""
         return UserDB.model_validate({**self.defaults, **doc})

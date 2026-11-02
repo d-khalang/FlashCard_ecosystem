@@ -16,9 +16,10 @@ from tests.helpers import TEST_LANGUAGE
 from tests.integration.helpers import make_cols
 
 SRC = Path(flashcard.__file__).parent
-# One-off migrations open their own client and services (removed after the rollout).
+# Migrations open their own client and services (all but ensure_indexes removed after the rollout).
 MIGRATIONS = {"migrations/backfill_created_at.py", "migrations/backfill_current_review.py",
-              "migrations/dedupe_expressions.py", "migrations/convert_dates.py"}
+              "migrations/dedupe_expressions.py", "migrations/convert_dates.py",
+              "migrations/ensure_indexes.py"}
 BUILT_BY_THE_ROOT = {"ExpressionService", "UserService", "ConsumptionService", "ReviewStateStore",
                      "VerbService", "LLMService", "QuotaPolicy"}
 OPENERS = {"init_and_get_mongo", "init_and_get_http_client"}

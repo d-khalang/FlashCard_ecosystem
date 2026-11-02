@@ -174,6 +174,14 @@ class ExpressionService:
             collation=VALUE_COLLATION,
         )
 
+    async def ensure_indexes(self) -> None:
+        """The unique value index, plus the lookups by user. Fails while duplicates exist."""
+        await self.ensure_unique_value_index()
+        # The unique index has a collation, so plain user_id/value queries cannot use it.
+        await self.expressions.create_index([("user_id", 1), ("value", 1)])
+        await self.expressions.create_index([("user_id", 1), ("last_activity_at", 1), ("created_at", 1)])
+        await self.expressions.create_index([("user_id", 1), ("created_at", 1)])
+
     async def remove_duplicates(self, expression_ids: list) -> int:
         """Migration only (dedupe_expressions): delete these cards. Returns how many."""
         result = await self.expressions.delete_many({"_id": {"$in": expression_ids}})
