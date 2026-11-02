@@ -3,11 +3,11 @@ Read every user and card the way the new image will, and report what it cannot r
 
 convert_dates only sees text dates. A bad language code, a null is_active or a numeric
 date also makes a user unreadable, and there is no image rollback (rollout: fix forward),
-so this is the last check before a deploy. Reads only; run it after every dry run in step 1.
-Remove with the contract step.
+so this is the last check before a deploy. Reads only; run it in step 1 and again before
+Backup B. Conjugations are not read: they are only a cache. Remove with the contract step.
 
-Prints counts, field names and document ids, never the stored values. Exits with status 1
-when anything is unreadable.
+The report holds counts, field names and document ids, not the stored values. Exits with
+status 1 when anything is unreadable.
     python -m flashcard.migrations.check_documents
 """
 import asyncio
@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
-from flashcard.schemas.expression import Expression
+from flashcard.schemas.expression import Expression, error_fields
 from flashcard.services.user import UserService
 
 MAX_LISTED_IDS = 50
@@ -48,8 +48,7 @@ def _check(collection: str, doc: dict, read, report: CheckReport) -> None:
         read(doc)
     except ValidationError as error:
         report.unreadable += 1
-        report.errors.update(
-            f"{collection}.{'.'.join(str(part) for part in e['loc'])}: {e['type']}" for e in error.errors())
+        report.errors.update(f"{collection}.{field_error}" for field_error in error_fields(error))
         if len(report.unreadable_ids) < MAX_LISTED_IDS:
             report.unreadable_ids.append(f"{collection}:{doc['_id']}")
 

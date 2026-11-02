@@ -2,6 +2,7 @@
 Unit tests for the read-everything check against the in-memory Mongo fake.
 """
 from flashcard.migrations.check_documents import check_documents
+from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
 from tests.helpers import TEST_LANGUAGE
 from tests.integration.helpers import make_cols
@@ -50,6 +51,21 @@ async def test_spoiled_cards_are_reported_without_their_values():
     assert report.errors["expression.value: string_too_short"] == 1
     assert report.errors["expression.user_id: string_type"] == 1
     assert "ciao" not in str(report)
+
+
+async def test_stored_values_stay_out_of_the_logs(caplog):
+    cols = make_cols(expressions=[{
+        "_id": "e", "user_id": "7", "value": "ciao", "created_at": "2026-01-01T00:00:00Z",
+        "last_card": {"card": {"success": True, "norm": "SECRETWORD"}, "settings": {}, "generated_at": "bad"},
+    }, {"_id": "broken", "user_id": "7", "value": "", "note": "SECRETWORD"}])
+    service = ExpressionService(expressions=cols["expression"])
+
+    report = await _run(cols)
+    await service.search_expressions(7, "ciao")
+
+    assert report.unreadable == 1  # a stored card is only a fallback: dropped, not fatal
+    assert "Unreadable stored card dropped" in caplog.text
+    assert "SECRETWORD" not in caplog.text
 
 
 async def test_writes_nothing():

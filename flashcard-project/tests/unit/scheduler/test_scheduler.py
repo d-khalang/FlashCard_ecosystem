@@ -285,6 +285,58 @@ class TestSchedulerLoopTracing:
         notify.assert_awaited_once()
         assert str(U1) in notify.call_args[0][1]
 
+    async def test_blocked_user_is_reported_once_across_ticks(self):
+        """End to end through the loop: reported on the first tick, then paused, so not due again."""
+        from aiogram.exceptions import TelegramForbiddenError
+        from flashcard.scheduler.scheduler import scheduler_loop
+        from tests.integration.helpers import make_cols
+
+        user_service = UserService(users=make_cols(users=[_make_user_doc(user_id=U1)])["users"],
+                                   defaults=TEST_LANGUAGE.user_defaults)
+
+        async def pause(user_id):
+            await user_service.set_active(user_id, False)
+
+        review_use_cases = MagicMock()
+        review_use_cases.prepare_next = AsyncMock(return_value=MagicMock())
+        review_use_cases.pause_undeliverable = pause
+        bot = MagicMock()
+        bot.send_message = AsyncMock(side_effect=TelegramForbiddenError(
+            method=MagicMock(), message="Forbidden: bot was blocked by the user"))
+        ticks = []
+
+        async def _stop_after_two_ticks(_seconds):
+            ticks.append(_seconds)
+            if len(ticks) == 2:
+                raise _BreakLoop()
+
+        with (
+            patch("flashcard.scheduler.scheduler.format_review_message", return_value="TEXT"),
+            patch("flashcard.scheduler.scheduler.review_label", return_value=None),
+            patch("flashcard.scheduler.scheduler.get_review_keyboard", return_value=None),
+            patch("flashcard.scheduler.scheduler.notify_admin_with_trace", new_callable=AsyncMock) as notify,
+            patch("flashcard.services.trace_logger.get_trace_logger", return_value=MagicMock()),
+            patch("flashcard.scheduler.scheduler.asyncio.sleep", side_effect=_stop_after_two_ticks),
+        ):
+            try:
+                await scheduler_loop(
+                    bot=bot,
+                    logger_bot=MagicMock(),
+                    user_service=user_service,
+                    review_use_cases=review_use_cases,
+                    language=TEST_LANGUAGE,
+                    i18n=TEST_I18N,
+                    admin_id=12345,
+                    check_interval_seconds=600,
+                )
+            except _BreakLoop:
+                pass
+
+        bot.send_message.assert_awaited_once()
+        notify.assert_awaited_once()
+        report = notify.call_args[0][1]
+        assert str(U1) in report and "bot was blocked" in report
+
 
 # ===================================================================
 # compare_pause_rules (review-state shadow compare)

@@ -5,7 +5,7 @@ from typing import Optional, get_args
 from flashcard.utils.time import iso_z, now_utc
 
 from flashcard.schemas.expression import (
-    MAX_GRADE, MIN_GRADE, Direction, Expression, ExpressionDB, ReviewCandidate, StoredCard,
+    MAX_GRADE, MIN_GRADE, Direction, Expression, ExpressionDB, ReviewCandidate, StoredCard, error_fields,
 )
 from flashcard.schemas.user import UserId, stored_user_id
 from flashcard.services.algorithm.priority import calculate_priority
@@ -319,6 +319,6 @@ def _read(doc: dict) -> Optional[Expression]:
     """The stored expression, or None (logged) if the document cannot be read."""
     try:
         return Expression.model_validate(doc)
-    except ValidationError:
-        logger.warning("Skipping unreadable expression %s", doc.get("_id"), exc_info=True)
+    except ValidationError as error:
+        logger.warning("Skipping unreadable expression %s: %s", doc.get("_id"), error_fields(error))
         return None

@@ -10,6 +10,11 @@ from flashcard.utils.time import OptionalUtcDatetime, UtcDatetime
 
 logger = get_logger(__name__)
 
+def error_fields(error: ValidationError) -> list[str]:
+    """What failed, for logs. Not the error itself: its text repeats the stored values."""
+    return [f"{'.'.join(str(part) for part in e['loc'])}: {e['type']}" for e in error.errors()]
+
+
 # Grading rules, enforced by ExpressionService.grade_expression.
 MIN_GRADE = 0
 MAX_GRADE = 5
@@ -140,8 +145,8 @@ class Expression(ExpressionDB):
             return value
         try:
             return StoredCard.model_validate(value)
-        except ValidationError:
-            logger.warning("Unreadable stored card dropped", exc_info=True)
+        except ValidationError as error:
+            logger.warning("Unreadable stored card dropped: %s", error_fields(error))
             return None
 
     @property

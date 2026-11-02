@@ -39,15 +39,19 @@ have run, never go back to the old image on the live data: ship a fixed image in
 
 1. In `kartino-deploy`, set `LANGUAGE_VALIDATOR` in each instance's env (`italian` for IT,
    `latin` for EN); both say `auto` today, and the new image does not start with that.
+   Pull the new image without changing `images.env`, so a bot that restarts keeps the old one:
+   `FLASHCARD_IMAGE=<new digest> sh ./scripts/compose.sh pull flashcard-bot-it`, and prefix the
+   commands below the same way (`… compose.sh run --rm --no-deps flashcard-bot-it python -m …`,
+   then `flashcard-bot-en`).
    Run `python -m flashcard.migrations.convert_dates` (dry run, writes nothing) with the new
    image against each database: fix every document it lists under `unreadable_ids` before
    deploying, because the new image cannot read a user whose stored date is not a date.
    Then `python -m flashcard.migrations.check_documents` against each database: it reads every
-   document the way the new image will and must report `unreadable: 0`. Also check free disk:
+   user and card the way the new image will and must report `unreadable: 0`. Also check free disk:
    MongoDB refuses to build an index below its minimum (500 MB by default, as far as we know).
 2. Stop both bots and take **Backup A** (`scripts/backup.sh`), so it holds only legacy data.
-   Set the new image in `images.env` and pull it. The bots stay stopped until step 3 ends, so no
-   grade can land during the migrations and Backup B is consistent.
+   Now set the new image in `images.env` (pulled in step 1). The bots stay stopped until step 3
+   ends, so no grade can land during the migrations and Backup B is consistent.
 3. With the bots stopped, run the migrations with the new image on each language DB
    (`sh ./scripts/compose.sh run --rm --no-deps flashcard-bot-it python -m …`, then
    `flashcard-bot-en`; dry run, check counts, then `--apply`):
@@ -66,7 +70,8 @@ have run, never go back to the old image on the live data: ship a fixed image in
      stay as they are, and EN has none. A new, empty database needs this once (`--apply`);
      nothing else creates its indexes.
 
-   Take **Backup B**, then deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes
+   Run `check_documents` again on each database (the last check before there is no way back),
+   take **Backup B**, then deploy with `REVIEW_PAUSE_RULE=legacy` (default). New writes
    (`current_review`, `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
 4. Observe the `Review-state shadow compare` log line for a few days:
    `missing_current_review` ≈ 0, no unexplained `new_pauses`.
@@ -186,7 +191,10 @@ Migration (each step deployable; the pause rule can be switched back, the image 
   (rollout step 3). Dead `ExpressionService.update_user_last_push` removed.
   Guarded by `tests/unit/test_user_creation_contract.py`: only `record_seen` may
   upsert `users`, and the Telegram dispatcher must run `TraceMiddleware`.
-  **Mini App:** its auth/launch step must call `record_seen` too; add its test there.
+  **Mini App:** its auth/launch step must call `record_seen` too; add its test there. A user who
+  arrives that way may never have opened the bot chat: the bot cannot message them, and they are not
+  paused (only a block or a deactivated account is), so each tick would generate a card and fail.
+  Decide this when the Mini App is rebuilt (for example, do not schedule until the chat is started).
 - [x] **A missing `is_active` means active.** Only the Pause and Resume buttons write the field,
   but the scheduler matched `True` exactly, so a user who never pressed them saw "Active" in
   `/settings` and never got a scheduled review. It now excludes only `False`. Behavior change at
@@ -412,7 +420,7 @@ Slices: `user_id` (no migration) → real datetimes (migration in rollout step 3
     time and only if it still holds the text read (safe while the bot runs: a field the bot
     rewrote is already a date, the other fields still convert); reports unreadable values with
     their ids and leaves them. `dedupe_expressions` breaks ties on converted times too. Backfills now write dates; `backfill_current_review` orders a
-    user's cards by converted time (both forms exist after the deploy).
+    user's cards by converted time (a rerun can meet both forms).
   - Behavior change: dates without a timezone are read as UTC instead of skipping the user
     or ending the trial. A legacy BSON date `created_at` on a never-reviewed card now passes
     the 12 h cooldown (it was compared with text and never matched).
