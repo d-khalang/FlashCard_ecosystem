@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v2.0.0 (2026-11-02)
+
+### BREAKING CHANGE
+
+- Dates are stored as BSON dates. Images before v2.0.0 cannot read migrated data, so run the migrations once and fix forward only (see `docs/bot-architecture-refactor.md`, "Production rollout").
+- `LANGUAGE_VALIDATOR` is required: a missing, `auto` or unknown value fails at startup.
+- The bot runs on Python 3.12.
+
+### Refactor
+
+- Add a use-case layer shared by the Telegram bot and the future Mini App, one composition root, and injected settings and i18n.
+- Services own their data; review state moves to `users.current_review`, with the `REVIEW_PAUSE_RULE` switch (default `legacy`).
+- One quota policy; each expression keeps its latest card as a fallback when providers fail.
+
+### Fix
+
+- A unique index prevents duplicate cards; migrations remove existing duplicates and build the bot's indexes.
+- A missing `is_active` means active; a user who blocked the bot is paused.
+
 ## v1.1.1 (2026-07-23)
 
 ### CI
