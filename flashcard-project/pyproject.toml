@@ -24,8 +24,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pydantic-settings>=2.1.0",
     "httpx>=0.26.0",
-    "google-genai>=0.2.0",
-    "groq>=0.31.0",
+    # Capped: tests mock the providers, so a new major version needs one real generation first.
+    "google-genai>=1.10,<2",
+    "groq>=0.31,<2",
 ]
 
 [project.scripts]
