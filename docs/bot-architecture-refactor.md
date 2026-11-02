@@ -37,8 +37,9 @@ have run, never go back to the old image on the live data: ship a fixed image in
   the last resort, and the migrations can be run again from it. Either one loses what was
   written after it.
 
-1. In `kartino-deploy`, set `LANGUAGE_VALIDATOR` in each instance's env (`italian` for IT,
-   `latin` for EN); both say `auto` today, and the new image does not start with that.
+1. On the VM, set `LANGUAGE_VALIDATOR` in `/etc/kartino/config/italian.env` (`italian`) and
+   `english.env` (`latin`): that is `CONFIG_DIR`, and the repo's `config/` holds only examples.
+   Both say `auto` today, and the new image does not start with that; the old image accepts both.
    Pull the new image without changing `images.env`, so a bot that restarts keeps the old one:
    `FLASHCARD_IMAGE=<new digest> sh ./scripts/compose.sh pull flashcard-bot-it`, and prefix the
    commands below the same way (`… compose.sh run --rm --no-deps flashcard-bot-it python -m …`,
