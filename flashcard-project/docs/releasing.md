@@ -31,4 +31,5 @@ packages require a read-only package token on the production server.
 
 Production rollout and rollback belong exclusively to the private
 `kartino-deploy` repository. This public repository does not have access to a
-production runner or production credentials.
+production runner or production credentials. A published release is not deployed
+until you follow the release checklist under "Updates" in that repository's README.
