@@ -163,7 +163,7 @@ async def test_grade_callback_updates_expression_and_user(dispatcher_env):
     callback = GradeCallback(expression_id=str(expression_id), grade=4, direction="fwd").pack()
     await dispatcher_env["dp"].feed_update(
         dispatcher_env["bot"],
-        make_callback_update(data=callback, text="Review card"),
+        make_callback_update(data=callback, text="Review card", message_id=555),
         **dispatcher_env["dispatcher_data"],
     )
 

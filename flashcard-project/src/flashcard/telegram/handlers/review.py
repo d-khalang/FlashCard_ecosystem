@@ -5,7 +5,7 @@ from aiogram.enums import ChatAction
 
 import asyncio
 
-from flashcard.app.review import CardNotFound, NoCandidate, QuotaExceeded, ReviewUseCases
+from flashcard.app.review import CardNotFound, NoCandidate, NotPending, QuotaExceeded, ReviewUseCases
 from flashcard.language import LanguageConfig
 from flashcard.services.i18n import I18nService
 from flashcard.telegram.ui.expression import format_review_message
@@ -64,10 +64,14 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, re
         
         user_id = callback.from_user.id
         
-        result = await review_use_cases.grade(user_id, expression_id, grade, direction)
+        result = await review_use_cases.grade(user_id, expression_id, grade, direction, message_id=callback.message.message_id)
 
         if isinstance(result, CardNotFound):
             await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
+            return
+
+        if isinstance(result, NotPending):
+            await safe_answer_callback(callback, i18n.get("callbacks.grade.not_pending"))
             return
 
         await callback.message.edit_text(f"{callback.message.text}{i18n.get('callbacks.grade.rated', grade=grade)}")

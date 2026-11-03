@@ -324,18 +324,18 @@ class TestGradeExpression:
         service, cols = _make_service()
 
         with pytest.raises(ValueError):
-            await service.grade_expression(123, str(ObjectId()), grade=grade, direction=direction)
+            await service.grade_expression(123, str(ObjectId()), grade=grade, direction=direction, message_id=555)
 
         cols["expression"].find_one.assert_not_called()
         cols["expression"].update_one.assert_not_called()
 
-    async def test_missing_expression_returns_false(self):
-        """Expression not found in DB → False."""
+    async def test_missing_expression_is_not_found(self):
+        """Expression not found in DB → "not_found"."""
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=None)
 
-        result = await service.grade_expression(123, str(ObjectId()), grade=4)
-        assert result is False
+        result = await service.grade_expression(123, str(ObjectId()), grade=4, message_id=555)
+        assert result == "not_found"
         cols["expression"].update_one.assert_not_called()
 
     async def test_forward_grade_updates_root_stats(self):
@@ -345,10 +345,10 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         result = await service.grade_expression(
-            123, str(doc["_id"]), grade=4, direction="forward"
+            123, str(doc["_id"]), grade=4, direction="forward", message_id=555
         )
 
-        assert result is True
+        assert result == "graded"
         # Check expression was updated
         cols["expression"].update_one.assert_called_once()
         update_args = cols["expression"].update_one.call_args[0]
@@ -369,7 +369,7 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         await service.grade_expression(
-            123, str(doc["_id"]), grade=5, direction="reverse"
+            123, str(doc["_id"]), grade=5, direction="reverse", message_id=555
         )
 
         update_args = cols["expression"].update_one.call_args[0]
@@ -387,7 +387,7 @@ class TestGradeExpression:
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
         await service.grade_expression(
-            123, str(doc["_id"]), grade=3, direction="reverse"
+            123, str(doc["_id"]), grade=3, direction="reverse", message_id=555
         )
 
         update_args = cols["expression"].update_one.call_args[0]
@@ -397,13 +397,57 @@ class TestGradeExpression:
         assert "reverse_stats" in set_dict
         assert isinstance(set_dict["reverse_stats"], dict)
 
+    @pytest.mark.parametrize("pending, expected", [(555, "pending"), (600, "not_pending"), (None, "not_pending")])
+    async def test_check_gradable_compares_the_pending_message_without_writing(self, pending, expected):
+        doc = _make_expression_doc(pending_message_id=pending)
+        service, cols = _make_service()
+        cols["expression"].find_one = AsyncMock(return_value=doc)
+
+        assert await service.check_gradable(123, str(doc["_id"]), grade=4, message_id=555) == expected
+        cols["expression"].update_one.assert_not_called()
+
+    async def test_check_gradable_missing_card_is_not_found(self):
+        service, _ = _make_service()
+
+        assert await service.check_gradable(123, str(ObjectId()), grade=4, message_id=555) == "not_found"
+
+    async def test_check_gradable_rejects_an_invalid_grade(self):
+        service, cols = _make_service()
+
+        with pytest.raises(ValueError):
+            await service.check_gradable(123, str(ObjectId()), grade=9, message_id=555)
+        cols["expression"].find_one.assert_not_called()
+
+    async def test_write_only_matches_the_pending_message(self):
+        doc = _make_expression_doc(pending_message_id=555)
+        service, cols = _make_service()
+        cols["expression"].find_one = AsyncMock(return_value=doc)
+
+        await service.grade_expression(123, str(doc["_id"]), grade=4, message_id=555)
+
+        query = cols["expression"].update_one.call_args[0][0]
+        assert query == {"_id": doc["_id"], "pending_message_id": 555}
+
+    async def test_concurrent_tap_that_loses_the_write_is_not_pending(self):
+        """Both tap handlers read the same doc; only the first conditional write matches."""
+        doc = _make_expression_doc(pending_message_id=555)
+        service, cols = _make_service()
+        cols["expression"].find_one = AsyncMock(return_value=doc)
+        cols["expression"].update_one = AsyncMock(
+            side_effect=[MagicMock(modified_count=1), MagicMock(modified_count=0)])
+
+        first = await service.grade_expression(123, str(doc["_id"]), grade=4, message_id=555)
+        second = await service.grade_expression(123, str(doc["_id"]), grade=4, message_id=555)
+
+        assert (first, second) == ("graded", "not_pending")
+
     async def test_grade_does_not_write_users(self):
         """Review state (has_pending, last_reviewed_at) is ReviewStateStore's to write."""
         doc = _make_expression_doc()
         service, cols = _make_service()
         cols["expression"].find_one = AsyncMock(return_value=doc)
 
-        await service.grade_expression(123, str(doc["_id"]), grade=4)
+        await service.grade_expression(123, str(doc["_id"]), grade=4, message_id=555)
 
         cols["users"].update_one.assert_not_called()
 

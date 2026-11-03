@@ -8,7 +8,7 @@ import pytest
 
 from flashcard.app import review as review_module
 from flashcard.app.review import (
-    CardGenerationFailed, CardNotFound, Graded, NoCandidate, QuotaExceeded, ReviewReady, ReviewUseCases,
+    CardGenerationFailed, CardNotFound, Graded, NoCandidate, NotPending, QuotaExceeded, ReviewReady, ReviewUseCases,
 )
 from flashcard.schemas.expression import (
     MAX_GRADE, MIN_GRADE, CardSettings, Expression, ExpressionCard, ReviewCandidate, StoredCard, TranslationLine,
@@ -36,7 +36,8 @@ def _use_cases(*, candidate=None, user=None, exceeded=None):
     expressions = MagicMock()
     expressions.get_review_candidate = AsyncMock(return_value=candidate)
     expressions.update_expression_sent = AsyncMock()
-    expressions.grade_expression = AsyncMock(return_value=True)
+    expressions.check_gradable = AsyncMock(return_value="pending")
+    expressions.grade_expression = AsyncMock(return_value="graded")
 
     users = MagicMock()
     users.get_user = AsyncMock(return_value=user or _user())
@@ -301,19 +302,57 @@ class TestGrade:
     async def test_graded_passes_grade_and_direction_through(self):
         use_cases, expressions, *_ = _use_cases()
 
-        assert await use_cases.grade(111, EXPRESSION_ID, 3, "reverse") == Graded()
-        expressions.grade_expression.assert_awaited_once_with(111, EXPRESSION_ID, 3, "reverse")
+        assert await use_cases.grade(111, EXPRESSION_ID, 3, "reverse", message_id=777) == Graded()
+        expressions.grade_expression.assert_awaited_once_with(111, EXPRESSION_ID, 3, "reverse", message_id=777)
 
     async def test_missing_card_is_reported(self):
         use_cases, expressions, *_ = _use_cases()
-        expressions.grade_expression.return_value = False
+        expressions.check_gradable.return_value = "not_found"
 
-        assert await use_cases.grade(111, EXPRESSION_ID, 3, "forward") == CardNotFound()
+        assert await use_cases.grade(111, EXPRESSION_ID, 3, "forward", message_id=777) == CardNotFound()
+
+    async def test_message_no_longer_pending_records_nothing(self):
+        use_cases, expressions, *_ = _use_cases()
+        expressions.check_gradable.return_value = "not_pending"
+
+        assert await use_cases.grade(111, EXPRESSION_ID, 3, "forward", message_id=777) == NotPending()
+        use_cases.review_state.record_reviewed.assert_not_awaited()
+        use_cases.review_state.record_graded.assert_not_awaited()
+
+    async def test_the_pause_is_cleared_before_the_card_is_written(self):
+        use_cases, expressions, *_ = _use_cases()
+        order = []
+        use_cases.review_state.record_reviewed.side_effect = lambda *_: order.append("record_reviewed")
+
+        async def write(*_, **__):
+            order.append("grade_expression")
+            return "graded"
+        expressions.grade_expression = AsyncMock(side_effect=write)
+
+        await use_cases.grade(111, EXPRESSION_ID, 3, "forward", message_id=777)
+
+        assert order == ["record_reviewed", "grade_expression"]
+
+    async def test_a_failed_pause_clear_leaves_the_card_pending(self):
+        """Nothing is graded, so a retap is a clean retry."""
+        use_cases, expressions, *_ = _use_cases()
+        use_cases.review_state.record_reviewed.side_effect = RuntimeError("mongo down")
+
+        with pytest.raises(RuntimeError):
+            await use_cases.grade(111, EXPRESSION_ID, 3, "forward", message_id=777)
+
+        expressions.grade_expression.assert_not_awaited()
+
+    async def test_losing_the_write_to_a_concurrent_tap_is_not_pending(self):
+        use_cases, expressions, *_ = _use_cases()
+        expressions.grade_expression.return_value = "not_pending"
+
+        assert await use_cases.grade(111, EXPRESSION_ID, 3, "forward", message_id=777) == NotPending()
 
     async def test_grade_does_not_touch_onboarding(self):
         use_cases, _, users, _, _ = _use_cases()
 
-        await use_cases.grade(111, EXPRESSION_ID, 3, "forward")
+        await use_cases.grade(111, EXPRESSION_ID, 3, "forward", message_id=777)
         users.get_user.assert_not_awaited()
         users.advance_onboarding.assert_not_awaited()
 
@@ -322,7 +361,7 @@ class TestGrade:
     async def test_boundary_grades_are_accepted(self, grade):
         use_cases, *_ = _use_cases()
 
-        assert await use_cases.grade(111, EXPRESSION_ID, grade, "forward") == Graded()
+        assert await use_cases.grade(111, EXPRESSION_ID, grade, "forward", message_id=777) == Graded()
 
     # The grading rules live in ExpressionService, so these run against a real one.
     def _with_real_expressions(self):
@@ -343,7 +382,7 @@ class TestGrade:
         before = [dict(doc) for doc in docs]
 
         with pytest.raises(ValueError, match="grade"):
-            await use_cases.grade(111, expression_id, grade, "forward")
+            await use_cases.grade(111, expression_id, grade, "forward", message_id=777)
         assert docs == before
         use_cases.review_state.record_reviewed.assert_not_awaited()
 
@@ -353,7 +392,7 @@ class TestGrade:
         before = [dict(doc) for doc in docs]
 
         with pytest.raises(ValueError, match="direction"):
-            await use_cases.grade(111, expression_id, 3, direction)
+            await use_cases.grade(111, expression_id, 3, direction, message_id=777)
         assert docs == before
         use_cases.review_state.record_reviewed.assert_not_awaited()
 
@@ -407,33 +446,33 @@ class TestReviewStateShadow:
     async def test_grade_records_the_review(self):
         use_cases, _, _, _, _ = _use_cases()
 
-        await use_cases.grade(111, EXPRESSION_ID, 4, "forward")
+        await use_cases.grade(111, EXPRESSION_ID, 4, "forward", message_id=777)
 
         use_cases.review_state.record_reviewed.assert_awaited_once_with(111)
 
     async def test_missing_card_records_no_review(self):
         use_cases, expressions, _, _, _ = _use_cases()
-        expressions.grade_expression.return_value = False
+        expressions.check_gradable.return_value = "not_found"
 
-        await use_cases.grade(111, EXPRESSION_ID, 4, "forward")
+        await use_cases.grade(111, EXPRESSION_ID, 4, "forward", message_id=777)
 
         use_cases.review_state.record_reviewed.assert_not_awaited()
 
     async def test_grade_clears_the_current_review(self):
         use_cases, _, _, _, _ = _use_cases()
 
-        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward") == Graded()
+        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward", message_id=777) == Graded()
         use_cases.review_state.record_graded.assert_awaited_once_with(111, EXPRESSION_ID, "forward")
 
     async def test_grade_survives_a_review_state_failure(self):
         use_cases, _, _, _, _ = _use_cases()
         use_cases.review_state.record_graded.side_effect = RuntimeError("mongo down")
 
-        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward") == Graded()
+        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward", message_id=777) == Graded()
 
     async def test_missing_card_leaves_review_state_alone(self):
         use_cases, expressions, _, _, _ = _use_cases()
-        expressions.grade_expression.return_value = False
+        expressions.check_gradable.return_value = "not_found"
 
-        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward") == CardNotFound()
+        assert await use_cases.grade(111, EXPRESSION_ID, 4, "forward", message_id=777) == CardNotFound()
         use_cases.review_state.record_graded.assert_not_awaited()

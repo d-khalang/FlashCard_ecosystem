@@ -42,6 +42,7 @@ def _deps(*, candidate=CANDIDATE, direction="forward", user=None, can_generate=T
         expression=Expression.model_validate({"user_id": str(USER_ID), **candidate}), direction=direction,
     ) if candidate else None)
     expression_service.update_expression_sent = AsyncMock()
+    expression_service.check_gradable = AsyncMock(return_value="pending")
     expression_service.grade_expression = AsyncMock()
 
     user_service = MagicMock()
@@ -360,6 +361,7 @@ def _callback(text="CARD TEXT"):
     callback.from_user.id = USER_ID
     callback.data = "grade:x:4:fwd"
     callback.message.text = text
+    callback.message.message_id = 42
     callback.message.edit_text = AsyncMock()
     callback.message.answer = AsyncMock()
     callback.answer = AsyncMock()
@@ -379,10 +381,10 @@ class TestGrade:
     @pytest.mark.parametrize("code, direction", [("fwd", "forward"), ("rev", "reverse")])
     async def test_success_records_grade_and_edits_message(self, code, direction):
         d = _deps(user=_user(onboarding_step=2))
-        d.expression_service.grade_expression.return_value = True
+        d.expression_service.grade_expression.return_value = "graded"
         callback = await _run_grade(d, grade=4, direction=code)
 
-        d.expression_service.grade_expression.assert_awaited_once_with(USER_ID, EXPRESSION_ID, 4, direction)
+        d.expression_service.grade_expression.assert_awaited_once_with(USER_ID, EXPRESSION_ID, 4, direction, message_id=42)
         callback.message.edit_text.assert_awaited_once_with(
             "CARD TEXT" + i18n.get("callbacks.grade.rated", grade=4))
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.success"), show_alert=False)
@@ -391,7 +393,7 @@ class TestGrade:
 
     async def test_first_review_shows_tip_and_advances_onboarding(self):
         d = _deps(user=_user(onboarding_step=1))
-        d.expression_service.grade_expression.return_value = True
+        d.expression_service.grade_expression.return_value = "graded"
         callback = await _run_grade(d)
 
         callback.message.answer.assert_awaited_once_with(i18n.get("messages.tips.first_review"))
@@ -399,16 +401,25 @@ class TestGrade:
 
     async def test_missing_expression_alerts_and_edits_nothing(self):
         d = _deps()
-        d.expression_service.grade_expression.return_value = False
+        d.expression_service.check_gradable.return_value = "not_found"
         callback = await _run_grade(d)
 
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.error_missing"), show_alert=True)
         callback.message.edit_text.assert_not_awaited()
 
+    async def test_message_no_longer_pending_answers_quietly_and_edits_nothing(self):
+        d = _deps(user=_user(onboarding_step=1))
+        d.expression_service.check_gradable.return_value = "not_pending"
+        callback = await _run_grade(d)
+
+        callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.not_pending"), show_alert=False)
+        callback.message.edit_text.assert_not_awaited()
+        d.user_service.advance_onboarding.assert_not_awaited()
+
     async def test_out_of_range_grade_alerts_invalid_data_and_admin(self):
         d = _deps()
         # The real ExpressionService rejects it; the handler must turn that into the invalid-data alert.
-        d.expression_service.grade_expression.side_effect = ValueError("grade must be an integer 0-5, got 9")
+        d.expression_service.check_gradable.side_effect = ValueError("grade must be an integer 0-5, got 9")
         logger_bot = MagicMock()
         with patch.object(review, "notify_admin_with_trace", new=AsyncMock()) as notify:
             callback = await _run_grade(d, grade=9, logger_bot=logger_bot)
