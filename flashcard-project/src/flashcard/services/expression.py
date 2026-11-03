@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, timedelta
-from typing import Optional, get_args
+from typing import Literal, Optional, get_args
 
 from flashcard.utils.time import iso_z, now_utc
 
@@ -29,6 +29,9 @@ DUPLICATE_KEY = 11000
 # Every read and remove uses this one definition of an active card. Documents saved
 # before `status` existed have none and count as active; nothing sets another status yet.
 ACTIVE = {"$in": ["active", None]}
+
+GradeCheck = Literal["pending", "not_found", "not_pending"]
+GradeOutcome = Literal["graded", "not_found", "not_pending"]
 
 class ExpressionService:
     def __init__(self, expressions):
@@ -281,24 +284,33 @@ class ExpressionService:
             fields["last_card"] = last_card.model_dump()
         await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": fields})
 
-    async def grade_expression(self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward") -> bool:
+    async def check_gradable(
+        self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward", *, message_id: int,
+    ) -> GradeCheck:
         """
-        Updates the graded direction's stats. False when the card does not exist (or
-        cannot be read); raises ValueError for an out-of-range grade or unknown
-        direction (nothing is written).
+        Whether this grade could apply now, without writing anything: `message_id` must
+        still be the card's pending message. Raises ValueError like grade_expression.
         """
-        if type(grade) is not int or not MIN_GRADE <= grade <= MAX_GRADE:
-            raise ValueError(f"grade must be an integer {MIN_GRADE}-{MAX_GRADE}, got {grade!r}")
-        if direction not in get_args(Direction):
-            raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
-
-        doc = await self.expressions.find_one(
-            {"_id": ObjectId(expression_id), "user_id": stored_user_id(user_id)}
-        )
-        expression = _read(doc) if doc else None
+        _validate_grade(grade, direction)
+        expression = await self._find_for_grading(user_id, expression_id)
         if expression is None:
-            logger.warning(f"Expression {expression_id} not found for user {user_id} during grading")
-            return False
+            return "not_found"
+        return "pending" if expression.pending_message_id == message_id else "not_pending"
+
+    async def grade_expression(
+        self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward", *, message_id: int,
+    ) -> GradeOutcome:
+        """
+        Updates the graded direction's stats, once per delivered message: `message_id`
+        must still be the card's pending message, so a repeated or concurrent tap, or a
+        tap on a message a newer send replaced, writes nothing ("not_pending").
+        "not_found" when the card does not exist (or cannot be read); raises ValueError
+        for an out-of-range grade or unknown direction (nothing is written).
+        """
+        _validate_grade(grade, direction)
+        expression = await self._find_for_grading(user_id, expression_id)
+        if expression is None:
+            return "not_found"
 
         stats = calculate_new_stats(expression.stats(direction), grade)
         if direction == "reverse":
@@ -311,8 +323,27 @@ class ExpressionService:
         updates["last_activity_at"] = stats.last_review_at
         updates["pending_message_id"] = None
 
-        await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": updates})
-        return True
+        result = await self.expressions.update_one(
+            {"_id": ObjectId(expression_id), "pending_message_id": message_id},
+            {"$set": updates},
+        )
+        return "graded" if result.modified_count else "not_pending"
+
+    async def _find_for_grading(self, user_id: UserId, expression_id: str) -> Optional[Expression]:
+        doc = await self.expressions.find_one(
+            {"_id": ObjectId(expression_id), "user_id": stored_user_id(user_id)}
+        )
+        expression = _read(doc) if doc else None
+        if expression is None:
+            logger.warning(f"Expression {expression_id} not found for user {user_id} during grading")
+        return expression
+
+
+def _validate_grade(grade: int, direction: str) -> None:
+    if type(grade) is not int or not MIN_GRADE <= grade <= MAX_GRADE:
+        raise ValueError(f"grade must be an integer {MIN_GRADE}-{MAX_GRADE}, got {grade!r}")
+    if direction not in get_args(Direction):
+        raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
 
 
 def _read(doc: dict) -> Optional[Expression]:

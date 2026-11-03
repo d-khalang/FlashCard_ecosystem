@@ -72,7 +72,12 @@ class CardNotFound:
     pass
 
 
-GradeResult = Union[Graded, CardNotFound]
+@dataclass(frozen=True)
+class NotPending:
+    """This message is no longer waiting for a grade: a repeated tap, or a newer send replaced it."""
+
+
+GradeResult = Union[Graded, CardNotFound, NotPending]
 
 
 class ReviewUseCases:
@@ -157,19 +162,38 @@ class ReviewUseCases:
         """The user cannot receive messages (blocked the bot): stop scheduling them, as Pause does."""
         await self.users.set_active(user_id, False)
 
-    async def grade(self, user_id: UserId, expression_id: str, grade: int, direction: Direction) -> GradeResult:
+    async def grade(
+        self, user_id: UserId, expression_id: str, grade: int, direction: Direction, *, message_id: int,
+    ) -> GradeResult:
         """
-        Apply a 0-5 grade in the given direction.
+        Apply a 0-5 grade in the given direction, once per delivered message.
         Raises ValueError for an out-of-range grade or unknown direction
-        (enforced by ExpressionService.grade_expression, before anything is written).
+        (enforced by ExpressionService, before anything is written).
+
+        The card write comes last because it is what makes a retry stop: if anything
+        fails before it, the card is still pending and a retap grades it. The other
+        order could leave a graded card with the scheduler paused and no way to resume.
         """
-        if not await self.expressions.grade_expression(user_id, expression_id, grade, direction):
+        check = await self.expressions.check_gradable(
+            user_id, expression_id, grade, direction, message_id=message_id)
+        if check == "not_found":
             return CardNotFound()
+        if check == "not_pending":
+            return NotPending()
+
         await self.review_state.record_reviewed(user_id)
         await shadow_write(
             self.review_state.record_graded(user_id, expression_id, direction),
             f"record_graded user={user_id} expression={expression_id}",
         )
+
+        # A concurrent tap or a removal can still win between the check and this write.
+        outcome = await self.expressions.grade_expression(
+            user_id, expression_id, grade, direction, message_id=message_id)
+        if outcome == "not_found":
+            return CardNotFound()
+        if outcome == "not_pending":
+            return NotPending()
         return Graded()
 
     async def claim_first_review_tip(self, user_id: UserId) -> bool:

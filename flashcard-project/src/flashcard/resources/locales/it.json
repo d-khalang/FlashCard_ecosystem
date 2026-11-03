@@ -17,6 +17,7 @@
             "rated": "\n\n✅ Hai votato <b>{grade}</b>",
             "success": "Votato con successo!",
             "error_missing": "Errore nell'aggiornamento del voto. La carta potrebbe mancare.",
+            "not_pending": "Questa carta è già stata votata o non è più attuale. 👍",
             "invalid_data": "Dati di callback non validi.",
             "error_generic": "Si è verificato un errore."
         },

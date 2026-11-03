@@ -17,6 +17,7 @@
             "rated": "\n\n✅ <b>{grade}</b> recorded!",
             "success": "Got it! 🎓",
             "error_missing": "Oops, I couldn't find that card. 😅",
+            "not_pending": "This one's already answered or out of date. 👍",
             "invalid_data": "Hmm, something went wrong there. 🤔",
             "error_generic": "Uh oh, a little hiccup on my end. 😅"
         },

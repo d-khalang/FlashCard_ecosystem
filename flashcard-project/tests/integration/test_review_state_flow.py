@@ -7,6 +7,7 @@ moves to its own model, so the migration can prove it preserves it.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from bson import ObjectId
@@ -49,6 +50,18 @@ async def _user_doc(env):
 
 async def _due_ids(env):
     return [user.user_id for user in await find_users_due_for_review(env["user_service"])]
+
+
+async def _card_doc(env, expression_id):
+    return await env["cols"]["expression"].find_one({"_id": expression_id})
+
+
+async def _tap_grade(env, expression_id, grade=4, direction="fwd", message_id=None, update_id=2):
+    """Tap a grade button; on the card's pending message unless `message_id` says otherwise."""
+    if message_id is None:
+        message_id = (await _card_doc(env, expression_id))["pending_message_id"]
+    callback = GradeCallback(expression_id=str(expression_id), grade=grade, direction=direction).pack()
+    await _feed(env, make_callback_update(data=callback, text="Review card", message_id=message_id, update_id=update_id))
 
 
 class TestSchedulerPause:
@@ -127,8 +140,7 @@ class TestStoredDates:
         user = await _user_doc(dispatcher_env)
         assert user["current_review"]["sent_at"]  # a review was sent
 
-        callback = GradeCallback(expression_id=str(expression_id), grade=4, direction="fwd").pack()
-        await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
+        await _tap_grade(dispatcher_env, expression_id)
         await _feed(dispatcher_env, make_callback_update(data="save:nuovo", text="Card", update_id=3))
 
         written = [(f"users.{path}", _get(await _user_doc(dispatcher_env), path)) for path in self.USER_DATES]
@@ -161,8 +173,7 @@ class TestCurrentReviewShadow:
         assert current["direction"] == "forward"
         assert current["message_id"] is not None
 
-        callback = GradeCallback(expression_id=str(expression_id), grade=4, direction="fwd").pack()
-        await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
+        await _tap_grade(dispatcher_env, expression_id)
 
         assert "current_review" not in await _user_doc(dispatcher_env)
 
@@ -180,12 +191,83 @@ class TestCurrentReviewShadow:
         expression_id = await _insert_card(dispatcher_env, pending_message_id=555)
         await _set_user(dispatcher_env, has_pending=True)
 
-        callback = GradeCallback(expression_id=str(expression_id), grade=3, direction="rev").pack()
-        await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
+        await _tap_grade(dispatcher_env, expression_id, grade=3, direction="rev")
 
         user = await _user_doc(dispatcher_env)
         assert user["has_pending"] is False
         assert "current_review" not in user
+
+
+class TestGradeOncePerMessage:
+    """A delivered message takes one grade; pending_message_id is the idempotency key."""
+
+    async def test_a_repeated_tap_changes_nothing(self, dispatcher_env):
+        expression_id = await _insert_card(dispatcher_env, pending_message_id=555)
+        await _set_user(dispatcher_env, has_pending=True)
+
+        await _tap_grade(dispatcher_env, expression_id, grade=4, message_id=555)
+        card = await _card_doc(dispatcher_env, expression_id)
+        reviewed_at = (await _user_doc(dispatcher_env))["last_reviewed_at"]
+        edits = [call for call in dispatcher_env["session"].calls if call.method == "EditMessageText"]
+
+        await _tap_grade(dispatcher_env, expression_id, grade=1, message_id=555, update_id=3)
+
+        assert card["reps"] == 1
+        assert await _card_doc(dispatcher_env, expression_id) == card
+        assert (await _user_doc(dispatcher_env))["last_reviewed_at"] == reviewed_at
+        assert [call for call in dispatcher_env["session"].calls if call.method == "EditMessageText"] == edits
+
+    async def test_an_older_message_of_a_resent_card_is_not_graded(self, dispatcher_env):
+        expression_id = await _insert_card(dispatcher_env, pending_message_id=600)
+        await _set_user(dispatcher_env, has_pending=True)
+        before = await _card_doc(dispatcher_env, expression_id)
+
+        await _tap_grade(dispatcher_env, expression_id, message_id=555)
+
+        assert await _card_doc(dispatcher_env, expression_id) == before
+        assert (await _user_doc(dispatcher_env))["has_pending"] is True
+
+    async def test_a_failed_card_write_resumes_the_user_and_a_retap_grades_once(self, dispatcher_env, monkeypatch):
+        expression_id = await _insert_card(dispatcher_env, pending_message_id=555)
+        await _set_user(dispatcher_env, has_pending=True)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(dispatcher_env["expression_service"], "grade_expression",
+                          AsyncMock(side_effect=RuntimeError("mongo down")))
+            await _tap_grade(dispatcher_env, expression_id, message_id=555)
+
+        assert (await _user_doc(dispatcher_env))["has_pending"] is False
+        assert (await _card_doc(dispatcher_env, expression_id))["pending_message_id"] == 555
+
+        await _tap_grade(dispatcher_env, expression_id, message_id=555, update_id=3)
+
+        assert (await _card_doc(dispatcher_env, expression_id))["reps"] == 1
+
+    async def test_a_failed_pause_clear_writes_nothing_and_a_retap_grades_once(self, dispatcher_env, monkeypatch):
+        expression_id = await _insert_card(dispatcher_env, pending_message_id=555)
+        await _set_user(dispatcher_env, has_pending=True)
+        before = await _card_doc(dispatcher_env, expression_id)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(dispatcher_env["review_state"], "record_reviewed",
+                          AsyncMock(side_effect=RuntimeError("mongo down")))
+            await _tap_grade(dispatcher_env, expression_id, message_id=555)
+
+        assert await _card_doc(dispatcher_env, expression_id) == before
+
+        await _tap_grade(dispatcher_env, expression_id, message_id=555, update_id=3)
+
+        assert (await _card_doc(dispatcher_env, expression_id))["reps"] == 1
+        assert (await _user_doc(dispatcher_env))["has_pending"] is False
+
+    async def test_a_late_grade_of_an_older_card_still_counts(self, dispatcher_env):
+        """Each card has its own pending message, so a newer card does not block the older one."""
+        older = await _insert_card(dispatcher_env, value="andare", pending_message_id=555)
+        await _insert_card(dispatcher_env, value="venire", pending_message_id=600)
+
+        await _tap_grade(dispatcher_env, older, message_id=555)
+
+        assert (await _card_doc(dispatcher_env, older))["reps"] == 1
 
 
 class TestLastSeen:
@@ -232,8 +314,7 @@ class TestCurrentReviewPauseRule:
         await _feed(dispatcher_env, make_message_update(text="/get"))
         assert USER_ID not in await self._due(dispatcher_env)
 
-        callback = GradeCallback(expression_id=str(expression_id), grade=4, direction="fwd").pack()
-        await _feed(dispatcher_env, make_callback_update(data=callback, text="Review card"))
+        await _tap_grade(dispatcher_env, expression_id)
         # Grading also starts the user's interval; only the pause is checked here.
         await _set_user(dispatcher_env, last_reviewed_at=None)
 
