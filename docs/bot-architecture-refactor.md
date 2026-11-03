@@ -79,8 +79,11 @@ have run, never go back to the old image on the live data: ship a fixed image in
    (`current_review`, `last_seen_at`) start alongside the legacy fields; behavior is unchanged.
 4. Observe the `Review-state shadow compare` log line for a few days:
    `missing_current_review` ≈ 0, no unexplained `new_pauses`.
-5. Switch: set `REVIEW_PAUSE_RULE=current_review` and restart (no new image).
-   Rollback: set it back to `legacy` and restart.
+5. Switch (no new image): set `REVIEW_PAUSE_RULE=current_review` in
+   `/etc/kartino/config/italian.env` and `english.env`, then recreate each bot, English first:
+   `sh ./scripts/compose.sh up -d --no-build --wait flashcard-bot-en`, then `flashcard-bot-it`.
+   A plain `restart` does not reload the env file. Rollback: set it back to `legacy` and
+   recreate them the same way.
 6. After the switch is validated: the **contract** step is a **separate, later update**
    (it deletes the rollback path), see "Remove after the migration is validated".
 7. Also in a later update: remove the legacy settings-menu `"toggle"` callback
@@ -88,6 +91,15 @@ have run, never go back to the old image on the live data: ship a fixed image in
    Menus sent before the deploy still carry it; after removal, pressing the review-mode
    button on such an old menu shows the "invalid value" alert (`set_review_mode`
    rejects `"toggle"`), and `/settings` gives a working menu. Wait a few weeks after the deploy.
+
+**Order of what is left, one change at a time:**
+
+1. Step 4 for 1–2 days: the shadow compare is clean.
+2. Patch release v2.0.1 with the grade-once fix (a double tap graded a card twice; not on `main`
+   yet), through the release checklist in the `kartino-deploy` README. Watch for about a day.
+3. Step 5, then watch for a few days.
+4. Steps 6 and 7, as later updates. Step 6 stays apart from any fix: it removes the way back to
+   the `legacy` rule.
 
 ## #2 Use-case layer: progress
 
@@ -182,7 +194,7 @@ Migration (each step deployable; the pause rule can be switched back, the image 
   `bot.py` and passed to `scheduler_loop`; rule in `app/review_schedule.paused`. Dual writes stay
 - [ ] (prod, rollout step 5) Flip the setting
 - [ ] (separate later update) Contract: stop legacy writes; drop `has_pending`, `pending_message_id`,
-  `last_push_at`, `last_sent_at` after a backup
+  `last_push_at`, `last_sent_at` after a backup (`pending_message_id`: see "Decide first" below)
 
 ### Ownership fixes
 
@@ -247,6 +259,11 @@ Migration (each step deployable; the pause rule can be switched back, the image 
   A user who unblocks the bot sees "Paused" in `/settings` and presses Resume; `/get` keeps working.
 
 ### Remove after the migration is validated (contract step)
+
+**Decide first:** the grade-once fix reads `ExpressionDB.pending_message_id` to accept one grade per
+delivered message, so with that fix the field is no longer dead. Either keep it (and its writes, and
+drop it from the lists here) or give the fix another source. `current_review` holds only the user's
+latest card, so it cannot replace the field as it stands.
 
 Temporary code that becomes dead once the switch is proven in production:
 
