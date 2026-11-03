@@ -95,8 +95,8 @@ have run, never go back to the old image on the live data: ship a fixed image in
 **Order of what is left, one change at a time:**
 
 1. Step 4 for 1–2 days: the shadow compare is clean.
-2. Patch release v2.0.1 with the grade-once fix (a double tap graded a card twice; not on `main`
-   yet), through the release checklist in the `kartino-deploy` README. Watch for about a day.
+2. Patch release v2.0.1 with the grade-once fix (a double tap graded a card twice; on `main`, not
+   released yet), through the release checklist in the `kartino-deploy` README. Watch for about a day.
 3. Step 5, then watch for a few days.
 4. Steps 6 and 7, as later updates. Step 6 stays apart from any fix: it removes the way back to
    the `legacy` rule.
