@@ -23,7 +23,8 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 
 **Status:** v2.0.0 was deployed on 2026-11-03 with `REVIEW_PAUSE_RULE=legacy`: steps 1–3 are
 done, about 6 minutes of downtime. v2.0.1 (grade-once fix) was deployed on 2026-11-04 on the same
-rule. Steps 5–7 are open. The steps below stay as the record.
+rule. Step 5 (`REVIEW_PAUSE_RULE=current_review`) was done on 2026-11-04 at about 11:27 UTC and is
+being watched. Steps 6–7 are open. The steps below stay as the record.
 
 Everything shipped in **one update** once the refactor was finished, then these production
 steps run in order:
@@ -98,8 +99,7 @@ have run, never go back to the old image on the live data: ship a fixed image in
 1. Done: step 4 ran for about 25 hours; the shadow compare was clean (`missing_current_review=0`,
    `new_pauses=0`, `unreadable=0`).
 2. Done on 2026-11-04: patch release v2.0.1 with the grade-once fix (a double tap graded a card twice).
-   Watch for about a day.
-3. Step 5, then watch for a few days. Keep reading the shadow compare until then.
+3. Done on 2026-11-04, about 30 minutes after v2.0.1 rather than the planned day: step 5. Watch for a few days.
 4. Steps 6 and 7, as later updates. Step 6 stays apart from any fix: it removes the way back to
    the `legacy` rule.
 
@@ -194,7 +194,7 @@ Migration (each step deployable; the pause rule can be switched back, the image 
 - [x] (prod, rollout step 4) Observe after deploy + backfill: clean for about 25 hours (2026-11-04)
 - [x] Switch code: `REVIEW_PAUSE_RULE` setting (`legacy` default | `current_review`), read in
   `bot.py` and passed to `scheduler_loop`; rule in `app/review_schedule.paused`. Dual writes stay
-- [ ] (prod, rollout step 5) Flip the setting
+- [x] (prod, rollout step 5) Flip the setting (2026-11-04); being watched
 - [ ] (separate later update) Contract: stop legacy writes; drop `has_pending`, `pending_message_id`,
   `last_push_at`, `last_sent_at` after a backup (`pending_message_id`: see "Decide first" below)
 
