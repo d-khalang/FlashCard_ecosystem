@@ -1,0 +1,13 @@
+*
+!miniapp/package.json
+!miniapp/package-lock.json
+!miniapp/index.html
+!miniapp/vite.config.ts
+!miniapp/tsconfig.json
+!miniapp/public
+!miniapp/src
+!flashcard-project/pyproject.toml
+!flashcard-project/src
+**/__pycache__
+**/*.egg-info
+**/resources/llm_key*.json

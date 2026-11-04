@@ -40,6 +40,12 @@ jobs:
       LOG_LEVEL: INFO
       SCHEDULER_CHECK_INTERVAL_SECONDS: "600"
       LLM_API_KEY: test-llm-key
+      KARTINO_TEST_MONGO_URI: mongodb://localhost:27017
+    services:
+      mongo:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -62,6 +68,33 @@ jobs:
       - name: Run integration and smoke tests
         run: pytest tests/integration tests/smoke -q --tb=short
 
+  miniapp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: miniapp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: miniapp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
   docker-build-check:
     runs-on: ubuntu-latest
     steps:
@@ -78,3 +111,6 @@ jobs:
 
       - name: Build conjugator image
         run: docker build -t conjugator-ci ./it-conjugator-api
+
+      - name: Build Mini App image
+        run: docker build -f miniapp/Dockerfile -t flashcard-miniapp-ci .
