@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v2.0.1 (2026-11-04)
+
+No config change or data migration.
+
+### Fix
+
+- A grade applies once per delivered message: a double tap no longer grades a card twice, and a tap on an already answered or replaced message changes nothing and says so.
+
 ## v2.0.0 (2026-11-02)
 
 ### BREAKING CHANGE
