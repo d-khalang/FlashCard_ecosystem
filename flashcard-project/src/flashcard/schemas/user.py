@@ -67,6 +67,21 @@ class CurrentReview(BaseModel):
     message_id: int = Field(..., description="Telegram message that carries the card")
     sent_at: UtcDatetime = Field(..., description="Delivery time")
 
+    @property
+    def in_app(self) -> bool:
+        """Delivered in the Mini App: its delivery id is negative, so it never equals a Telegram message id."""
+        return self.message_id < 0
+
+
+class LastAppGrade(BaseModel):
+    """The last grade made in the Mini App, kept for one level of undo (at most UNDO_WINDOW)."""
+    expression_id: str
+    direction: Literal["forward", "reverse", "unknown"]
+    delivery_id: int
+    previous_reviewed_at: OptionalUtcDatetime = Field(None, description="`last_reviewed_at` before this grade")
+    sent_at: UtcDatetime = Field(..., description="When the graded card was delivered")
+    graded_at: UtcDatetime
+
 
 class UserTier(str, Enum):
     admin = "admin"
@@ -84,6 +99,7 @@ class UserDB(BaseModel):
     last_seen_at: OptionalUtcDatetime = Field(None, description="The user's last interaction with the bot")
     has_pending: bool = Field(False, description="If user has pending reviews")
     current_review: Optional[CurrentReview] = Field(None, description="Ungraded delivered card, if any")
+    last_app_grade: Optional[LastAppGrade] = Field(None, description="Last grade made in the Mini App (undo)")
     is_active: bool = Field(True, description="If user is active for scheduler")
     
     # Settings. No defaults here: UserService fills missing ones from the instance's
@@ -109,6 +125,18 @@ class UserDB(BaseModel):
     
     # Consumption Tracking
     consumption: UserConsumption = Field(UserConsumption(), description="User Consumption per day")
+
+    @field_validator("last_app_grade", mode="before")
+    @classmethod
+    def _unreadable_app_grade_reads_as_none(cls, value):
+        """Only an undo hint: an unreadable one is dropped, not the user."""
+        if value is None or isinstance(value, LastAppGrade):
+            return value
+        try:
+            return LastAppGrade.model_validate(value)
+        except ValueError:
+            logger.warning("Unreadable last_app_grade dropped")
+            return None
 
     @field_validator("secondary_language", mode="before")
     @classmethod

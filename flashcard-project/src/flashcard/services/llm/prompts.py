@@ -50,6 +50,38 @@ IMPORTANT:
 - The JSON must validate against the schema.
 """
 
+CARD_SECTION_PROMPT_TEMPLATE = """\
+You are a terse {learning_language_name} vocabulary helper. Rewrite ONE part of an existing flashcard.
+
+EXPRESSION: {expression}
+{learning_language_name} level: {level}
+
+CURRENT CARD:
+- definition: {definition}
+- translations:
+{translations}
+- example: {example}
+
+PART TO REWRITE: {section}
+
+TASK:
+Return JSON that matches the provided schema. Fill ONLY the field for the part to rewrite;
+set the other two to null (definition, example) or an empty list (translations).
+Keep the same expression and the same sense. Write the new text differently from the current one.
+
+PART RULES:
+- definition: 1-2 sentence {learning_language_name} definition at the given level; <=25 words; add 1-2 relevant emojis at the end if applicable.
+  Do NOT use the expression itself, or its root/conjugated forms, inside it.
+- translations: exactly one object per current translation line, in the same order. Keep each label EXACTLY as given.
+  text: 1-2 common translations in that language, worded differently from the current ones where a good alternative exists.
+- example: one everyday {learning_language_name} sentence at the given level that uses the expression
+  (it may be inflected); it must be a NEW sentence, not the current one; no translation.
+
+IMPORTANT:
+- Do not add extra fields.
+- The JSON must validate against the schema.
+"""
+
 IMPORT_PROMPT_TEMPLATE = """\
 SYSTEM:
 You are a strict parser for a {learning_language_name} flashcard importer.

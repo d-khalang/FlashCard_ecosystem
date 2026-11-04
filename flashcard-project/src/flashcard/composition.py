@@ -15,6 +15,7 @@ from flashcard.app.quota import QuotaPolicy
 from flashcard.app.review import ReviewUseCases
 from flashcard.app.settings import SettingsUseCases
 from flashcard.app.story import StoryUseCases
+from flashcard.app.study import StudyUseCases
 from flashcard.app.verb import VerbUseCases
 from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.language import LanguageConfig
@@ -69,6 +70,8 @@ class Core:
     # None when conjugation is disabled; the verb router is not included then.
     verb_use_cases: Optional[VerbUseCases]
     collection_use_cases: CollectionUseCases
+    # Mini App only; the bot's handlers do not receive it.
+    study_use_cases: StudyUseCases
 
     def handler_data(self, logger_bot, admin_id: int) -> dict:
         """What Telegram handlers and middlewares receive: use cases, not services."""
@@ -113,6 +116,13 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
     )
     language_validator = get_language_validator(language)
     quota = QuotaPolicy(consumption_service, settings)
+    review_use_cases = ReviewUseCases(
+        expression_service=expression_service,
+        user_service=user_service,
+        quota=quota,
+        llm_service=llm_service,
+        review_state=review_state,
+    )
     return Core(
         language=language,
         i18n=I18nService.for_language(language),
@@ -124,13 +134,7 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
         llm_service=llm_service,
         language_validator=language_validator,
         quota=quota,
-        review_use_cases=ReviewUseCases(
-            expression_service=expression_service,
-            user_service=user_service,
-            quota=quota,
-            llm_service=llm_service,
-            review_state=review_state,
-        ),
+        review_use_cases=review_use_cases,
         creation_use_cases=CreationUseCases(
             expression_service=expression_service,
             user_service=user_service,
@@ -157,5 +161,13 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
             llm_service=llm_service,
             review_state=review_state,
             language_validator=language_validator,
+        ),
+        study_use_cases=StudyUseCases(
+            review_use_cases=review_use_cases,
+            expression_service=expression_service,
+            user_service=user_service,
+            quota=quota,
+            llm_service=llm_service,
+            review_state=review_state,
         ),
     )

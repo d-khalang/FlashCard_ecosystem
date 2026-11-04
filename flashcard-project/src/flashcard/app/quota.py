@@ -5,7 +5,7 @@ Use cases ask `check` before an LLM call and `record` once the user receives
 what was generated. Only delivered results count; failed generations are free.
 """
 from dataclasses import dataclass
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 
 from flashcard.schemas.user import UserId
 from flashcard.schemas.user import UserDB, UserTier
@@ -36,6 +36,13 @@ class QuotaExceeded:
 QuotaResult = Union[Allowed, QuotaExceeded]
 
 
+@dataclass(frozen=True)
+class Usage:
+    """Today's count of a kind and its daily limit; `limit` is None when nothing limits the user."""
+    used: int
+    limit: Optional[int]
+
+
 class QuotaPolicy:
     def __init__(self, consumption_service: ConsumptionService, settings):
         """`settings`: provides the TIER_LIMITS_* values, read on every check."""
@@ -53,6 +60,15 @@ class QuotaPolicy:
         if used >= limit:
             return QuotaExceeded(tier=user.tier.value, limit=limit)
         return Allowed(uses_own_key=False)
+
+    def usage(self, user: UserDB, kind: Kind) -> Usage:
+        """Today's count of `kind` for display. Own-key and admin use is not limited."""
+        uses_own_key = user.api_config is not None
+        consumption = self.consumption.resolve_consumption(user.consumption)
+        counts = consumption.user_api if uses_own_key else consumption.system_api
+        used = getattr(counts, _METRICS[kind], 0)
+        unlimited = uses_own_key or user.tier == UserTier.admin
+        return Usage(used=used, limit=None if unlimited else self.limit(user, kind))
 
     async def record(self, user_id: UserId, kind: Kind, allowed: Allowed) -> None:
         """Count one delivered `kind` under the bucket `check` chose."""

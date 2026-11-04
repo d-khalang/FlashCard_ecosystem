@@ -1,4 +1,4 @@
-from flashcard.schemas.user import CurrentReview, UserId, stored_user_id
+from flashcard.schemas.user import CurrentReview, LastAppGrade, UserId, stored_user_id
 from flashcard.utils.logger import get_logger
 from datetime import datetime
 
@@ -13,6 +13,7 @@ class ReviewStateStore:
 
     - `current_review`: the delivered card still waiting for a grade; a newer card replaces it.
     - `last_reviewed_at`: when the user last graded a card (starts the review interval).
+    - `last_app_grade`: the last grade made in the Mini App, for one level of undo.
     - `has_pending`: legacy pause flag, removed in the contract step.
     """
 
@@ -98,4 +99,39 @@ class ReviewStateStore:
         await self.users.update_one(
             {"user_id": stored_user_id(user_id), "current_review.expression_id": expression_id},
             {"$unset": {"current_review": ""}},
+        )
+
+    async def record_app_grade(self, user_id: UserId, grade: LastAppGrade) -> None:
+        """Mini App: remember the last app grade, the one level of undo (it replaces the older one)."""
+        await self.users.update_one(
+            {"user_id": stored_user_id(user_id)},
+            {"$set": {"last_app_grade": grade.model_dump()}},
+        )
+
+    async def restore_after_undo(self, user_id: UserId, grade: LastAppGrade) -> bool:
+        """
+        Mini App undo, after the card itself was put back: the card is the current review
+        again, the review interval counts from the grade before it, and the undo hint is spent.
+        Only while `grade` is still the stored hint. True when it wrote.
+        """
+        review = CurrentReview(
+            expression_id=grade.expression_id,
+            direction=grade.direction,
+            message_id=grade.delivery_id,
+            sent_at=grade.sent_at,
+        )
+        result = await self.users.update_one(
+            {"user_id": stored_user_id(user_id), "last_app_grade.delivery_id": grade.delivery_id},
+            {
+                "$set": {"current_review": review.model_dump(), "last_reviewed_at": grade.previous_reviewed_at},
+                "$unset": {"last_app_grade": ""},
+            },
+        )
+        return bool(getattr(result, "modified_count", 0))
+
+    async def clear_app_grade(self, user_id: UserId, delivery_id: int) -> None:
+        """Mini App: the undo hint for this delivery can no longer be used."""
+        await self.users.update_one(
+            {"user_id": stored_user_id(user_id), "last_app_grade.delivery_id": delivery_id},
+            {"$unset": {"last_app_grade": ""}},
         )

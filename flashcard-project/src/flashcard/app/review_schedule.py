@@ -26,6 +26,9 @@ def awaiting_answer(user: UserDB) -> bool:
     review = user.current_review
     if review is None:
         return False
+    # Delivered in the Mini App: closing the app on an ungraded card must not stop bot reminders.
+    if review.in_app:
+        return False
     if not user.last_seen_at:
         return True
     return user.last_seen_at <= review.sent_at
