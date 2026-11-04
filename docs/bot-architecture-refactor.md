@@ -169,7 +169,9 @@ Planned field groups:
 | user | `current_review`, `last_graded` (one-level undo snapshot), `last_reviewed_at`, legacy `has_pending` | `ReviewStateStore` |
 
 Decisions: one-level undo only (deeper undo corrupts grading); undo restores the
-snapshot only if `review_rev` still matches. Reviews generate fresh content; the stored
+snapshot only if `review_rev` still matches. (The Mini App's undo, `grade_undo` on the expression and
+`last_app_grade` on the user, with compare-and-set on the delivery id, and `merge_card_section` for
+section refresh, supersede the `last_graded` / `review_rev` design in this section; see docs/mini-app.md.) Reviews generate fresh content; the stored
 card is a fallback when every provider call fails (not counted against quota).
 A separate `review_attempts` collection was tried and dropped: nothing needed history,
 and it split the scheduler's "due" query across two collections.
@@ -212,7 +214,10 @@ Migration (each step deployable; the pause rule can be switched back, the image 
   **Mini App:** its auth/launch step must call `record_seen` too; add its test there. A user who
   arrives that way may never have opened the bot chat: the bot cannot message them, and they are not
   paused (only a block or a deactivated account is), so each tick would generate a card and fail.
-  Decide this when the Mini App is rebuilt (for example, do not schedule until the chat is started).
+  **Decided:** optional `UserDB.bot_chat_open` (missing = true). A user newly inserted by the Mini App gets
+  `false` unless Telegram's signed `allows_write_to_pm` is true; any bot-path `record_seen` sets it true; the
+  scheduler's due-user queries exclude `false` before any LLM call. `USER_GONE_REASONS` is unchanged. See
+  docs/mini-app.md, "Authentication".
 - [x] **A missing `is_active` means active.** Only the Pause and Resume buttons write the field,
   but the scheduler matched `True` exactly, so a user who never pressed them saw "Active" in
   `/settings` and never got a scheduled review. It now excludes only `False`. Behavior change at

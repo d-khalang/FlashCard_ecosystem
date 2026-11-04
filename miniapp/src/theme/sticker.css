@@ -1,0 +1,104 @@
+/* Theme "sticker": the only file that contains colors, radii, borders, shadows and fonts. */
+@import '@fontsource/bricolage-grotesque/latin-600.css';
+@import '@fontsource/bricolage-grotesque/latin-800.css';
+@import '@fontsource/nunito-sans/latin-500.css';
+@import '@fontsource/nunito-sans/latin-700.css';
+@import '@fontsource/nunito-sans/latin-800.css';
+
+[data-theme='sticker'] {
+  color-scheme: light;
+
+  --font-display: 'Bricolage Grotesque', 'Nunito Sans', system-ui, sans-serif;
+  --font-body: 'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --border-width: 3px;
+  --border-width-control: 2.5px;
+  --border-width-chip: 2px;
+  --radius-card: 26px;
+  --radius-sheet: 26px;
+  --radius-control: 14px;
+  --radius-chip: 12px;
+  --radius-pill: 999px;
+
+  --color-ground: #fbeec2;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #fbeec2;
+  --color-ink: #1b2a4e;
+  --color-ink-muted: #44517a;
+  --color-outline: #1b2a4e;
+  --color-shadow: #1b2a4e;
+  --color-scrim: rgba(27, 42, 78, 0.55);
+  --color-focus: #1b2a4e;
+  --color-focus-halo: #f2b45a;
+
+  --color-primary: #cc4826;
+  --color-on-primary: #ffffff;
+  --color-primary-text: #a93417;
+  --color-accent: #f2b45a;
+  --color-on-accent: #1b2a4e;
+  --color-example-bg: #fde3d2;
+  --color-badge-bg: #dff1d6;
+  --color-danger: #a62d12;
+  --color-danger-bg: #fde1d9;
+  --color-success: #1f6b3a;
+
+  --grade-0-bg: #cc4826;
+  --grade-0-fg: #ffffff;
+  --grade-1-bg: #e98a5f;
+  --grade-1-fg: #1b2a4e;
+  --grade-2-bg: #f2b45a;
+  --grade-2-fg: #1b2a4e;
+  --grade-3-bg: #ffffff;
+  --grade-3-fg: #1b2a4e;
+  --grade-4-bg: #ffffff;
+  --grade-4-fg: #1b2a4e;
+  --grade-5-bg: #1b2a4e;
+  --grade-5-fg: #ffffff;
+  --grade-5-shadow: #0e1730;
+
+  --shadow-card: 5px 6px 0 var(--color-shadow);
+  --shadow-sheet: 0 -5px 0 var(--color-shadow);
+  --shadow-button: 0 4px 0 var(--color-shadow);
+  --shadow-button-small: 0 3px 0 var(--color-shadow);
+  --shadow-button-pressed: 0 1px 0 var(--color-shadow);
+}
+
+[data-theme='sticker'][data-scheme='dark'] {
+  color-scheme: dark;
+
+  --color-ground: #0f1a33;
+  --color-surface: #1a2a4d;
+  --color-surface-sunken: #12203d;
+  --color-ink: #f6e7b8;
+  --color-ink-muted: #cdbf93;
+  --color-outline: #f6e7b8;
+  --color-shadow: #050a18;
+  --color-scrim: rgba(5, 10, 24, 0.7);
+  --color-focus: #f6e7b8;
+  --color-focus-halo: #cc4826;
+
+  --color-primary: #cc4826;
+  --color-on-primary: #ffffff;
+  --color-primary-text: #ff9a78;
+  --color-accent: #f2b45a;
+  --color-on-accent: #1b2a4e;
+  --color-example-bg: #3a2d3f;
+  --color-badge-bg: #1f4a3a;
+  --color-danger: #ffa28a;
+  --color-danger-bg: #4a2630;
+  --color-success: #8fdc9f;
+
+  --grade-0-bg: #cc4826;
+  --grade-0-fg: #ffffff;
+  --grade-1-bg: #e98a5f;
+  --grade-1-fg: #1b2a4e;
+  --grade-2-bg: #f2b45a;
+  --grade-2-fg: #1b2a4e;
+  --grade-3-bg: #2c4272;
+  --grade-3-fg: #f6e7b8;
+  --grade-4-bg: #2c4272;
+  --grade-4-fg: #f6e7b8;
+  --grade-5-bg: #f6e7b8;
+  --grade-5-fg: #1b2a4e;
+  --grade-5-shadow: #050a18;
+}

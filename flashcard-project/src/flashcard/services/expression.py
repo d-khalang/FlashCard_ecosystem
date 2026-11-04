@@ -1,11 +1,13 @@
 import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal, Optional, get_args
 
 from flashcard.utils.time import iso_z, now_utc
 
 from flashcard.schemas.expression import (
-    MAX_GRADE, MIN_GRADE, Direction, Expression, ExpressionDB, ReviewCandidate, StoredCard, error_fields,
+    MAX_GRADE, MIN_GRADE, CardSection, CardSectionName, Direction, Expression, ExpressionDB, ReviewCandidate,
+    StoredCard, error_fields,
 )
 from flashcard.schemas.user import UserId, stored_user_id
 from flashcard.services.algorithm.priority import calculate_priority
@@ -32,6 +34,28 @@ ACTIVE = {"$in": ["active", None]}
 
 GradeCheck = Literal["pending", "not_found", "not_pending"]
 GradeOutcome = Literal["graded", "not_found", "not_pending"]
+UndoOutcome = Literal["undone", "nothing_to_undo"]
+
+# How long a card rests after it was sent or graded, before it may be picked again.
+COOLDOWN = timedelta(hours=12)
+
+
+@dataclass(frozen=True)
+class WordCounts:
+    total: int
+    # Active cards past their cooldown: what the next review can pick from.
+    ready: int
+
+
+@dataclass(frozen=True)
+class ExpressionPage:
+    items: list[Expression]
+    # Pass back to list_page for the next (older) page; None on the last page.
+    next_cursor: Optional[str]
+
+
+class InvalidCursor(ValueError):
+    """A list cursor this service did not issue."""
 
 class ExpressionService:
     def __init__(self, expressions):
@@ -227,22 +251,16 @@ class ExpressionService:
 
         return deleted
 
-    @observe(name="ExpressionService.get_review_candidate")
-    async def get_review_candidate(self, user_id: UserId, review_mode: str) -> Optional[ReviewCandidate]:
-        """
-        Selects the best expression for review based on priority algorithm.
-        Filters out expressions sent in the last 12 hours. `review_mode` is the user's
-        setting ("dual" also scores the reverse direction); users are not this service's data.
-        An unreadable card is logged and skipped.
-        """
+    def _due_query(self, user_id: UserId) -> dict:
+        """The user's active cards whose last send or grade is past the cooldown."""
         #TODO: change 12 hours to get from a config file
-        cutoff = now_utc() - timedelta(hours=12)
+        cutoff = now_utc() - COOLDOWN
         # MongoDB compares only values of the same type, so until `convert_dates` has run,
         # each condition is given for dates and for the legacy ISO text.
         before_cutoff = [{"$lt": cutoff}, {"$lt": iso_z(cutoff)}]
 
         # Last send/grade before the cutoff; never interacted: created_at is the reference.
-        query = {
+        return {
             "user_id": stored_user_id(user_id),
             "status": ACTIVE,
             "$or": [
@@ -250,6 +268,20 @@ class ExpressionService:
                 *({"last_activity_at": None, "created_at": condition} for condition in before_cutoff),
             ]
         }
+
+    @observe(name="ExpressionService.get_review_candidate")
+    async def get_review_candidate(
+        self, user_id: UserId, review_mode: str, *, stored_only: bool = False,
+    ) -> Optional[ReviewCandidate]:
+        """
+        Selects the best expression for review based on priority algorithm.
+        Filters out expressions sent in the last 12 hours. `review_mode` is the user's
+        setting ("dual" also scores the reverse direction); users are not this service's data.
+        An unreadable card is logged and skipped. `stored_only`: only words with a stored card.
+        """
+        query = self._due_query(user_id)
+        if stored_only:
+            query["last_card"] = {"$ne": None}
 
         #TODO: change to scheduled priority setter on all items of expressions
         # The highest priority over every candidate and direction wins.
@@ -269,10 +301,12 @@ class ExpressionService:
 
     async def update_expression_sent(
         self, expression_id: str, message_id: int, last_card: Optional[StoredCard] = None,
+        *, user_id: Optional[UserId] = None,
     ):
         """
         Updates the expression after it has been sent to the user.
         `last_card` (a freshly generated card) replaces the stored one in the same write.
+        `user_id`: when given, only that user's card is written.
         """
         now = now_utc()
         fields = {
@@ -282,7 +316,10 @@ class ExpressionService:
         }
         if last_card is not None:
             fields["last_card"] = last_card.model_dump()
-        await self.expressions.update_one({"_id": ObjectId(expression_id)}, {"$set": fields})
+        query: dict = {"_id": ObjectId(expression_id)}
+        if user_id is not None:
+            query["user_id"] = stored_user_id(user_id)
+        await self.expressions.update_one(query, {"$set": fields})
 
     async def check_gradable(
         self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward", *, message_id: int,
@@ -299,6 +336,7 @@ class ExpressionService:
 
     async def grade_expression(
         self, user_id: UserId, expression_id: str, grade: int, direction: str = "forward", *, message_id: int,
+        keep_undo: bool = False,
     ) -> GradeOutcome:
         """
         Updates the graded direction's stats, once per delivered message: `message_id`
@@ -306,6 +344,9 @@ class ExpressionService:
         tap on a message a newer send replaced, writes nothing ("not_pending").
         "not_found" when the card does not exist (or cannot be read); raises ValueError
         for an out-of-range grade or unknown direction (nothing is written).
+
+        `keep_undo` (Mini App): the same write also stores `grade_undo`, what `undo_grade`
+        needs to put the card back. Every grade without it unsets an older snapshot.
         """
         _validate_grade(grade, direction)
         expression = await self._find_for_grading(user_id, expression_id)
@@ -323,11 +364,153 @@ class ExpressionService:
         updates["last_activity_at"] = stats.last_review_at
         updates["pending_message_id"] = None
 
+        update: dict = {"$set": updates}
+        if keep_undo:
+            updates["grade_undo"] = {
+                "delivery_id": message_id,
+                "direction": direction,
+                "stats_before": _stats_snapshot(expression, direction),
+                "activity_before": expression.last_activity_at,
+            }
+        else:
+            update["$unset"] = {"grade_undo": ""}
+
         result = await self.expressions.update_one(
             {"_id": ObjectId(expression_id), "pending_message_id": message_id},
-            {"$set": updates},
+            update,
         )
         return "graded" if result.modified_count else "not_pending"
+
+    async def defer_review(self, user_id: UserId, expression_id: str) -> None:
+        """
+        Rest a card for the cooldown (12 h) without sending or grading it, by setting only
+        `last_activity_at`. For a word the LLM cannot make a card of: it must not be picked again
+        at once. The user's own card only.
+        """
+        if not isinstance(expression_id, str) or not ObjectId.is_valid(expression_id):
+            return
+        await self.expressions.update_one(
+            {"_id": ObjectId(expression_id), "user_id": stored_user_id(user_id)},
+            {"$set": {"last_activity_at": now_utc()}},
+        )
+
+    async def undo_grade(self, user_id: UserId, expression_id: str, delivery_id: int) -> UndoOutcome:
+        """
+        Put a card back as it was before the app grade that stored `grade_undo`: its stats, cooldown
+        reference and pending message. Compare-and-set on the snapshot's delivery id and on the card
+        not being pending: if it was sent again or graded elsewhere (which unsets the snapshot),
+        nothing is written ("nothing_to_undo").
+        """
+        expression = await self.get_expression(user_id, expression_id)
+        undo = expression.grade_undo if expression is not None else None
+        if not isinstance(undo, dict) or undo.get("delivery_id") != delivery_id:
+            return "nothing_to_undo"
+        try:
+            direction, before = undo["direction"], undo["stats_before"]
+            sets: dict = {"pending_message_id": delivery_id, "last_activity_at": undo["activity_before"]}
+            unsets: dict = {"grade_undo": ""}
+            if direction == "reverse":
+                if before is None:
+                    unsets["reverse_stats"] = ""
+                else:
+                    sets["reverse_stats"] = dict(before)
+            elif direction == "forward":
+                sets.update(dict(before))
+            else:
+                return "nothing_to_undo"
+        except (KeyError, TypeError, ValueError):
+            logger.warning("Unreadable grade_undo on expression %s", expression_id)
+            return "nothing_to_undo"
+
+        result = await self.expressions.update_one(
+            {
+                "_id": ObjectId(expression_id),
+                "user_id": stored_user_id(user_id),
+                "grade_undo.delivery_id": delivery_id,
+                "pending_message_id": None,
+            },
+            {"$set": sets, "$unset": unsets},
+        )
+        return "undone" if result.modified_count else "nothing_to_undo"
+
+    async def merge_card_section(
+        self, user_id: UserId, expression_id: str, message_id: int, section: CardSectionName, value: CardSection,
+    ) -> bool:
+        """
+        Replace one part of the stored card with its regenerated version, only while `message_id`
+        is still the card's pending message (compare-and-set). False when it no longer is, or
+        the card has no stored card.
+        """
+        if section == "definition":
+            fields = {"last_card.card.learning_definition": value.definition}
+        elif section == "example":
+            fields = {"last_card.card.learning_example": value.example}
+        elif section == "translations":
+            fields = {"last_card.card.translations": [line.model_dump() for line in value.translations]}
+        else:
+            raise ValueError(f"Unknown card section: {section!r}")
+        if not isinstance(expression_id, str) or not ObjectId.is_valid(expression_id):
+            return False
+        result = await self.expressions.update_one(
+            {
+                "_id": ObjectId(expression_id),
+                "user_id": stored_user_id(user_id),
+                "pending_message_id": message_id,
+                "last_card": {"$ne": None},
+            },
+            {"$set": fields},
+        )
+        return bool(result.modified_count)
+
+    async def get_expression(self, user_id: UserId, expression_id: str) -> Optional[Expression]:
+        """The user's active card, or None (also for a malformed id or an unreadable card)."""
+        if not isinstance(expression_id, str) or not ObjectId.is_valid(expression_id):
+            return None
+        doc = await self.expressions.find_one({
+            "_id": ObjectId(expression_id), "user_id": stored_user_id(user_id), "status": ACTIVE,
+        })
+        return _read(doc) if doc else None
+
+    async def still_due(self, user_id: UserId, expression_id: str) -> bool:
+        """The card is active, the user's, and past its cooldown: a candidate prepared earlier may still be sent."""
+        if not isinstance(expression_id, str) or not ObjectId.is_valid(expression_id):
+            return False
+        query = {**self._due_query(user_id), "_id": ObjectId(expression_id)}
+        return await self.expressions.find_one(query, {"_id": 1}) is not None
+
+    async def count_words(self, user_id: UserId) -> WordCounts:
+        """How many active cards the user has, and how many are ready for review."""
+        total = await self.expressions.count_documents({"user_id": stored_user_id(user_id), "status": ACTIVE})
+        ready = await self.expressions.count_documents(self._due_query(user_id))
+        return WordCounts(total=total, ready=ready)
+
+    async def list_page(
+        self, user_id: UserId, *, limit: int, cursor: Optional[str] = None, query: Optional[str] = None,
+    ) -> ExpressionPage:
+        """
+        The user's active cards, newest first (by id, which grows with insertion), `limit` at a
+        time. `cursor` is a previous page's `next_cursor`. `query` filters by value, ignoring case;
+        a search is not paged. Raises InvalidCursor for a cursor this service did not issue.
+        """
+        if limit < 1:
+            return ExpressionPage(items=[], next_cursor=None)
+        filters: dict = {"user_id": stored_user_id(user_id), "status": ACTIVE}
+        if query is not None:
+            filters["value"] = {"$regex": re.escape(query.strip()), "$options": "i"}
+        elif cursor is not None:
+            if not isinstance(cursor, str) or not ObjectId.is_valid(cursor):
+                raise InvalidCursor(cursor)
+            filters["_id"] = {"$lt": ObjectId(cursor)}
+
+        docs = []
+        # The stored card is large and not part of a list row.
+        async for doc in self.expressions.find(filters, {"last_card": 0}).sort("_id", -1).limit(limit + 1):
+            docs.append(doc)
+        more = len(docs) > limit
+        docs = docs[:limit]
+        items = [expression for expression in map(_read, docs) if expression is not None]
+        next_cursor = str(docs[-1]["_id"]) if more and query is None else None
+        return ExpressionPage(items=items, next_cursor=next_cursor)
 
     async def _find_for_grading(self, user_id: UserId, expression_id: str) -> Optional[Expression]:
         doc = await self.expressions.find_one(
@@ -337,6 +520,14 @@ class ExpressionService:
         if expression is None:
             logger.warning(f"Expression {expression_id} not found for user {user_id} during grading")
         return expression
+
+
+def _stats_snapshot(expression: Expression, direction: str) -> Optional[dict]:
+    """What `undo_grade` writes back for the graded direction (None: there were no reverse stats)."""
+    if direction == "reverse":
+        return expression.reverse_stats.model_dump() if expression.reverse_stats is not None else None
+    stats = expression.forward_stats
+    return {**stats.model_dump(exclude={"last_review_at"}), "last_interaction_at": stats.last_review_at}
 
 
 def _validate_grade(grade: int, direction: str) -> None:

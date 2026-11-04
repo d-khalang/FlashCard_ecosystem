@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kartino"
-version = "2.0.1"
+version = "2.1.0-rc.1"
 authors = [
   { name="Kartino Team" },
 ]
@@ -34,6 +34,7 @@ flashcard-bot = "flashcard.__main__:main"
 flashcard-bot-dev = "flashcard.__main__:dev"
 flashcard-bot-poll = "flashcard.__main__:main_poll"
 flashcard-bot-dev-poll = "flashcard.__main__:dev_poll"
+flashcard-miniapp = "flashcard.miniapp.api:main"
 
 [project.optional-dependencies]
 dev = [

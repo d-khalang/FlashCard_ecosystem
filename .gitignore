@@ -30,3 +30,6 @@ brand/
 scripts/
 flashcard-frontend-tutorial/
 model_benchmark/
+.env.dev
+.env.local
+.claude/launch.json

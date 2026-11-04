@@ -51,6 +51,16 @@ class ExpressionCard(BaseModel):
     suggestions: List[str] = Field(description="Candidate intended tokens")
 
 
+CardSectionName = Literal["definition", "translations", "example"]
+
+
+class CardSection(BaseModel):
+    """One regenerated part of a card; only the requested part is filled."""
+    definition: Optional[str] = Field(description="New learning-language definition (section=definition only)")
+    translations: List[TranslationLine] = Field(description="New translations, same labels (section=translations only)")
+    example: Optional[str] = Field(description="New example sentence (section=example only)")
+
+
 class CardSettings(BaseModel):
     """User settings a card was generated with."""
     level: str
@@ -110,6 +120,10 @@ class ExpressionDB(BaseModel):
 
     # Overwritten by each successful review; one card, no history.
     last_card: Optional[StoredCard] = None
+
+    # Mini App undo snapshot of the last app grade: {delivery_id, direction, stats_before,
+    # activity_before}. Written by grading with `keep_undo`, unset by every other grade.
+    grade_undo: Optional[dict] = None
 
 
 class Expression(ExpressionDB):

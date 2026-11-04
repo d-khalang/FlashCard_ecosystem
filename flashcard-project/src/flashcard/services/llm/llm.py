@@ -10,11 +10,12 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
-from flashcard.schemas.expression import ExpressionCard
+from flashcard.schemas.expression import CardSection, CardSectionName, ExpressionCard, TranslationLine
 from flashcard.schemas.import_model import ImportResponse
 from flashcard.schemas.story import StoryResponse
 from flashcard.services.llm.llm_key import LLMKeyProvider
 from flashcard.services.llm.prompts import (
+    CARD_SECTION_PROMPT_TEMPLATE,
     EXPRESSION_PROMPT_TEMPLATE,
     IMPORT_PROMPT_TEMPLATE,
     STORY_PROMPT_TEMPLATE,
@@ -36,6 +37,48 @@ TRANSIENT_ERROR_MARKERS = (
     "rate_limit",
     "timeout",
 )
+class InvalidCardSection(ValueError):
+    """The rewrite of a card section cannot replace the current one."""
+
+
+def validated_card_section(
+    section: CardSectionName,
+    result: CardSection,
+    *,
+    definition: str | None,
+    translations: list[TranslationLine],
+    example: str | None,
+) -> CardSection:
+    """
+    The requested part of `result`, cleaned, or InvalidCardSection. It must be non-empty and, for
+    definition and example, different from the current text; translations must keep their labels
+    one for one, in order. The parts that were not requested are dropped.
+    """
+    def changed(new: str | None, current: str | None) -> str:
+        text = (new or "").strip()
+        if not text:
+            raise InvalidCardSection(f"empty {section}")
+        if current is not None and text.casefold() == current.strip().casefold():
+            raise InvalidCardSection(f"{section} unchanged")
+        return text
+
+    if section == "definition":
+        return CardSection(definition=changed(result.definition, definition), translations=[], example=None)
+    if section == "example":
+        return CardSection(definition=None, translations=[], example=changed(result.example, example))
+    if section == "translations":
+        lines = result.translations or []
+        if [line.label for line in lines] != [line.label for line in translations]:
+            raise InvalidCardSection("translation labels changed")
+        if any(not line.text.strip() for line in lines):
+            raise InvalidCardSection("empty translation")
+        return CardSection(
+            definition=None, example=None,
+            translations=[TranslationLine(label=line.label, text=line.text.strip()) for line in lines],
+        )
+    raise InvalidCardSection(f"unknown section {section!r}")
+
+
 @dataclass(frozen=True)
 class LLMConfig:
     google_model: str
@@ -487,6 +530,48 @@ class LLMService:
         )
         logger.debug("LLM Expression Output: %s", output.value)
         return output.value
+
+    @observe(name="LLMService.generate_card_section")
+    async def generate_card_section(
+        self,
+        section: CardSectionName,
+        *,
+        expression: str,
+        level: str,
+        definition: str | None,
+        translations: list[TranslationLine],
+        example: str | None,
+        on_fallback: FallbackNotifier | None = None,
+    ) -> CardSection:
+        """
+        A new version of one part of a card (same expression and sense, worded differently).
+        Only the requested part is returned, validated against the current card (see
+        `validated_card_section`); raises InvalidCardSection when it cannot replace it.
+        """
+        prompt = CARD_SECTION_PROMPT_TEMPLATE.format(
+            learning_language_name=self.learning_language_name,
+            expression=expression,
+            level=level,
+            definition=definition or "(none)",
+            translations="\n".join(f"  - {line.label}: {line.text}" for line in translations) or "  (none)",
+            example=example or "(none)",
+            section=section,
+        )
+        output = await self._generate_with_fallback(
+            contents=prompt,
+            response_schema=CardSection,
+            on_fallback=on_fallback,
+        )
+        self._annotate_generation(output)
+        logger.info(
+            "LLM final response provider=%s model=%s fallback_triggered=%s",
+            output.provider_key,
+            output.model,
+            output.fallback_triggered,
+        )
+        return validated_card_section(
+            section, output.value, definition=definition, translations=translations, example=example,
+        )
 
     async def parse_import_list(self, raw_text: str) -> ImportResponse:
         """

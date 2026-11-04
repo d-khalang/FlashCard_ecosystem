@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     LLM_REQUEST_TIMEOUT_SECONDS: float = 15.0
     LLM_KEY_FILE: Optional[str] = None
 
+    # Mini App (flashcard-miniapp). Both optional.
+    # Comma-separated Telegram user ids: when set, only they may use the Mini App (tester stage).
+    MINIAPP_ALLOWED_USER_IDS: Optional[str] = None
+    # Directory with the built frontend, served next to the API when set.
+    MINIAPP_STATIC_DIR: Optional[str] = None
+    # Per-user LLM attempts per UTC day (admins exempt). The largest non-admin daily card limit is
+    # 50, so 300 is six times that: heavy use passes, a loop that costs no quota does not.
+    MINIAPP_LLM_DAILY_ATTEMPTS: int = 300
+    # Saved words per user in the Mini App (save and import).
+    MINIAPP_MAX_WORDS: int = 5000
+
     # ──────────────────────────────────────────────
     # Quota / Tier Limits
     # ──────────────────────────────────────────────
@@ -84,6 +95,8 @@ class Settings(BaseSettings):
         "SCRAPER_API_KEY",
         "SCRAPER_URL",
         "LLM_KEY_FILE",
+        "MINIAPP_ALLOWED_USER_IDS",
+        "MINIAPP_STATIC_DIR",
         mode="before",
     )
     @classmethod
@@ -91,6 +104,23 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @field_validator("MINIAPP_ALLOWED_USER_IDS")
+    @classmethod
+    def allowed_ids_are_user_ids(cls, value):
+        if value is None:
+            return value
+        for part in value.split(","):
+            if not part.strip().isascii() or not part.strip().isdecimal() or int(part) < 1:
+                raise ValueError("MINIAPP_ALLOWED_USER_IDS must be comma-separated positive user ids")
+        return value
+
+    @property
+    def miniapp_allowed_user_ids(self) -> Optional[frozenset[int]]:
+        """The ids allowed to use the Mini App, or None when everyone may."""
+        if self.MINIAPP_ALLOWED_USER_IDS is None:
+            return None
+        return frozenset(int(part) for part in self.MINIAPP_ALLOWED_USER_IDS.split(","))
 
     @property
     def webhook_url(self) -> str:

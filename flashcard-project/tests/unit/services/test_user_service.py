@@ -167,6 +167,22 @@ class TestRecordSeen:
 
         cols["users"].update_one.assert_called_once_with(
             {"user_id": "123"},
-            {"$set": {"username": "new_handle", "last_seen_at": ANY}, "$setOnInsert": {"created_at": ANY}},
+            {"$set": {"username": "new_handle", "last_seen_at": ANY, "bot_chat_open": True},
+             "$setOnInsert": {"created_at": ANY}},
             upsert=True
         )
+
+    async def test_the_mini_app_stores_a_closed_chat_only_on_insert(self):
+        service, cols = _make_service()
+        await service.record_seen(123, "h", bot_chat_open=False)
+
+        update = cols["users"].update_one.call_args[0][1]
+        assert update["$setOnInsert"] == {"created_at": ANY, "bot_chat_open": False}
+        assert "bot_chat_open" not in update["$set"]  # an existing user is never closed by it
+
+    async def test_an_open_chat_is_always_written(self):
+        service, cols = _make_service()
+        await service.record_seen(123, "h", bot_chat_open=True)
+
+        update = cols["users"].update_one.call_args[0][1]
+        assert update["$set"]["bot_chat_open"] is True and "bot_chat_open" not in update["$setOnInsert"]

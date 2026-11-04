@@ -8,6 +8,7 @@ from typing import Optional, Union
 
 from flashcard.app.cards import FallbackNotifier, card_settings, generate_card
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy
+from flashcard.app.review import GenerationGate, GenerationHeld, Throttled
 from flashcard.schemas.user import UserId
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.services.expression import ExpressionService
@@ -34,7 +35,7 @@ class InvalidInput:
     suggestions: list[str] = field(default_factory=list)
 
 
-GenerateResult = Union[CardReady, Unclear, InvalidInput, QuotaExceeded]
+GenerateResult = Union[CardReady, Unclear, InvalidInput, QuotaExceeded, Throttled, GenerationHeld]
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,15 @@ class AlreadySaved:
 
 
 SaveResult = Union[Saved, AlreadySaved]
+
+
+@dataclass(frozen=True)
+class TooMany:
+    """The collection is at its size limit (Mini App)."""
+    limit: int
+
+
+SaveWordResult = Union[Saved, AlreadySaved, InvalidInput, TooMany]
 
 
 class CreationUseCases:
@@ -72,10 +82,12 @@ class CreationUseCases:
         user_id: UserId,
         text: str,
         on_fallback: Optional[FallbackNotifier] = None,
+        before_generation: Optional[GenerationGate] = None,
     ) -> GenerateResult:
         """
         Validate the text, check quota, generate a card and count usage.
         `on_fallback` is awaited if the primary LLM provider fails over.
+        `before_generation` is asked right before the LLM call; a refusal is the result.
         """
         user = await self.users.get_user(user_id)
 
@@ -89,6 +101,11 @@ class CreationUseCases:
         quota = self.quota.check(user, "cards")
         if isinstance(quota, QuotaExceeded):
             return quota
+
+        if before_generation is not None:
+            refused = before_generation()
+            if refused is not None:
+                return refused
 
         card = await generate_card(self.llm, text, card_settings(user), on_fallback=on_fallback)
 
@@ -106,6 +123,20 @@ class CreationUseCases:
         # An active user should not be left without scheduled reviews.
         await self.review_state.clear_pending(user_id)
         return Saved()
+
+    async def save_word(self, user_id: UserId, text: str, *, max_words: Optional[int] = None) -> SaveWordResult:
+        """
+        Save typed text (Mini App): checked by the instance's language validator like any typed
+        word, refused at `max_words` saved cards, otherwise as `save`. No LLM call.
+        """
+        if self.validator is not None:
+            validation = await self.validator.validate_expression(text)
+            if not validation.is_valid:
+                return InvalidInput(suggestions=list(validation.suggestions))
+            text = validation.normalized_text or text
+        if max_words is not None and (await self.expressions.count_words(user_id)).total >= max_words:
+            return TooMany(limit=max_words)
+        return await self.save(user_id, text)
 
     async def claim_first_save_tip(self, user_id: UserId) -> bool:
         """

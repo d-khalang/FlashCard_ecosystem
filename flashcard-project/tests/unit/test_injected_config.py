@@ -14,6 +14,7 @@ SRC = Path(flashcard.__file__).parent
 ENTRY_POINTS = {
     "__main__.py",
     "api/main.py",
+    "miniapp/api.py",
     "migrations/backfill_created_at.py",
     "migrations/backfill_current_review.py",
     "migrations/dedupe_expressions.py",

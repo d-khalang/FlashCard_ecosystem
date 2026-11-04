@@ -128,3 +128,49 @@ def dispatcher_env(monkeypatch: pytest.MonkeyPatch, bot_and_session, llm_service
         "verb_service": core.verb_service,
         "review_state": core.review_state,
     }
+
+
+# ---- Mini App: a real MongoDB ----------------------------------------------------------------------
+import os
+import uuid
+
+from pymongo import AsyncMongoClient
+
+from .study_helpers import FakeStudyLLM  # noqa: E402
+
+TEST_MONGO_URI = os.environ.get("KARTINO_TEST_MONGO_URI", "mongodb://127.0.0.1:27019/?directConnection=true")
+
+
+@pytest.fixture
+async def mongo_cols():
+    """Collections of a randomly named database on the dev MongoDB, dropped afterwards."""
+    client = AsyncMongoClient(TEST_MONGO_URI, serverSelectionTimeoutMS=2000, tz_aware=True)
+    try:
+        await client.admin.command("ping")
+    except Exception:
+        await client.close()
+        pytest.skip(f"no MongoDB at {TEST_MONGO_URI} (set KARTINO_TEST_MONGO_URI)")
+    name = f"kartino_test_{uuid.uuid4().hex}"
+    db = client[name]
+    cols = {"users": db["users"], "expression": db["expression"], "conjugation": db["conjugation"]}
+    try:
+        yield cols
+    finally:
+        await client.drop_database(name)
+        await client.close()
+
+
+@pytest.fixture
+def study_llm() -> FakeStudyLLM:
+    return FakeStudyLLM()
+
+
+@pytest.fixture
+async def study_core(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm):
+    """The real composition root over the real database, with the LLM and validator replaced."""
+    monkeypatch.setattr(composition, "LLMService", lambda **_: study_llm)
+    monkeypatch.setattr(composition, "get_language_validator", lambda language: BaseLanguageValidityChecker())
+    core = composition.build_core(mongo_cols, None, get_setting(), TEST_LANGUAGE)
+    await core.expression_service.ensure_indexes()
+    await core.user_service.ensure_indexes()
+    return core

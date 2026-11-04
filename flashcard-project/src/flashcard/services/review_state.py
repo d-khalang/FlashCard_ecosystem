@@ -1,4 +1,4 @@
-from flashcard.schemas.user import CurrentReview, UserId, stored_user_id
+from flashcard.schemas.user import CurrentReview, LastAppGrade, UserId, stored_user_id
 from flashcard.utils.logger import get_logger
 from datetime import datetime
 
@@ -13,6 +13,7 @@ class ReviewStateStore:
 
     - `current_review`: the delivered card still waiting for a grade; a newer card replaces it.
     - `last_reviewed_at`: when the user last graded a card (starts the review interval).
+    - `last_app_grade`: the last grade made in the Mini App, for one level of undo.
     - `has_pending`: legacy pause flag, removed in the contract step.
     """
 
@@ -34,12 +35,19 @@ class ReviewStateStore:
             {"$set": {"has_pending": False}},
         )
 
-    async def record_reviewed(self, user_id: UserId) -> None:
-        """The user graded a card: start the review interval and clear the legacy pause."""
+    async def record_reviewed(self, user_id: UserId) -> datetime:
+        """
+        The user graded a card: start the review interval and clear the legacy pause.
+        Returns the time written (to the millisecond, as stored), which the Mini App keeps to
+        tell later on whether a newer grade replaced it.
+        """
+        now = now_utc()
+        stamp = now.replace(microsecond=now.microsecond // 1000 * 1000)
         await self.users.update_one(
             {"user_id": stored_user_id(user_id)},
-            {"$set": {"has_pending": False, "last_reviewed_at": now_utc()}},
+            {"$set": {"has_pending": False, "last_reviewed_at": stamp}},
         )
+        return stamp
 
     async def record_sent(
         self,
@@ -98,4 +106,48 @@ class ReviewStateStore:
         await self.users.update_one(
             {"user_id": stored_user_id(user_id), "current_review.expression_id": expression_id},
             {"$unset": {"current_review": ""}},
+        )
+
+    async def record_app_grade(self, user_id: UserId, grade: LastAppGrade) -> None:
+        """Mini App: remember the last app grade, the one level of undo (it replaces the older one)."""
+        await self.users.update_one(
+            {"user_id": stored_user_id(user_id)},
+            {"$set": {"last_app_grade": grade.model_dump()}},
+        )
+
+    async def restore_after_undo(self, user_id: UserId, grade: LastAppGrade) -> bool:
+        """
+        Mini App undo, after the card itself was put back. Each part is restored only if nothing
+        newer replaced it:
+
+        - `current_review` only if there is none or it is an app card, so an unanswered bot
+          card sent since stays the current review;
+        - `last_reviewed_at` only if it is still the time of this grade, so a newer grade
+          (in the bot) keeps the interval it started.
+
+        The undo hint is spent. Only while `grade` is still the stored hint. True when it was.
+        """
+        mine = {"user_id": stored_user_id(user_id), "last_app_grade.delivery_id": grade.delivery_id}
+        await self.users.update_one(
+            {**mine, "last_reviewed_at": grade.graded_at},
+            {"$set": {"last_reviewed_at": grade.previous_reviewed_at}},
+        )
+        review = CurrentReview(
+            expression_id=grade.expression_id,
+            direction=grade.direction,
+            message_id=grade.delivery_id,
+            sent_at=grade.sent_at,
+        )
+        await self.users.update_one(
+            {**mine, "$or": [{"current_review": None}, {"current_review.message_id": {"$lt": 0}}]},
+            {"$set": {"current_review": review.model_dump()}},
+        )
+        result = await self.users.update_one(mine, {"$unset": {"last_app_grade": ""}})
+        return bool(getattr(result, "modified_count", 0))
+
+    async def clear_app_grade(self, user_id: UserId, delivery_id: int) -> None:
+        """Mini App: the undo hint for this delivery can no longer be used."""
+        await self.users.update_one(
+            {"user_id": stored_user_id(user_id), "last_app_grade.delivery_id": delivery_id},
+            {"$unset": {"last_app_grade": ""}},
         )

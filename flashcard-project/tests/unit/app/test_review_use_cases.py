@@ -36,6 +36,7 @@ def _use_cases(*, candidate=None, user=None, exceeded=None):
     expressions = MagicMock()
     expressions.get_review_candidate = AsyncMock(return_value=candidate)
     expressions.update_expression_sent = AsyncMock()
+    expressions.defer_review = AsyncMock()
     expressions.check_gradable = AsyncMock(return_value="pending")
     expressions.grade_expression = AsyncMock(return_value="graded")
 
@@ -234,6 +235,58 @@ class TestStoredCardFallback:
 
         with pytest.raises(CardGenerationFailed):
             await use_cases.prepare_next(111)
+
+    async def test_unclear_word_without_stored_card_is_deferred_before_raising(self):
+        use_cases, expressions, _, _, llm = _use_cases(candidate=_candidate())
+        llm.generate_expression_card.return_value = self.UNCLEAR
+
+        with pytest.raises(CardGenerationFailed):
+            await use_cases.prepare_next(111)
+
+        expressions.defer_review.assert_awaited_once_with(111, EXPRESSION_ID)
+
+    async def test_a_failing_deferral_does_not_hide_the_failure(self):
+        use_cases, expressions, _, _, llm = _use_cases(candidate=_candidate())
+        llm.generate_expression_card.return_value = self.UNCLEAR
+        expressions.defer_review.side_effect = RuntimeError("db down")
+
+        with pytest.raises(CardGenerationFailed):
+            await use_cases.prepare_next(111)
+
+    async def test_nothing_is_deferred_when_a_stored_card_answers_or_a_provider_fails_or_it_works(self):
+        use_cases, expressions, _, _, llm = _use_cases(candidate=self._with_stored())
+        llm.generate_expression_card.return_value = self.UNCLEAR
+        await use_cases.prepare_next(111)  # stored card sent instead
+
+        use_cases, expressions2, _, _, llm2 = _use_cases(candidate=_candidate())
+        llm2.generate_expression_card.side_effect = RuntimeError("all providers down")
+        with pytest.raises(RuntimeError):
+            await use_cases.prepare_next(111)
+
+        use_cases, expressions3, *_ = _use_cases(candidate=_candidate())
+        await use_cases.prepare_next(111)
+
+        for mock in (expressions, expressions2, expressions3):
+            mock.defer_review.assert_not_awaited()
+
+    async def test_the_gate_stops_the_call_after_the_candidate_and_quota_checks(self):
+        from flashcard.app.review import Throttled
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate())
+
+        result = await use_cases.prepare_next(111, before_generation=lambda: Throttled(retry_after=9))
+
+        assert result == Throttled(retry_after=9)
+        llm.generate_expression_card.assert_not_awaited()
+
+    async def test_the_gate_is_not_asked_when_nothing_would_be_generated(self):
+        asked = []
+        use_cases, _, _, _, llm = _use_cases(candidate=None)
+
+        await use_cases.prepare_next(111, before_generation=lambda: asked.append(1))
+        use_cases, *_ = _use_cases(candidate=self._with_stored(), exceeded=QuotaExceeded(tier="normal", limit=1))
+        await use_cases.prepare_next(111, before_generation=lambda: asked.append(1))
+
+        assert asked == []
 
     @pytest.mark.parametrize("change", [{"target_level": "C1"}, {"primary_language": "fa"},
                                         {"secondary_language": "fa"}])

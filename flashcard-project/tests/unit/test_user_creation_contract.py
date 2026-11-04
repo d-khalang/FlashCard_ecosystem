@@ -6,7 +6,7 @@ Contract: users are created in one place, and every entry point triggers it.
 each entry point must call `record_seen` before any handler runs:
 
 - Telegram: TraceMiddleware on `dp.update` (tested here and in test_trace_middleware.py).
-- Mini App (not built yet): its auth/launch step must call `record_seen`; add its test here.
+- Mini App: its sign-in dependency (`miniapp/routes/deps.py: authenticated_user`) calls `record_seen`.
 """
 import ast
 from pathlib import Path
@@ -46,3 +46,36 @@ def test_telegram_entry_point_records_the_user_first():
     _, dp = build_bot_dispatcher("123456:test-token", TEST_LANGUAGE)
 
     assert any(isinstance(middleware, TraceMiddleware) for middleware in dp.update.middleware)
+
+
+async def test_miniapp_sign_in_records_the_user_before_any_route_runs():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    import httpx
+    from httpx import ASGITransport
+
+    from flashcard.app.study import CurrentState
+    from flashcard.miniapp.api import create_app
+    from flashcard.settings import get_setting
+    from tests.integration.study_helpers import auth_header
+
+    order = []
+    app = create_app(get_setting())
+    app.state.core = SimpleNamespace(
+        user_service=SimpleNamespace(record_seen=AsyncMock(side_effect=lambda *a: order.append("seen"))),
+        study_use_cases=SimpleNamespace(current=AsyncMock(
+            side_effect=lambda *a: order.append("route") or CurrentState(card=None, undo_available=False))),
+    )
+
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.get("/api/v1/study/current", headers=auth_header(42, username="noor"))
+
+    assert order == ["seen", "route"]
+    app.state.core.user_service.record_seen.assert_awaited_once_with(42, "noor", False)
+
+
+def test_the_miniapp_creates_no_users_itself():
+    miniapp = {file for file, _ in _user_upserts() if file.startswith("miniapp/")}
+
+    assert miniapp == set()
