@@ -187,7 +187,9 @@ class StudyUseCases:
         """
         try:
             result = await asyncio.wait_for(
-                self.review.prepare_next(user_id, before_generation=before_generation), GENERATION_TIMEOUT_SECONDS)
+                self.review.prepare_next(user_id, before_generation=before_generation, any_stored_when_over_quota=True),
+                GENERATION_TIMEOUT_SECONDS,
+            )
         except CardGenerationFailed:
             logger.warning("The LLM could not make a card for user %s", user_id)
             return GenerationFailed(unclear=True)

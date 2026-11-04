@@ -6,7 +6,7 @@ import { ErrorState } from '../components/ErrorState';
 import { Mascot } from '../components/Mascot';
 import { LOCALES, useI18n, type Locale } from '../i18n';
 import type { ScreenProps } from '../navigation';
-import { canRequestWriteAccess, haptic, requestWriteAccess } from '../telegram';
+import { haptic } from '../telegram';
 import { formatMinutes } from '../format';
 
 export function SettingsScreen(_props: ScreenProps) {
@@ -122,15 +122,6 @@ export function SettingsScreen(_props: ScreenProps) {
         {me.reminders_available ? null : (
           <div className="reminder-hint" role="status">
             <p>{t('settings.reminders.unavailable')}</p>
-            {canRequestWriteAccess() ? (
-              <button
-                type="button"
-                className="btn btn-accent btn-small"
-                onClick={() => void requestWriteAccess().then((ok) => (ok ? reloadMe() : undefined))}
-              >
-                {t('settings.reminders.allow')}
-              </button>
-            ) : null}
           </div>
         )}
       </Field>

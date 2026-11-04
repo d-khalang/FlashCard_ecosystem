@@ -131,7 +131,6 @@ export const en = {
   'settings.reminders.on': 'On. Tap to pause.',
   'settings.reminders.off': 'Paused. Tap to resume.',
   'settings.reminders.unavailable': 'To get reminders, open the bot chat and press Start.',
-  'settings.reminders.allow': 'Allow messages',
   'settings.interface': 'App language',
   'settings.saveFailed': 'Could not save. Your previous choice was restored.',
   'lang.en': 'English',

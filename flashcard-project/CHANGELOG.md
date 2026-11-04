@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v2.1.0 (2026-11-04)
+
+No data migration. New fields are optional. New image `flashcard-miniapp`; the bot image must be this version or later wherever the Mini App runs, because older bots pause reminders on cards opened in the app.
+
+### Feat
+
+- Telegram Mini App: study with undo and per-section refresh, collection, settings. See `docs/mini-app.md`.
+
+### Fix
+
+- A word the LLM cannot understand and that has no stored card waits 12 hours, so `/get` and the scheduler move on to other words instead of retrying it.
+- The scheduler skips users who have never opened the bot chat, before any LLM call.
+
 ## v2.0.1 (2026-11-04)
 
 No config change or data migration.

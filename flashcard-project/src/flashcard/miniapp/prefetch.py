@@ -124,7 +124,8 @@ class PreparedCards:
             slot.ready = outcome
         else:
             slot.failed_until = self._clock() + self.failure_hold
-            slot.failure = isinstance(outcome, GenerationFailed)
+            # One word the LLM cannot read is deferred already; it says nothing about the next card.
+            slot.failure = isinstance(outcome, GenerationFailed) and not outcome.unclear
 
     def _forget_stale(self, now: float) -> None:
         for user_id, slot in list(self._slots.items()):

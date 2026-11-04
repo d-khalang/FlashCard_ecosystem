@@ -112,12 +112,16 @@ class ReviewUseCases:
 
     async def prepare_next(
         self, user_id: UserId, user: Optional[UserDB] = None, before_generation: Optional[GenerationGate] = None,
+        any_stored_when_over_quota: bool = False,
     ) -> PrepareResult:
         """
         Pick the highest-priority card and generate its content.
         Pass `user` when already loaded; otherwise it is fetched.
         `before_generation` is asked once the LLM call is certain (a candidate exists and quota
-        allows it); a refusal is returned as the result.
+        allows it); a refusal is returned as the result, unless the word has a stored card.
+        `any_stored_when_over_quota`: over quota, when the top word has no stored card, use the
+        best word that has one. The Mini App asks for it: the user is waiting for a card there.
+        The bot and scheduler keep answering with the quota result for the top word.
 
         When the LLM cannot make sense of the word and no stored card exists, the word is
         deferred for the 12 h cooldown before CardGenerationFailed is raised, so it does not
@@ -134,6 +138,10 @@ class ReviewUseCases:
         settings = card_settings(user)
         quota = self.quota.check(user, "cards")
         if isinstance(quota, QuotaExceeded):
+            if expression.last_card is None and any_stored_when_over_quota:
+                stored = await self.expressions.get_review_candidate(user_id, user.review_mode, stored_only=True)
+                if stored is not None:
+                    expression, direction = stored.expression, stored.direction
             if expression.last_card is None:
                 return quota
             return _from_storage(expression, direction, settings)
@@ -141,7 +149,10 @@ class ReviewUseCases:
         if before_generation is not None:
             refused = before_generation()
             if refused is not None:
-                return refused
+                # A stored card needs no LLM call, so nothing stops it.
+                if expression.last_card is None:
+                    return refused
+                return _from_storage(expression, direction, settings)
 
         # No stored card: nothing to fall back on, so the caller's own timeout decides.
         budget = None if expression.last_card is None else STORED_CARD_AFTER_SECONDS

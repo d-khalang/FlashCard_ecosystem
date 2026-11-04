@@ -133,7 +133,6 @@ export const it: Record<TranslationKey, string> = {
   'settings.reminders.on': 'Attivi. Tocca per sospendere.',
   'settings.reminders.off': 'In pausa. Tocca per riprendere.',
   'settings.reminders.unavailable': 'Per ricevere i promemoria, apri la chat del bot e premi Start.',
-  'settings.reminders.allow': 'Consenti messaggi',
   'settings.interface': 'Lingua dell’app',
   'settings.saveFailed': 'Salvataggio non riuscito. Ho ripristinato la scelta precedente.',
   'lang.en': 'English',

@@ -96,7 +96,11 @@ just loses it.
   card keeps the slot empty for 30 s, so failures cannot be used to spam the LLM.
 - That hold is a refusal when it follows an error: `POST /study/next` also answers 503 `generation_failed`
   without an LLM call during the hold, and a failing `next` starts it. A waiting card is still returned
-  during the hold, and "nothing to study" is not a failure.
+  during the hold, and "nothing to study" is not a failure. A word the LLM could not read does not start
+  the hold (it is deferred already), and a refusal never blocks a word with a stored card.
+- Over quota, the app delivers the best due word that has a stored card when the top word has none, so "free
+  stored cards after the limit" holds for backlogs of new words. The bot and scheduler keep the top-word
+  rule: a scheduled push is not something the user is waiting for.
 - `POST /study/next` takes the slot if valid and otherwise generates. Valid means: the expression is still
   active and past its cooldown (add `ExpressionService.still_due`), the settings and `review_mode` still
   match (a reverse card is not delivered after switching to standard), and quota still allows it (a fresh

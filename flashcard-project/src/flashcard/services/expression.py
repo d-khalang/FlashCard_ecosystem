@@ -270,14 +270,18 @@ class ExpressionService:
         }
 
     @observe(name="ExpressionService.get_review_candidate")
-    async def get_review_candidate(self, user_id: UserId, review_mode: str) -> Optional[ReviewCandidate]:
+    async def get_review_candidate(
+        self, user_id: UserId, review_mode: str, *, stored_only: bool = False,
+    ) -> Optional[ReviewCandidate]:
         """
         Selects the best expression for review based on priority algorithm.
         Filters out expressions sent in the last 12 hours. `review_mode` is the user's
         setting ("dual" also scores the reverse direction); users are not this service's data.
-        An unreadable card is logged and skipped.
+        An unreadable card is logged and skipped. `stored_only`: only words with a stored card.
         """
         query = self._due_query(user_id)
+        if stored_only:
+            query["last_card"] = {"$ne": None}
 
         #TODO: change to scheduled priority setter on all items of expressions
         # The highest priority over every candidate and direction wins.

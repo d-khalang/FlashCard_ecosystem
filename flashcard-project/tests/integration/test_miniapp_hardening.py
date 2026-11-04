@@ -11,14 +11,15 @@ import pytest
 from bson import ObjectId
 from httpx import ASGITransport
 
-from flashcard.app.review import CardGenerationFailed, NoCandidate, ReviewReady
+from flashcard.app.quota import QuotaExceeded
+from flashcard.app.review import CardGenerationFailed, GenerationHeld, NoCandidate, ReviewReady
 from flashcard.app.study import Delivered, GenerationFailed, Undone
 from flashcard.miniapp.api import create_app
 from flashcard.miniapp.rate_limit import DailyBudget, RateLimiter
 from flashcard.scheduler.scheduler import find_users_due_for_review
 from flashcard.services.language_validation import LatinScriptLanguageValidityChecker
 from flashcard.settings import get_setting
-from .study_helpers import add_user, add_word, auth_header
+from .study_helpers import add_user, add_word, auth_header, make_card
 
 USER = 42
 OTHER = 43
@@ -45,6 +46,14 @@ async def _user(cols, user_id=USER) -> dict:
 
 async def _expr(cols, expression_id) -> dict:
     return await cols["expression"].find_one({"_id": ObjectId(expression_id)})
+
+
+def _stored_card() -> dict:
+    return {
+        "card": make_card().model_dump(),
+        "settings": {"level": "A2", "primary_language": "en", "secondary_language": None},
+        "generated_at": datetime.now(timezone.utc) - timedelta(days=2),
+    }
 
 
 class TestUsersWhoNeverOpenedTheChat:
@@ -229,6 +238,35 @@ class TestFailureHold:
 
         assert (await api.post(f"{BASE}/study/next", headers=_as())).status_code == 200
 
+    async def test_an_unclear_word_in_prepare_does_not_hold_next(self, api, mongo_cols, study_llm):
+        await add_user(mongo_cols, USER)
+        await add_word(mongo_cols, USER, "xyzzy", age_days=30)
+        good = await add_word(mongo_cols, USER, "andare", age_days=1)
+        study_llm.unclear = {"xyzzy"}
+        await api.post(f"{BASE}/study/prepare", headers=_as())
+        await api.app.state.prepared._slots[USER].task
+
+        response = await api.post(f"{BASE}/study/next", headers=_as())
+
+        assert response.status_code == 200 and response.json()["card"]["expression_id"] == good
+
+    async def test_a_refused_generation_still_sends_a_stored_card(self, study_core, mongo_cols, study_llm):
+        await add_user(mongo_cols, USER)
+        expression_id = await add_word(mongo_cols, USER, "andare", last_card=_stored_card())
+
+        result = await study_core.review_use_cases.prepare_next(USER, before_generation=GenerationHeld)
+
+        assert isinstance(result, ReviewReady) and result.from_storage
+        assert result.expression_id == expression_id and study_llm.card_calls == 0
+
+    async def test_a_refused_generation_without_a_stored_card_is_the_result(self, study_core, mongo_cols, study_llm):
+        await add_user(mongo_cols, USER)
+        await add_word(mongo_cols, USER, "andare")
+
+        result = await study_core.review_use_cases.prepare_next(USER, before_generation=GenerationHeld)
+
+        assert isinstance(result, GenerationHeld) and study_llm.card_calls == 0
+
     async def test_a_waiting_card_is_still_returned_during_the_hold(self, api, ready_user):
         card = (await api.post(f"{BASE}/study/next", headers=_as())).json()["card"]
         api.app.state.prepared.hold(USER)
@@ -243,6 +281,40 @@ class TestFailureHold:
         await api.app.state.prepared._slots[USER].task
 
         assert (await api.post(f"{BASE}/study/next", headers=_as())).json() == {"status": "none"}
+
+
+class TestOverQuota:
+
+    @pytest.fixture
+    def over_quota(self, study_core, monkeypatch):
+        monkeypatch.setattr(study_core.quota, "check", lambda user, kind: QuotaExceeded(tier="normal", limit=10))
+
+    async def test_the_app_uses_a_stored_word_when_the_top_word_has_none(
+            self, api, mongo_cols, study_llm, over_quota):
+        await add_user(mongo_cols, USER)
+        await add_word(mongo_cols, USER, "nuova", age_days=30)
+        stored = await add_word(mongo_cols, USER, "andare", age_days=1, reps=5, ewma_grade=4.5, last_card=_stored_card())
+
+        response = await api.post(f"{BASE}/study/next", headers=_as())
+
+        card = response.json()["card"]
+        assert card["expression_id"] == stored and card["from_storage"] is True
+        assert study_llm.card_calls == 0
+
+    async def test_the_app_answers_quota_when_no_word_has_a_stored_card(self, api, mongo_cols, over_quota):
+        await add_user(mongo_cols, USER)
+        await add_word(mongo_cols, USER, "nuova")
+
+        response = await api.post(f"{BASE}/study/next", headers=_as())
+
+        assert response.json()["status"] == "quota"
+
+    async def test_the_bot_path_keeps_the_top_word_rule(self, study_core, mongo_cols, over_quota):
+        await add_user(mongo_cols, USER)
+        await add_word(mongo_cols, USER, "nuova", age_days=30)
+        await add_word(mongo_cols, USER, "andare", age_days=1, reps=5, ewma_grade=4.5, last_card=_stored_card())
+
+        assert isinstance(await study_core.review_use_cases.prepare_next(USER), QuotaExceeded)
 
 
 class TestUnintelligibleWord:
