@@ -32,7 +32,7 @@ export function StudyScreen({ onExit }: StudyScreenProps) {
     onExit();
   };
 
-  useEffect(() => pushBackHandler(exit), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => pushBackHandler(exit), []);
 
   const onGrade = (g: Grade) => {
     haptic(g >= 3 ? 'light' : 'medium');
@@ -123,7 +123,7 @@ export function StudyScreen({ onExit }: StudyScreenProps) {
         </div>
         <div className="study-head-end">
           {state.undoAvailable ? (
-            <button type="button" className="text-btn" onClick={study.undo}>
+            <button type="button" className="text-btn" onClick={study.undo} disabled={study.busy}>
               <Undo2 size={17} strokeWidth={2.8} aria-hidden="true" />
               {t('study.undo')}
             </button>

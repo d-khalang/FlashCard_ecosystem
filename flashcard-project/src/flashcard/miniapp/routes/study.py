@@ -6,7 +6,9 @@ from flashcard.app.quota import QuotaExceeded
 from flashcard.app.review import CardNotFound, Graded, NoCandidate, NotPending
 from flashcard.app.study import Delivered, GenerationFailed, NothingToUndo, Refreshed, Undone
 from flashcard.miniapp.errors import generation_failed, invalid_request, not_found
-from flashcard.miniapp.routes.deps import CoreDep, GeneralUser, LlmUser
+from flashcard.miniapp.routes.deps import (
+    CoreDep, GeneralUser, LlmUser, charge_generation, generation_gate, refuse,
+)
 from flashcard.miniapp.schemas import (
     CurrentOut, GradedOut, GradeIn, QuotaResult, ReadyCard, RefreshIn, StatusOnly, UndoneOut,
     quota_out, study_card_out,
@@ -26,10 +28,13 @@ async def current(user_id: GeneralUser, core: CoreDep) -> CurrentOut:
 
 @router.post("/next")
 async def next_card(
-    user_id: LlmUser, core: CoreDep, request: Request,
+    caller: LlmUser, core: CoreDep, request: Request,
 ) -> Union[ReadyCard, StatusOnly, QuotaResult]:
-    prepared = request.app.state.prepared
-    result = await core.study_use_cases.next(user_id, take_prepared=lambda: prepared.take(user_id))
+    user_id, prepared = caller.user_id, request.app.state.prepared
+    result = await core.study_use_cases.next(
+        user_id, take_prepared=lambda: prepared.take(user_id),
+        before_generation=generation_gate(request, caller, honor_hold=True))
+    refuse(result)
     if isinstance(result, Delivered):
         return ReadyCard(card=study_card_out(result.card))
     if isinstance(result, NoCandidate):
@@ -37,12 +42,18 @@ async def next_card(
     if isinstance(result, QuotaExceeded):
         return quota_out(result)
     assert isinstance(result, GenerationFailed)
+    if not prepared.held(user_id):
+        prepared.hold(user_id)  # the same 30 s hold as a failed prepare
     raise generation_failed()
 
 
 @router.post("/prepare", status_code=202)
-async def prepare(user_id: LlmUser, core: CoreDep, request: Request) -> dict:
-    request.app.state.prepared.start(user_id, lambda: core.study_use_cases.prepare(user_id))
+async def prepare(caller: LlmUser, core: CoreDep, request: Request) -> dict:
+    prepared = request.app.state.prepared
+    # A prepare that starts nothing (a card is ready or being made, or a failure holds) costs nothing.
+    if prepared.would_start(caller.user_id):
+        refuse(charge_generation(request, caller))
+        prepared.start(caller.user_id, lambda: core.study_use_cases.prepare(caller.user_id))
     return {}
 
 
@@ -71,8 +82,12 @@ async def undo(user_id: GeneralUser, core: CoreDep) -> Union[UndoneOut, StatusOn
 
 
 @router.post("/refresh")
-async def refresh(body: RefreshIn, user_id: LlmUser, core: CoreDep) -> Union[ReadyCard, StatusOnly, QuotaResult]:
-    result = await core.study_use_cases.refresh_section(user_id, body.delivery_id, body.section)
+async def refresh(
+    body: RefreshIn, caller: LlmUser, core: CoreDep, request: Request,
+) -> Union[ReadyCard, StatusOnly, QuotaResult]:
+    result = await core.study_use_cases.refresh_section(
+        caller.user_id, body.delivery_id, body.section, before_generation=generation_gate(request, caller))
+    refuse(result)
     if isinstance(result, Refreshed):
         return ReadyCard(card=study_card_out(result.card))
     if isinstance(result, NotPending):

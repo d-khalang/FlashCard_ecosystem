@@ -82,6 +82,8 @@ class QuotaUsage(BaseModel):
 class Words(BaseModel):
     total: int
     ready: int
+    # A delivered card is waiting for a grade.
+    pending: bool
 
 
 class Options(BaseModel):
@@ -92,6 +94,8 @@ class Options(BaseModel):
 
 
 class MeOut(BaseModel):
+    # The bot can send reminders: false for a Mini App user who has not started the bot chat.
+    reminders_available: bool
     language: LanguageOut
     settings: SettingsOut
     quota: QuotaUsage
@@ -162,6 +166,16 @@ class CollectionDetail(CollectionRow):
 class Imported(BaseModel):
     status: Literal["imported"] = "imported"
     items: list[str]
+
+
+class SaveInvalid(BaseModel):
+    status: Literal["invalid"] = "invalid"
+    suggestions: list[str]
+
+
+class TooManyWords(BaseModel):
+    status: Literal["too_many"] = "too_many"
+    limit: int
 
 
 class TooLong(BaseModel):
@@ -272,10 +286,11 @@ def settings_out(user: UserDB) -> SettingsOut:
 
 def me_out(overview: Overview, language: LanguageConfig) -> MeOut:
     return MeOut(
+        reminders_available=overview.user.bot_chat_open,
         language=LanguageOut(code=language.code, name=language.name, country=country_from_flag(language.flag)),
         settings=settings_out(overview.user),
         quota=QuotaUsage(used=overview.quota.used, limit=overview.quota.limit),
-        words=Words(total=overview.words.total, ready=overview.words.ready),
+        words=Words(total=overview.words.total, ready=overview.words.ready, pending=overview.pending),
         options=Options(
             levels=list(get_args(LanguageLevel)),
             languages=[

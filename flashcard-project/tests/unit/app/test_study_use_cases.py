@@ -4,6 +4,7 @@ Compare-and-set behavior is covered against a real MongoDB in tests/integration/
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -52,7 +53,8 @@ def _build(user=None, expression=None, exceeded=None):
     llm = MagicMock()
     llm.generate_card_section = AsyncMock(return_value=CardSection(definition="nuova", translations=[], example=None))
     state = MagicMock()
-    for name in ("record_sent", "record_reviewed", "record_graded", "record_app_grade", "restore_after_undo",
+    state.record_reviewed = AsyncMock(return_value=NOW)
+    for name in ("record_sent", "record_graded", "record_app_grade", "restore_after_undo",
                  "clear_app_grade", "mark_pending"):
         setattr(state, name, AsyncMock())
     study = StudyUseCases(review_use_cases=review, expression_service=expressions, user_service=users,
@@ -132,7 +134,7 @@ class TestNext:
         study, review, expressions, users, *_ = _build()
         delivered = []
 
-        async def slow_prepare(user_id):
+        async def slow_prepare(user_id, **_):
             await asyncio.sleep(0.02)
             return _ready()
 
@@ -161,7 +163,7 @@ class TestNext:
         study, review, *_ = _build()
         started = []
 
-        async def slow(user_id):
+        async def slow(user_id, **_):
             started.append(user_id)
             await asyncio.sleep(0.05)
             return _ready()
@@ -185,7 +187,7 @@ class TestNext:
         study, review, *_ = _build()
         monkeypatch.setattr(module, "GENERATION_TIMEOUT_SECONDS", 0.02)
 
-        async def hang(*_):
+        async def hang(*_, **__):
             await asyncio.sleep(1)
 
         review.prepare_next.side_effect = hang
@@ -232,15 +234,37 @@ class TestPreparedCards:
 
         review.prepare_next.assert_awaited_once()
 
-    async def test_a_prepared_stored_card_needs_only_to_be_due(self):
-        study, review, *_ = _build(exceeded=QuotaExceeded(tier="normal", limit=10))
+    async def test_a_stored_card_is_never_taken_from_the_slot(self):
+        study, review, *_ = _build()
 
         async def take():
             return _ready(quota=None)
 
+        await study.next(42, take_prepared=take)
+
+        review.prepare_next.assert_awaited_once()
+
+    async def test_a_reverse_card_is_not_delivered_after_switching_to_standard(self):
+        study, review, _, users, *_ = _build()
+        users.get_user.return_value = make_user(user_id=42, review_mode="standard")
+
+        async def take():
+            return replace(_ready(), direction="reverse")
+
+        await study.next(42, take_prepared=take)
+
+        review.prepare_next.assert_awaited_once()
+
+    async def test_a_reverse_card_is_delivered_in_dual_mode(self):
+        study, review, _, users, *_ = _build()
+        users.get_user.return_value = make_user(user_id=42, review_mode="dual")
+
+        async def take():
+            return replace(_ready(), direction="reverse")
+
         result = await study.next(42, take_prepared=take)
 
-        assert result.card.from_storage is True
+        assert result.card.direction == "reverse"
         review.prepare_next.assert_not_awaited()
 
 
@@ -249,7 +273,7 @@ class TestGrade:
     async def test_grades_like_the_bot_does_and_keeps_undo_data(self):
         study, _, expressions, _, _, _, state = _build()
         order = []
-        state.record_reviewed.side_effect = lambda *_: order.append("reviewed")
+        state.record_reviewed.side_effect = lambda *_: order.append("reviewed") or NOW
         expressions.grade_expression.side_effect = lambda *a, **k: order.append("card") or "graded"
 
         result = await study.grade(42, EXPRESSION_ID, 4, "forward", delivery_id=-7)

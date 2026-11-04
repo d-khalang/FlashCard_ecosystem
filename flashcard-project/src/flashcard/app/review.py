@@ -10,7 +10,7 @@ instead, free of quota.
 """
 import asyncio
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 from flashcard.app.cards import card_settings, generate_card
 from flashcard.app.quota import Allowed, QuotaExceeded, QuotaPolicy
@@ -55,7 +55,22 @@ class NoCandidate:
     pass
 
 
-PrepareResult = Union[ReviewReady, NoCandidate, QuotaExceeded]
+@dataclass(frozen=True)
+class Throttled:
+    """Generation was not started: the caller's allowance for LLM calls is used up."""
+    retry_after: int  # seconds
+
+
+@dataclass(frozen=True)
+class GenerationHeld:
+    """Generation was not started: a recent failure keeps it paused."""
+
+
+# Asked right before an LLM call starts; anything but None stops the call and is the result.
+# The Mini App uses it to charge its allowance only for calls that really happen.
+GenerationGate = Callable[[], Union[None, Throttled, GenerationHeld]]
+
+PrepareResult = Union[ReviewReady, NoCandidate, QuotaExceeded, Throttled, GenerationHeld]
 
 
 class CardGenerationFailed(RuntimeError):
@@ -95,10 +110,18 @@ class ReviewUseCases:
         self.llm = llm_service
         self.review_state = review_state
 
-    async def prepare_next(self, user_id: UserId, user: Optional[UserDB] = None) -> PrepareResult:
+    async def prepare_next(
+        self, user_id: UserId, user: Optional[UserDB] = None, before_generation: Optional[GenerationGate] = None,
+    ) -> PrepareResult:
         """
         Pick the highest-priority card and generate its content.
         Pass `user` when already loaded; otherwise it is fetched.
+        `before_generation` is asked once the LLM call is certain (a candidate exists and quota
+        allows it); a refusal is returned as the result.
+
+        When the LLM cannot make sense of the word and no stored card exists, the word is
+        deferred for the 12 h cooldown before CardGenerationFailed is raised, so it does not
+        block the user's other cards. A provider error defers nothing.
         """
         if user is None:
             user = await self.users.get_user(user_id)
@@ -115,6 +138,11 @@ class ReviewUseCases:
                 return quota
             return _from_storage(expression, direction, settings)
 
+        if before_generation is not None:
+            refused = before_generation()
+            if refused is not None:
+                return refused
+
         # No stored card: nothing to fall back on, so the caller's own timeout decides.
         budget = None if expression.last_card is None else STORED_CARD_AFTER_SECONDS
         try:
@@ -128,6 +156,7 @@ class ReviewUseCases:
 
         if not card.success:
             if expression.last_card is None:
+                await self._defer(user_id, expression.id)
                 raise CardGenerationFailed(f"LLM could not make a card for expression {expression.id}")
             logger.warning("LLM could not make a card for expression %s; sending its stored card",
                            expression.id)
@@ -141,6 +170,12 @@ class ReviewUseCases:
             settings=settings,
             quota=quota,
         )
+
+    async def _defer(self, user_id: UserId, expression_id: str) -> None:
+        try:
+            await self.expressions.defer_review(user_id, expression_id)
+        except Exception:
+            logger.warning("Could not defer expression %s", expression_id, exc_info=True)
 
     async def mark_sent(self, user_id: UserId, ready: ReviewReady, message_id: int) -> None:
         """

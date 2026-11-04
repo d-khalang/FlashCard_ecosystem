@@ -40,7 +40,7 @@ export function TodayScreen({ onStudy }: ScreenProps) {
     );
   }
 
-  const { total, ready } = me.words;
+  const { total, ready, pending } = me.words;
   const quota = quotaLine(me.quota);
 
   return (
@@ -50,7 +50,7 @@ export function TodayScreen({ onStudy }: ScreenProps) {
         <div className="pill">{me.language.name}</div>
       </header>
       <section className="hero">
-        {total === 0 ? (
+        {total === 0 && !pending ? (
           <>
             <Mascot name="waving" />
             <h1 className="hero-title">{t('today.empty.title')}</h1>
@@ -59,7 +59,7 @@ export function TodayScreen({ onStudy }: ScreenProps) {
               {t('add.import')}
             </button>
           </>
-        ) : ready === 0 ? (
+        ) : ready === 0 && !pending ? (
           <>
             <Mascot name="clapping" />
             <h1 className="hero-title">{t('today.caughtUp.title')}</h1>
@@ -68,10 +68,10 @@ export function TodayScreen({ onStudy }: ScreenProps) {
         ) : (
           <>
             <Mascot name="waving" />
-            <h1 className="hero-title">{plural('words.ready', ready)}</h1>
+            <h1 className="hero-title">{ready > 0 ? plural('words.ready', ready) : t('today.pending.title')}</h1>
             <div className="grow" />
             <button type="button" className="btn btn-primary btn-wide" onClick={onStudy}>
-              {t('today.study')}
+              {pending ? t('today.continue') : t('today.study')}
             </button>
           </>
         )}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { Api } from '../api/routes';
 import { asApiError } from '../api/errors';
 import { assertNever, type Grade, type Section } from '../api/types';
@@ -13,12 +13,20 @@ export function useStudy(api: StudyApi) {
 
   const alive = useRef(true);
   const queue = useRef<Promise<void>>(Promise.resolve());
-  const prepared = useRef(new Set<number>());
+  const inFlight = useRef(0);
+  const [busy, setBusy] = useState(false);
 
   /** Server calls that depend on each other (grade, next, undo) run strictly in order. */
   const run = useCallback((job: () => Promise<void>) => {
+    inFlight.current += 1;
+    setBusy(true);
     const p = queue.current.then(job);
-    queue.current = p.catch(() => undefined);
+    queue.current = p
+      .catch(() => undefined)
+      .finally(() => {
+        inFlight.current -= 1;
+        if (alive.current) setBusy(inFlight.current > 0);
+      });
     return p;
   }, []);
 
@@ -78,11 +86,8 @@ export function useStudy(api: StudyApi) {
     const s = stateRef.current;
     if (s.phase !== 'question' || !s.card) return;
     dispatch({ type: 'reveal' });
-    const id = s.card.delivery_id;
-    if (!prepared.current.has(id)) {
-      prepared.current.add(id);
-      api.prepare().catch(() => undefined); // fire and forget: a miss only costs speed
-    }
+    // Fire and forget, once per reveal: a repeated prepare is free on the server and a miss only costs speed.
+    api.prepare().catch(() => undefined);
   }, [api]);
 
   const grade = useCallback(
@@ -134,7 +139,9 @@ export function useStudy(api: StudyApi) {
   }, [run, loadNext]);
 
   const undo = useCallback(() => {
-    if (!stateRef.current.undoAvailable) return;
+    // Not while a grade or next card is in flight: a queued undo would spend a card on `next`
+    // and a double tap would answer "nothing to undo".
+    if (!stateRef.current.undoAvailable || inFlight.current > 0) return;
     void run(async () => {
       try {
         const r = await api.undo();
@@ -196,5 +203,5 @@ export function useStudy(api: StudyApi) {
 
   const dismissNotice = useCallback(() => dispatch({ type: 'dismiss_notice' }), []);
 
-  return { state, reveal, grade, undo, refresh, continueSession, retry, dismissNotice };
+  return { state, busy, reveal, grade, undo, refresh, continueSession, retry, dismissNotice };
 }

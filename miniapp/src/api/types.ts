@@ -46,14 +46,16 @@ export interface QuotaResult {
 export interface LanguageInfo {
   code: string;
   name: string;
-  country: string;
+  country: string | null;
 }
 
 export interface Me {
   language: LanguageInfo;
   settings: Settings;
   quota: { used: number; limit: number | null };
-  words: { total: number; ready: number };
+  /** False until the user has started the bot chat, so reminders cannot be delivered. */
+  reminders_available: boolean;
+  words: { total: number; ready: number; /** A card is waiting for an answer. */ pending: boolean };
   options: {
     levels: string[];
     languages: LanguageInfo[];
@@ -77,7 +79,7 @@ export type RefreshResult = { status: 'ready'; card: StudyCard } | { status: 'no
 
 export type PreviewResult =
   | { status: 'ready'; norm: string; content: Content }
-  | { status: 'unclear'; note: string; suggestions: string[] }
+  | { status: 'unclear'; note: string | null; suggestions: string[] }
   | { status: 'invalid'; suggestions: string[] }
   | QuotaResult;
 
@@ -86,7 +88,7 @@ export interface CollectionItem {
   value: string;
   reps: number;
   lapses: number;
-  created_at: string;
+  created_at: string | null;
 }
 
 export interface CollectionPage {
@@ -94,22 +96,26 @@ export interface CollectionPage {
   next_cursor: string | null;
 }
 
-export type SaveResult = { status: 'saved' | 'already_saved' };
+export type SaveResult =
+  | { status: 'saved' | 'already_saved' }
+  | { status: 'invalid'; suggestions: string[] }
+  | { status: 'too_many'; limit: number };
 
 export interface CollectionDetail {
   id: string;
   value: string;
   reps: number;
   lapses: number;
-  created_at: string;
+  created_at: string | null;
   content: Content | null;
   generated_at: string | null;
 }
 
 export type ImportResult =
-  | { status: 'imported'; items: unknown[] }
+  | { status: 'imported'; items: string[] }
   | { status: 'all_duplicates' | 'parse_failed' | 'nothing_found' | 'invalid_language' }
   | { status: 'too_long'; limit: number }
+  | { status: 'too_many'; limit: number }
   | QuotaResult;
 
 export const MAX_IMPORT_CHARS = 1000;

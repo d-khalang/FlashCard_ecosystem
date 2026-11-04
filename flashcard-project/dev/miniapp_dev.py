@@ -101,12 +101,31 @@ def load_env(path: Path) -> dict:
 
     uri, uri_name = pick(values, "KARTINO_DEV_MONGO_URI", "MONGO_URI")
     uri = uri or DEFAULT_MONGO
-    if urlsplit(uri).hostname not in LOOPBACK:
+    if not all_hosts_are_loopback(uri):
         raise SetupError(f"{uri_name or 'The Mongo URI'} must point to loopback; the dev runner never uses another server")
     database, _ = pick(values, "KARTINO_DEV_MONGO_DB", "MONGO_DB")
     model, _ = pick(values, "KARTINO_DEV_GROQ_MODEL", "LLM_GROQ_MODEL")
     return {"language": language, "token": token, "user_id": user_id, "groq_key": groq_key, "uri": uri,
             "database": database or f"kartino_dev_{language}", "groq_model": model}
+
+
+def uri_hosts(uri: str) -> list[str]:
+    """Every host of a MongoDB URI (a seed list has several), without credentials and ports."""
+    parts = urlsplit(uri)
+    if parts.scheme != "mongodb":  # mongodb+srv resolves hosts from DNS: not checkable here
+        return ["?"]
+    netloc = parts.netloc.rpartition("@")[2]
+    hosts = []
+    for entry in netloc.split(","):
+        if entry.startswith("["):  # [::1]:27017
+            hosts.append(entry[1:].partition("]")[0])
+        else:
+            hosts.append(entry.partition(":")[0])
+    return [host.lower() for host in hosts if host] or ["?"]
+
+
+def all_hosts_are_loopback(uri: str) -> bool:
+    return all(host in LOOPBACK for host in uri_hosts(uri))
 
 
 def sign_init_data(env: dict) -> str:

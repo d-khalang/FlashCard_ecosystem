@@ -72,7 +72,7 @@ export function createApi(http: HttpClient) {
     collection: (p: { limit?: number; cursor?: string | null; q?: string } = {}) =>
       get<CollectionPage>('/collection', { limit: p.limit, cursor: p.cursor ?? undefined, q: p.q }),
     save: async (value: string): Promise<SaveResult> =>
-      expectStatus<SaveResult>(await post('/collection', { value }), ['saved', 'already_saved']),
+      expectStatus<SaveResult>(await post('/collection', { value }), ['saved', 'already_saved', 'invalid', 'too_many']),
     detail: (id: string) => get<CollectionDetail>(`/collection/${encodeURIComponent(id)}`),
     remove: async (id: string): Promise<void> => {
       await http.request<void>('DELETE', `/collection/${encodeURIComponent(id)}`);
@@ -85,6 +85,7 @@ export function createApi(http: HttpClient) {
         'nothing_found',
         'invalid_language',
         'too_long',
+        'too_many',
         'quota',
       ]),
 

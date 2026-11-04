@@ -148,7 +148,19 @@ export function Stepper({ label, value, min, max, format, onCommit }: StepperPro
   useEffect(() => {
     if (!dirty.current) setShown(value);
   }, [value]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  // Leaving the screen within the pause must not lose the change: flush it on unmount.
+  const latest = useRef({ shown, onCommit });
+  latest.current = { shown, onCommit };
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current);
+      if (dirty.current) {
+        dirty.current = false;
+        latest.current.onCommit(latest.current.shown);
+      }
+    },
+    [],
+  );
 
   const bump = (dir: 1 | -1) => {
     const next = nextInterval(shown, dir, min, max);

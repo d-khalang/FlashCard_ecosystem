@@ -1,10 +1,11 @@
 """
 Prepare one card ahead: one in-memory slot per user, in this process only.
 
-A slot holds the running task or its finished `ReviewReady`, for `lifetime` seconds. A restart
-just loses it. Nothing here is counted against quota: usage is counted when a card is delivered
-(StudyUseCases). A task that does not produce a card keeps the slot empty for `failure_hold`
-seconds, so failures cannot be used to spam the LLM.
+A slot holds the running task or its finished `ReviewReady` (a fresh card only: a stored one costs
+nothing to derive again), for `lifetime` seconds. A restart just loses it. Nothing here is counted
+against quota: usage is counted when a card is delivered (StudyUseCases). A task that does not
+produce a card keeps the slot empty for `failure_hold` seconds, so failures cannot be used to spam
+the LLM; when it failed (an error, not just "nothing to study"), `/study/next` honors the same hold.
 """
 import asyncio
 import time
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 from typing import Awaitable, Callable, Optional
 
 from flashcard.app.review import ReviewReady
+from flashcard.app.study import GenerationFailed
 from flashcard.schemas.user import UserId
 from flashcard.utils.logger import get_logger
 
@@ -27,6 +29,8 @@ class _Slot:
     task: Optional[asyncio.Task] = None
     ready: Optional[ReviewReady] = None
     failed_until: Optional[float] = None
+    # The hold follows an error (not an empty result): generating again is refused until it ends.
+    failure: bool = False
 
 
 class PreparedCards:
@@ -41,6 +45,25 @@ class PreparedCards:
         self.failure_hold = failure_hold
         self._clock = clock
         self._slots: dict[UserId, _Slot] = {}
+
+    def would_start(self, user_id: UserId) -> bool:
+        """Whether `start` would begin a task now (no live slot and no hold). Changes nothing."""
+        self._forget_stale(self._clock())
+        return user_id not in self._slots
+
+    def held(self, user_id: UserId) -> bool:
+        """A recent failure keeps generating for this user paused."""
+        slot = self._slots.get(user_id)
+        return (slot is not None and slot.failure and slot.failed_until is not None
+                and self._clock() < slot.failed_until)
+
+    def hold(self, user_id: UserId) -> None:
+        """Record a failure of generating outside a prepare task (`/study/next`): same hold."""
+        slot = self._slots.get(user_id)
+        if slot is not None and slot.task is not None:
+            return  # a task is running; it will end with its own result
+        self._slots[user_id] = _Slot(
+            created=self._clock(), failed_until=self._clock() + self.failure_hold, failure=True)
 
     def start(self, user_id: UserId, make: Callable[[], Awaitable[object]]) -> bool:
         """
@@ -95,12 +118,13 @@ class PreparedCards:
             raise
         except Exception:
             logger.warning("Preparing a card failed", exc_info=True)
-            outcome = None
+            outcome = GenerationFailed()
         slot.task = None
-        if isinstance(outcome, ReviewReady):
+        if isinstance(outcome, ReviewReady) and not outcome.from_storage:
             slot.ready = outcome
         else:
             slot.failed_until = self._clock() + self.failure_hold
+            slot.failure = isinstance(outcome, GenerationFailed)
 
     def _forget_stale(self, now: float) -> None:
         for user_id, slot in list(self._slots.items()):

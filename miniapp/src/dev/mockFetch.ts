@@ -2,7 +2,8 @@
 // so it is not part of the production build.
 //
 // Query options: scenario=empty|caught|quota, long=1 (long word), reverse=1 (reverse cards),
-// fail=grade|refresh|undo (make that route fail), slow=1 (add latency).
+// fail=grade|refresh|undo (make that route fail), slow=1 (add latency), n=3 (cards in the queue),
+// stored=1 (cards come from storage), pending=1 (a card is waiting), noremind=1 (reminders unavailable).
 
 import type { Content, Me, StudyCard } from '../api/types';
 
@@ -32,9 +33,10 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, slow ? ms * 6 : ms));
 
   const collection = WORDS.map((w, i) => ({ id: `w${i}`, value: w, reps: i, lapses: i % 3, created_at: '2026-10-01T10:00:00Z' }));
-  let queue = scenario === 'normal' ? [...WORDS] : [];
+  let queue = scenario === 'normal' ? WORDS.slice(0, Number(params.get('n') ?? WORDS.length)) : [];
   let n = 0;
   let current: StudyCard | null = null;
+  const pendingFlag = params.has('pending');
   let undo: StudyCard | null = null;
 
   const makeCard = (value: string): StudyCard => ({
@@ -43,7 +45,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
     expression_id: `w${n}`,
     value: long ? 'a seconda delle circostanze particolari del caso concreto' : value,
     direction: reverse ? 'reverse' : 'forward',
-    from_storage: n % 3 === 0,
+    from_storage: params.has('stored') || n % 3 === 0,
     older_settings: n % 4 === 0,
     example: value.length > 12 ? `${CONTENT.example} ${CONTENT.example} ${CONTENT.example}` : CONTENT.example,
   });
@@ -52,7 +54,8 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
     language: { code: 'it', name: 'Italiano', country: 'it' },
     settings: settings,
     quota: scenario === 'quota' ? { used: 19, limit: 20 } : { used: 3, limit: 20 },
-    words: { total: scenario === 'empty' ? 0 : 40, ready: queue.length },
+    words: { total: scenario === 'empty' ? 0 : 40, ready: queue.length, pending: pendingFlag || current !== null },
+    reminders_available: !params.has('noremind'),
     options: {
       levels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
       languages: [
@@ -118,6 +121,8 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
       if (section === 'example') current = { ...current, example: 'Il mare è calmo stamattina.' };
       return json(200, { status: 'ready', card: current });
     }
+    if (path === '/collection' && method === 'POST' && body.value === 'zz') return json(200, { status: 'invalid', suggestions: ['zaino', 'zucca'] });
+    if (path === '/collection' && method === 'POST' && body.value === 'many') return json(200, { status: 'too_many', limit: 500 });
     if (path === '/cards/preview') {
       const text = String(body.text ?? '');
       if (text === 'xx') return json(200, { status: 'invalid', suggestions: ['mare', 'marea'] });
@@ -131,6 +136,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
       return json(200, { items, next_cursor: null });
     }
     if (path === '/collection' && method === 'POST') return json(201, { status: 'saved' });
+    if (path === '/collection/import' && String(body.text).startsWith('many')) return json(200, { status: 'too_many', limit: 50 });
     if (path === '/collection/import') return json(200, { status: 'imported', items: String(body.text).split(/[\n,]/).filter(Boolean) });
     if (path === '/settings') {
       settings = { ...settings, ...(body as Partial<Me['settings']>) };

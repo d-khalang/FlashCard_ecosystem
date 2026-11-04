@@ -2,6 +2,7 @@
 import math
 import time
 from collections import deque
+from datetime import datetime, time as day_time, timedelta, timezone
 from typing import Callable, Hashable
 
 
@@ -31,3 +32,30 @@ class RateLimiter:
     def _forget_idle(self, now: float) -> None:
         for key in [k for k, hits in self._hits.items() if not hits or now - hits[-1] >= self.window]:
             del self._hits[key]
+
+
+class DailyBudget:
+    """
+    A per-user allowance of LLM attempts per UTC day, in memory (a restart resets it).
+
+    Quota counts only delivered results, so results nobody is charged for (an unclear word, an
+    import that saves nothing, a refresh that is then undone) could otherwise repeat for free.
+    Memory is bounded: only today's users are kept, everything is dropped when the day changes.
+    """
+
+    def __init__(self, limit: int, clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
+        self.limit = limit
+        self._clock = clock
+        self._day = None
+        self._used: dict[Hashable, int] = {}
+
+    def charge(self, key: Hashable) -> int:
+        """Count one attempt. Returns 0 when allowed, otherwise the seconds until the next UTC day."""
+        now = self._clock()
+        if now.date() != self._day:
+            self._day, self._used = now.date(), {}
+        if self._used.get(key, 0) >= self.limit:
+            tomorrow = datetime.combine(now.date() + timedelta(days=1), day_time.min, tzinfo=timezone.utc)
+            return max(1, math.ceil((tomorrow - now).total_seconds()))
+        self._used[key] = self._used.get(key, 0) + 1
+        return 0

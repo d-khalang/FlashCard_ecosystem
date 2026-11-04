@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     MINIAPP_ALLOWED_USER_IDS: Optional[str] = None
     # Directory with the built frontend, served next to the API when set.
     MINIAPP_STATIC_DIR: Optional[str] = None
+    # Per-user LLM attempts per UTC day (admins exempt). The largest non-admin daily card limit is
+    # 50, so 300 is six times that: heavy use passes, a loop that costs no quota does not.
+    MINIAPP_LLM_DAILY_ATTEMPTS: int = 300
+    # Saved words per user in the Mini App (save and import).
+    MINIAPP_MAX_WORDS: int = 5000
 
     # ──────────────────────────────────────────────
     # Quota / Tier Limits

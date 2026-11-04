@@ -179,10 +179,29 @@ describe('undo', () => {
     const api = fakeApi({ undo: vi.fn(async () => ({ status: 'nothing_to_undo' })) });
     const { hook } = await setup(api);
     await gradeAndSettle(hook);
-    await waitFor(() => expect(hook.result.current.state.undoAvailable).toBe(true));
+    await waitFor(() => expect(hook.result.current.state.phase).toBe('question'));
+    await waitFor(() => expect(hook.result.current.busy).toBe(false));
     act(() => hook.result.current.undo());
     await waitFor(() => expect(hook.result.current.state.notice).toBe('undoNothing'));
     expect(hook.result.current.state.undoAvailable).toBe(false);
+  });
+
+  it('ignores undo while the grade or next card is in flight, and double taps', async () => {
+    let release: (v: { status: 'graded'; undo_available: boolean }) => void = () => undefined;
+    const api = fakeApi({ grade: vi.fn(() => new Promise((r) => { release = r as typeof release; })) });
+    const { hook } = await setup(api);
+    await gradeAndSettle(hook);
+    expect(hook.result.current.busy).toBe(true);
+    act(() => hook.result.current.undo());
+    expect(api.undo).not.toHaveBeenCalled();
+    await act(async () => release({ status: 'graded', undo_available: true }));
+    await waitFor(() => expect(hook.result.current.busy).toBe(false));
+    act(() => {
+      hook.result.current.undo();
+      hook.result.current.undo();
+    });
+    await waitFor(() => expect(hook.result.current.state.phase).toBe('answer'));
+    expect(api.undo).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing when undo is not available', async () => {

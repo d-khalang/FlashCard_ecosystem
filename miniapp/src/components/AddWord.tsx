@@ -10,6 +10,11 @@ import { ErrorState } from './ErrorState';
 import { Mascot } from './Mascot';
 import { Sheet } from './Sheet';
 
+type SaveProblem =
+  | { kind: 'error'; error: ApiError }
+  | { kind: 'invalid'; suggestions: string[] }
+  | { kind: 'too_many'; limit: number };
+
 type Preview = { phase: 'loading' } | { phase: 'done'; result: PreviewResult } | { phase: 'error'; error: ApiError };
 
 export function AddWord() {
@@ -20,6 +25,7 @@ export function AddWord() {
   const [attempt, setAttempt] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState<SaveProblem | null>(null);
   const run = useRef(0);
 
   const start = async (word: string) => {
@@ -27,6 +33,7 @@ export function AddWord() {
     if (!value) return;
     const id = ++run.current;
     setAttempt(value);
+    setProblem(null);
     setPreview({ phase: 'loading' });
     try {
       const result = await api.preview(value);
@@ -40,6 +47,7 @@ export function AddWord() {
     run.current++;
     setPreview(null);
     setSaving(false);
+    setProblem(null);
   };
 
   const submit = (e: FormEvent) => {
@@ -47,19 +55,34 @@ export function AddWord() {
     void start(text);
   };
 
+  /** Saving never repeats the preview (it costs a card): a failed save retries only the save. */
   const save = async (norm: string) => {
     setSaving(true);
+    setProblem(null);
     try {
       const r = await api.save(norm);
-      haptic('success');
-      toast(r.status === 'saved' ? t('preview.saved') : t('preview.alreadySaved'));
-      setText('');
-      close();
-      void reloadMe();
+      switch (r.status) {
+        case 'saved':
+        case 'already_saved':
+          haptic('success');
+          toast(r.status === 'saved' ? t('preview.saved') : t('preview.alreadySaved'));
+          setText('');
+          close();
+          void reloadMe();
+          return;
+        case 'invalid':
+          setProblem({ kind: 'invalid', suggestions: r.suggestions });
+          break;
+        case 'too_many':
+          setProblem({ kind: 'too_many', limit: r.limit });
+          break;
+        default:
+          assertNever(r);
+      }
     } catch (e) {
-      setSaving(false);
-      setPreview({ phase: 'error', error: asApiError(e) });
+      setProblem({ kind: 'error', error: asApiError(e) });
     }
+    setSaving(false);
   };
 
   return (
@@ -89,6 +112,7 @@ export function AddWord() {
           <PreviewBody
             preview={preview}
             saving={saving}
+            problem={problem}
             onSave={save}
             onRetry={() => attempt && void start(attempt)}
             onPick={(s) => void start(s)}
@@ -102,6 +126,7 @@ export function AddWord() {
 interface PreviewBodyProps {
   preview: Preview;
   saving: boolean;
+  problem: SaveProblem | null;
   onSave: (norm: string) => void;
   onRetry: () => void;
   onPick: (s: string) => void;
@@ -126,7 +151,7 @@ function Suggestions({ items, onPick }: { items: string[]; onPick: (s: string) =
   );
 }
 
-function PreviewBody({ preview, saving, onSave, onRetry, onPick }: PreviewBodyProps) {
+function PreviewBody({ preview, saving, problem, onSave, onRetry, onPick }: PreviewBodyProps) {
   const { t } = useI18n();
   if (preview.phase === 'loading') {
     return (
@@ -148,6 +173,18 @@ function PreviewBody({ preview, saving, onSave, onRetry, onPick }: PreviewBodyPr
             {r.norm}
           </h3>
           <CardSections content={r.content} />
+          {problem?.kind === 'error' ? <ErrorState error={problem.error} onRetry={() => onSave(r.norm)} compact /> : null}
+          {problem?.kind === 'invalid' ? (
+            <div role="alert">
+              <p className="note-line">{t('preview.saveInvalid')}</p>
+              <Suggestions items={problem.suggestions} onPick={onPick} />
+            </div>
+          ) : null}
+          {problem?.kind === 'too_many' ? (
+            <p className="note-line" role="alert">
+              {t('preview.tooMany', { limit: problem.limit })}
+            </p>
+          ) : null}
           <div className="sheet-actions">
             <button type="button" className="btn btn-primary" onClick={() => onSave(r.norm)} disabled={saving}>
               {t('preview.save')}
@@ -162,9 +199,11 @@ function PreviewBody({ preview, saving, onSave, onRetry, onPick }: PreviewBodyPr
       return (
         <div role="status">
           <p className="note-line">{t('preview.unclear')}</p>
-          <p className="note-line" dir="auto">
-            {r.note}
-          </p>
+          {r.note ? (
+            <p className="note-line" dir="auto">
+              {r.note}
+            </p>
+          ) : null}
           <Suggestions items={r.suggestions} onPick={onPick} />
         </div>
       );

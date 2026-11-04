@@ -15,6 +15,7 @@ CODES = {
     401: "auth_required",
     403: "not_allowed",
     404: "not_found",
+    413: "payload_too_large",
     422: "invalid_request",
     429: "rate_limited",
     503: "generation_failed",
@@ -73,7 +74,7 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def _http(_: Request, error: StarletteHTTPException):
         code = CODES.get(error.status_code, "invalid_request" if error.status_code < 500 else "internal_error")
-        return _response(error.status_code, code, "Not found." if error.status_code == 404 else "Request failed.")
+        return _response(error.status_code, code, {404: "Not found.", 413: "The request is too large."}.get(error.status_code, "Request failed."))
 
     @app.exception_handler(Exception)
     async def _unexpected(_: Request, error: Exception):

@@ -1,18 +1,18 @@
 from typing import Annotated, Optional, Union
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Query, Request, Response
 
 from flashcard.app.collection import (
     AllDuplicates, BadCursor, Imported as ImportedResult, InvalidLanguage, ItemDetail, ItemPage, NotFound,
     NothingFound, ParseFailed, QueryTooLong, QueryTooShort, TooLong as TooLongResult,
 )
-from flashcard.app.creation import Saved
+from flashcard.app.creation import InvalidInput, Saved, TooMany
 from flashcard.app.quota import QuotaExceeded
 from flashcard.miniapp.errors import invalid_request, not_found
-from flashcard.miniapp.routes.deps import CoreDep, GeneralUser, LlmUser, generating
+from flashcard.miniapp.routes.deps import CoreDep, GeneralUser, LlmUser, generating, generation_gate, refuse
 from flashcard.miniapp.schemas import (
-    CollectionDetail, CollectionPage, ImportIn, Imported, QuotaResult, SaveIn, StatusOnly, TooLong,
-    detail_out, quota_out, row_out,
+    CollectionDetail, CollectionPage, ImportIn, Imported, QuotaResult, SaveIn, SaveInvalid, StatusOnly,
+    TooLong, TooManyWords, detail_out, quota_out, row_out,
 )
 
 router = APIRouter(prefix="/collection")
@@ -38,16 +38,30 @@ async def list_items(
 
 
 @router.post("", status_code=201)
-async def save(body: SaveIn, user_id: GeneralUser, core: CoreDep) -> StatusOnly:
-    result = await core.creation_use_cases.save(user_id, body.value)
+async def save(
+    body: SaveIn, user_id: GeneralUser, core: CoreDep, request: Request, response: Response,
+) -> Union[StatusOnly, SaveInvalid, TooManyWords]:
+    result = await core.creation_use_cases.save_word(
+        user_id, body.value, max_words=request.app.state.settings.MINIAPP_MAX_WORDS)
+    if isinstance(result, InvalidInput):
+        response.status_code = 200
+        return SaveInvalid(suggestions=result.suggestions)
+    if isinstance(result, TooMany):
+        response.status_code = 200
+        return TooManyWords(limit=result.limit)
     return StatusOnly(status="saved" if isinstance(result, Saved) else "already_saved")
 
 
 @router.post("/import")
 async def import_items(
-    body: ImportIn, user_id: LlmUser, core: CoreDep,
-) -> Union[Imported, TooLong, StatusOnly, QuotaResult]:
-    result = await generating(core.collection_use_cases.import_items(user_id, body.text))
+    body: ImportIn, caller: LlmUser, core: CoreDep, request: Request,
+) -> Union[Imported, TooLong, TooManyWords, StatusOnly, QuotaResult]:
+    result = await generating(core.collection_use_cases.import_items(
+        caller.user_id, body.text, max_words=request.app.state.settings.MINIAPP_MAX_WORDS,
+        before_generation=generation_gate(request, caller)))
+    refuse(result)
+    if isinstance(result, TooMany):
+        return TooManyWords(limit=result.limit)
     if isinstance(result, ImportedResult):
         return Imported(items=result.items)
     if isinstance(result, TooLongResult):

@@ -4,6 +4,7 @@ The Mini App's HTTP app: FastAPI + the shared core. No Telegram polling, webhook
 Entry point: `flashcard-miniapp` (uvicorn, factory=True). Serves the built frontend from
 MINIAPP_STATIC_DIR when set.
 """
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -19,12 +20,14 @@ from flashcard.composition import build_core, open_resources
 from flashcard.language import LanguageConfig
 from flashcard.miniapp.errors import install_error_handlers
 from flashcard.miniapp.prefetch import PreparedCards
-from flashcard.miniapp.rate_limit import RateLimiter
+from flashcard.miniapp.rate_limit import DailyBudget, RateLimiter
 from flashcard.miniapp.routes import cards, collection, me, settings as settings_routes, study
 from flashcard.settings import Settings, get_setting
 from flashcard.utils.logger import configure_log_level
 
 API_PREFIX = "/api/v1"
+# Bodies are small JSON; nothing legitimate comes close.
+MAX_BODY_BYTES = 64 * 1024
 # Per user and minute: the routes that call the LLM, and all others.
 LLM_LIMIT_PER_MINUTE = 20
 GENERAL_LIMIT_PER_MINUTE = 120
@@ -79,6 +82,49 @@ class SecurityHeaders:
         await self.app(scope, receive, send_with_headers)
 
 
+class BodyLimit:
+    """
+    Refuses request bodies over `limit` bytes with 413, before sign-in and for every route: by
+    Content-Length when it is honest, and while streaming when it is missing or wrong.
+    """
+
+    def __init__(self, app, limit: int = MAX_BODY_BYTES):
+        self.app = app
+        self.limit = limit
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        declared = dict(scope["headers"]).get(b"content-length", b"")
+        if declared.isdigit() and int(declared) > self.limit:
+            await self._refuse(send)
+            return
+
+        received = 0
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.limit:
+                    # An HTTPException passes FastAPI's body reading (any other error there is a 400)
+                    # and reaches the error handlers, which answer 413 in the usual JSON shape.
+                    raise HTTPException(status_code=413)
+            return message
+
+        await self.app(scope, limited_receive, send)
+
+    @staticmethod
+    async def _refuse(send):
+        body = json.dumps({"error": {"code": "payload_too_large", "message": "The request is too large."}}).encode()
+        await send({"type": "http.response.start", "status": 413, "headers": [
+            (b"content-type", b"application/json"), (b"content-length", str(len(body)).encode()),
+            (b"connection", b"close")]})
+        await send({"type": "http.response.body", "body": body})
+
+
 class FrontendFiles(StaticFiles):
     """
     The built frontend. Never answers for /api (a missing API route stays the API's JSON 404),
@@ -115,6 +161,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         "llm": RateLimiter(LLM_LIMIT_PER_MINUTE),
         "general": RateLimiter(GENERAL_LIMIT_PER_MINUTE),
     }
+    app.state.budget = DailyBudget(settings.MINIAPP_LLM_DAILY_ATTEMPTS)
     app.state.prepared = PreparedCards()
     install_error_handlers(app)
 
@@ -129,6 +176,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     if settings.MINIAPP_STATIC_DIR:
         app.mount("/", FrontendFiles(directory=settings.MINIAPP_STATIC_DIR, html=True), name="frontend")
 
+    app.add_middleware(BodyLimit)
     app.add_middleware(SecurityHeaders)
     return app
 

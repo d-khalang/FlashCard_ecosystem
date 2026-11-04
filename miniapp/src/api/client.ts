@@ -5,6 +5,8 @@ export interface ClientOptions {
   baseUrl: string;
   getInitData: () => string;
   fetch?: typeof fetch;
+  /** Abort a request after this long. Default 45 s, above the server's 30 s generation limit. */
+  timeoutMs?: number;
   /** Called on any 401 so the app can show the "reopen from Telegram" screen. */
   onUnauthorized?: () => void;
 }
@@ -46,6 +48,8 @@ async function readError(res: Response): Promise<ApiError> {
   });
 }
 
+export const DEFAULT_TIMEOUT_MS = 45_000;
+
 export function createClient(options: ClientOptions): HttpClient {
   return {
     async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
@@ -59,22 +63,34 @@ export function createClient(options: ClientOptions): HttpClient {
         headers['Content-Type'] = 'application/json';
         body = JSON.stringify(opts.body);
       }
-      let res: Response;
+      const controller = new AbortController();
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
       try {
-        res = await doFetch(`${options.baseUrl}${path}${buildQuery(opts.query)}`, { method, headers, body });
-      } catch (e) {
-        throw new ApiError('network', e instanceof Error ? e.message : 'Network error');
-      }
-      if (!res.ok) {
-        const err = await readError(res);
-        if (err.kind === 'auth') options.onUnauthorized?.();
-        throw err;
-      }
-      if (res.status === 204) return undefined as T;
-      try {
-        return (await res.json()) as T;
-      } catch {
-        throw new ApiError('bad_response', 'Response was not JSON', { status: res.status });
+        let res: Response;
+        try {
+          res = await doFetch(`${options.baseUrl}${path}${buildQuery(opts.query)}`, { method, headers, body, signal: controller.signal });
+        } catch (e) {
+          if (timedOut) throw new ApiError('timeout', 'Request timed out');
+          throw new ApiError('network', e instanceof Error ? e.message : 'Network error');
+        }
+        if (!res.ok) {
+          const err = await readError(res);
+          if (err.kind === 'auth') options.onUnauthorized?.();
+          throw err;
+        }
+        if (res.status === 204) return undefined as T;
+        try {
+          return (await res.json()) as T;
+        } catch {
+          if (timedOut) throw new ApiError('timeout', 'Request timed out');
+          throw new ApiError('bad_response', 'Response was not JSON', { status: res.status });
+        }
+      } finally {
+        clearTimeout(timer);
       }
     },
   };

@@ -19,6 +19,7 @@ export function errorCopy(error: ApiError): ErrorCopy {
     case 'rate_limited':
       return { title: 'error.rate.title', body: 'error.rate.body', retryable: true };
     case 'unavailable':
+    case 'timeout':
       return { title: 'error.unavailable.title', body: 'error.unavailable.body', retryable: true };
     case 'network':
       return { title: 'error.offline.title', body: 'error.offline.body', retryable: true };

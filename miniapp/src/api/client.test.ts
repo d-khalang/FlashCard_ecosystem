@@ -93,7 +93,35 @@ describe('client', () => {
   });
 });
 
+describe('timeout', () => {
+  it('aborts a stalled request and reports a retryable timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const stalled = vi.fn(
+        (_url: unknown, init?: RequestInit) =>
+          new Promise<Response>((_res, rej) => {
+            init!.signal!.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')));
+          }),
+      );
+      const api = createApi(createClient({ baseUrl: './api/v1', getInitData: () => 'x', fetch: stalled as unknown as typeof fetch }));
+      const pending = api.me().catch((x: unknown) => x);
+      await vi.advanceTimersByTimeAsync(44_000);
+      expect(stalled).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(((await pending) as ApiError).kind).toBe('timeout');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('union parsing', () => {
+  it('accepts the newer save and import statuses', async () => {
+    expect(await make(fakeFetch({ body: { status: 'too_many', limit: 5 } })).save('x')).toMatchObject({ status: 'too_many' });
+    expect(await make(fakeFetch({ body: { status: 'invalid', suggestions: [] } })).save('x')).toMatchObject({ status: 'invalid' });
+    expect(await make(fakeFetch({ body: { status: 'too_many', limit: 5 } })).importText('x')).toMatchObject({ status: 'too_many' });
+  });
+
   const card = {
     delivery_id: -1,
     expression_id: 'e',

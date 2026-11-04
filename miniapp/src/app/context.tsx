@@ -61,7 +61,7 @@ export function AppProvider({ api, authLost, children }: ProviderProps) {
   const languages: LanguageInfo[] = me?.options.languages ?? [];
   const languageName = useCallback(
     (country: string | null | undefined, fallbackLabel: string) => {
-      const hit = country ? languages.find((l) => l.country.toLowerCase() === country.toLowerCase()) : undefined;
+      const hit = country ? languages.find((l) => l.country?.toLowerCase() === country.toLowerCase()) : undefined;
       return hit?.name ?? (cleanLabel(fallbackLabel) || (country ?? '').toUpperCase());
     },
     [languages],

@@ -21,6 +21,7 @@ interface WebAppLike {
   disableVerticalSwipes?: () => void;
   setHeaderColor?: (c: string) => void;
   setBackgroundColor?: (c: string) => void;
+  requestWriteAccess?: (cb: (allowed: boolean) => void) => void;
   setBottomBarColor?: (c: string) => void;
   onEvent?: (name: string, cb: () => void) => void;
   safeAreaInset?: Inset;
@@ -175,4 +176,25 @@ export function pushBackHandler(handler: () => void): () => void {
     if (i >= 0) backStack.splice(i, 1);
     syncBack();
   };
+}
+
+/** Whether this client can ask the user to let the bot write to them (Bot API 6.9). */
+export function canRequestWriteAccess(): boolean {
+  return atLeast('6.9') && typeof webApp()?.requestWriteAccess === 'function';
+}
+
+/** Ask Telegram to let the bot message the user. Resolves false when unsupported or refused. */
+export function requestWriteAccess(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const app = webApp();
+    if (!canRequestWriteAccess() || !app?.requestWriteAccess) {
+      resolve(false);
+      return;
+    }
+    try {
+      app.requestWriteAccess((allowed) => resolve(Boolean(allowed)));
+    } catch {
+      resolve(false);
+    }
+  });
 }

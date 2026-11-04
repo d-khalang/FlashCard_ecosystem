@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Optional, Union, get_args
 
+from flashcard.app.creation import TooMany
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy
+from flashcard.app.review import GenerationGate, GenerationHeld, Throttled
 from flashcard.app.shadow import shadow_write
 from flashcard.schemas.expression import Expression, ExpressionCard
 from flashcard.schemas.user import UserId
@@ -66,7 +68,8 @@ class TooLong:
     limit: int
 
 
-ImportResult = Union[Imported, AllDuplicates, ParseFailed, NothingFound, InvalidLanguage, TooLong, QuotaExceeded]
+ImportResult = Union[Imported, AllDuplicates, ParseFailed, NothingFound, InvalidLanguage, TooLong, QuotaExceeded,
+                     TooMany, Throttled, GenerationHeld]
 
 
 @dataclass(frozen=True)
@@ -157,8 +160,15 @@ class CollectionUseCases:
         self.review_state = review_state
         self.validator = language_validator
 
-    async def import_items(self, user_id: UserId, text: str) -> ImportResult:
-        """Parse a free-form list with the LLM, validate the items and save the new ones."""
+    async def import_items(
+        self, user_id: UserId, text: str, *, max_words: Optional[int] = None,
+        before_generation: Optional[GenerationGate] = None,
+    ) -> ImportResult:
+        """
+        Parse a free-form list with the LLM, validate the items and save the new ones.
+        `max_words` (Mini App): refuse when the collection is full, or the import would exceed it.
+        `before_generation` is asked right before the LLM call; a refusal is the result.
+        """
         text = text.strip()
         if not text:
             return NothingFound()
@@ -171,6 +181,16 @@ class CollectionUseCases:
         quota = self.quota.check(user, "cards")
         if isinstance(quota, QuotaExceeded):
             return quota
+
+        saved = 0
+        if max_words is not None:
+            saved = (await self.expressions.count_words(user_id)).total
+            if saved >= max_words:
+                return TooMany(limit=max_words)
+        if before_generation is not None:
+            refused = before_generation()
+            if refused is not None:
+                return refused
 
         parsed = await self.llm.parse_import_list(text)
         if not parsed.success:
@@ -187,6 +207,8 @@ class CollectionUseCases:
                 return NothingFound()
             items = validation.normalized_items
 
+        if max_words is not None and saved + len(items) > max_words:
+            return TooMany(limit=max_words)
         inserted = await self.expressions.add_expressions_bulk(user_id, items)
         if not inserted:
             return AllDuplicates()

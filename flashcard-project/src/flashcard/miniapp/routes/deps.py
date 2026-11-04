@@ -1,14 +1,16 @@
-"""Request dependencies: sign-in, the per-user rate limit and access to the core."""
+"""Request dependencies: sign-in, rate limits, the LLM allowance and access to the core."""
 import asyncio
+from dataclasses import dataclass
 from typing import Annotated, Awaitable, TypeVar
 
 from fastapi import Depends, Request
 
+from flashcard.app.review import GenerationGate, GenerationHeld, Throttled
 from flashcard.app.study import GENERATION_TIMEOUT_SECONDS
 from flashcard.composition import Core
-from flashcard.miniapp.auth import InitDataError, validate_init_data
+from flashcard.miniapp.auth import InitDataError, TelegramIdentity, validate_init_data
 from flashcard.miniapp.errors import auth_required, generation_failed, not_allowed, rate_limited
-from flashcard.schemas.user import UserId
+from flashcard.schemas.user import UserId, UserTier
 from flashcard.utils.logger import get_logger
 from flashcard.utils.time import now_utc
 
@@ -24,11 +26,10 @@ def get_core(request: Request) -> Core:
 CoreDep = Annotated[Core, Depends(get_core)]
 
 
-async def authenticated_user(request: Request) -> UserId:
+async def verified_identity(request: Request) -> TelegramIdentity:
     """
-    The signed-in Telegram user id, from `Authorization: tma <initData>`. Refuses bad or old data
-    (401) and users outside MINIAPP_ALLOWED_USER_IDS (403). Records the user as seen, which
-    creates new users and counts as an interaction.
+    The Telegram user from `Authorization: tma <initData>`. Refuses bad or old data (401) and
+    users outside MINIAPP_ALLOWED_USER_IDS (403). Writes nothing.
     """
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
     if scheme.lower() != "tma" or not token.strip():
@@ -41,22 +42,74 @@ async def authenticated_user(request: Request) -> UserId:
     allowed = settings.miniapp_allowed_user_ids
     if allowed is not None and identity.user_id not in allowed:
         raise not_allowed()
-    await request.app.state.core.user_service.record_seen(identity.user_id, identity.username)
+    return identity
+
+
+async def _signed_in(request: Request, identity: TelegramIdentity, kind: str) -> UserId:
+    """Apply the request limit, then record the user as seen (so a client stuck on 429 writes nothing)."""
+    wait = request.app.state.limiters[kind].hit(identity.user_id)
+    if wait:
+        raise rate_limited(wait)
+    # Creates new users and counts as an interaction. A new user can be messaged by the bot only
+    # if Telegram says they allow it (otherwise they have not started the chat).
+    await request.app.state.core.user_service.record_seen(
+        identity.user_id, identity.username, identity.allows_write_to_pm)
     return identity.user_id
 
 
-def _limited(kind: str):
-    async def dependency(request: Request, user_id: Annotated[UserId, Depends(authenticated_user)]) -> UserId:
-        wait = request.app.state.limiters[kind].hit(user_id)
-        if wait:
-            raise rate_limited(wait)
-        return user_id
-    return dependency
+async def general_user(request: Request, identity: Annotated[TelegramIdentity, Depends(verified_identity)]) -> UserId:
+    return await _signed_in(request, identity, "general")
 
 
-# Routes that do not call the LLM: 120 a minute. The routes marked * in the contract: 20 a minute.
-GeneralUser = Annotated[UserId, Depends(_limited("general"))]
-LlmUser = Annotated[UserId, Depends(_limited("llm"))]
+@dataclass(frozen=True)
+class Caller:
+    """A signed-in user on a route that may call the LLM."""
+    user_id: UserId
+    # Admins have no daily allowance of LLM attempts.
+    unlimited: bool
+
+
+async def llm_user(request: Request, identity: Annotated[TelegramIdentity, Depends(verified_identity)]) -> Caller:
+    user_id = await _signed_in(request, identity, "general")
+    user = await request.app.state.core.user_service.get_user(user_id)
+    return Caller(user_id=user_id, unlimited=user.tier == UserTier.admin)
+
+
+# Routes without an LLM call: 120 a minute. Routes marked * in the contract: 120 a minute to get in,
+# and every real LLM call is charged by `generation_gate`.
+GeneralUser = Annotated[UserId, Depends(general_user)]
+LlmUser = Annotated[Caller, Depends(llm_user)]
+
+
+def generation_gate(request: Request, caller: Caller, *, honor_hold: bool = False) -> GenerationGate:
+    """
+    Asked by a use case right before an LLM call really starts. Charges the 20 a minute limit
+    and the daily allowance (admins exempt); refuses with Throttled when either is used up,
+    and, for study, with GenerationHeld while a recent failure holds generating.
+    """
+    state = request.app.state
+
+    def gate():
+        if honor_hold and state.prepared.held(caller.user_id):
+            return GenerationHeld()
+        return charge_generation(request, caller)
+
+    return gate
+
+
+def charge_generation(request: Request, caller: Caller):
+    """Charge one LLM attempt: None if allowed, else Throttled."""
+    state = request.app.state
+    wait = state.limiters["llm"].hit(caller.user_id)
+    if not wait and not caller.unlimited:
+        wait = state.budget.charge(caller.user_id)
+    return Throttled(retry_after=wait) if wait else None
+
+
+def refuse(result) -> None:
+    """Turn a Throttled result into the 429 error."""
+    if isinstance(result, Throttled):
+        raise rate_limited(result.retry_after)
 
 
 async def generating(work: Awaitable[T]) -> T:

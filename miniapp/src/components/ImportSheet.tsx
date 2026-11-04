@@ -8,24 +8,13 @@ import { haptic } from '../telegram';
 import { ErrorState } from './ErrorState';
 import { Sheet } from './Sheet';
 
-/** Display text for one imported item without assuming its exact shape. */
-export function importItemLabel(item: unknown): string {
-  if (typeof item === 'string') return item;
-  if (item && typeof item === 'object') {
-    const o = item as { value?: unknown; norm?: unknown };
-    if (typeof o.value === 'string') return o.value;
-    if (typeof o.norm === 'string') return o.norm;
-  }
-  return '';
-}
-
 type Outcome = { kind: 'result'; result: ImportResult } | { kind: 'error'; error: ApiError };
 
 function ResultView({ result }: { result: ImportResult }) {
   const { t, plural } = useI18n();
   switch (result.status) {
     case 'imported': {
-      const labels = result.items.map(importItemLabel).filter(Boolean);
+      const labels = result.items.filter(Boolean);
       return (
         <div role="status">
           <p className="note-line">{plural('import.imported', result.items.length)}</p>
@@ -56,6 +45,12 @@ function ResultView({ result }: { result: ImportResult }) {
       return (
         <p className="note-line" role="status">
           {t('import.too_long', { limit: result.limit })}
+        </p>
+      );
+    case 'too_many':
+      return (
+        <p className="note-line" role="status">
+          {t('import.too_many', { limit: result.limit })}
         </p>
       );
     case 'quota':

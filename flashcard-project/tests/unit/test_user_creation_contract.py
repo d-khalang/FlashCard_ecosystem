@@ -72,7 +72,7 @@ async def test_miniapp_sign_in_records_the_user_before_any_route_runs():
         await client.get("/api/v1/study/current", headers=auth_header(42, username="noor"))
 
     assert order == ["seen", "route"]
-    app.state.core.user_service.record_seen.assert_awaited_once_with(42, "noor")
+    app.state.core.user_service.record_seen.assert_awaited_once_with(42, "noor", False)
 
 
 def test_the_miniapp_creates_no_users_itself():

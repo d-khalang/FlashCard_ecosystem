@@ -74,11 +74,13 @@ export function WordDetailSheet({ id, onClose, onRemoved }: Props) {
           <p className="meta-line">
             {t('collection.stats', { reps: detail.reps, lapses: detail.lapses })}
           </p>
-          <p className="meta-line">{t('detail.created', { date: formatDate(locale, detail.created_at) })}</p>
+          {formatDate(locale, detail.created_at) ? (
+            <p className="meta-line">{t('detail.created', { date: formatDate(locale, detail.created_at) })}</p>
+          ) : null}
           {detail.content ? (
             <>
               <CardSections content={detail.content} />
-              {detail.generated_at ? <p className="meta-line">{t('detail.generated', { date: formatDate(locale, detail.generated_at) })}</p> : null}
+              {formatDate(locale, detail.generated_at) ? <p className="meta-line">{t('detail.generated', { date: formatDate(locale, detail.generated_at) })}</p> : null}
             </>
           ) : (
             <p className="note-line">{t('detail.noContent')}</p>

@@ -105,3 +105,25 @@ class TestRejected:
     def test_a_naive_clock_is_a_programming_error(self):
         with pytest.raises(ValueError):
             validate_init_data(sign_init_data(42), bot_token=BOT_TOKEN, now=datetime.now())
+
+
+class TestWritePermission:
+
+    def test_telegram_saying_the_user_allows_the_bot_to_write(self):
+        assert _check(sign_init_data(42, allows_write_to_pm=True)).allows_write_to_pm is True
+
+    @pytest.mark.parametrize("value", [False, None])
+    def test_absent_or_false_is_not_permission(self, value):
+        assert _check(sign_init_data(42, allows_write_to_pm=value)).allows_write_to_pm is False
+
+    def test_only_a_real_true_counts(self):
+        raw = sign_init_data(0, user=json.dumps({"id": 5, "allows_write_to_pm": "true"}))
+
+        assert _check(raw).allows_write_to_pm is False
+
+    def test_it_cannot_be_added_without_breaking_the_signature(self):
+        fields = dict(parse_qsl(sign_init_data(42)))
+        fields["user"] = json.dumps({"id": 42, "allows_write_to_pm": True}, separators=(",", ":"))
+
+        with pytest.raises(InitDataError):
+            _check(urlencode(fields))

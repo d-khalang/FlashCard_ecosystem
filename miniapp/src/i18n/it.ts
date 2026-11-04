@@ -23,6 +23,8 @@ export const it: Record<TranslationKey, string> = {
   'today.empty.body': 'Aggiungi la prima parola qui sotto, oppure importa un elenco.',
   'today.caughtUp.title': 'Tutto fatto',
   'today.caughtUp.body': 'Per ora nessuna parola da ripassare.',
+  'today.continue': 'Continua la tua carta',
+  'today.pending.title': 'Una carta ti aspetta',
   'today.quota.left': 'Carte rimaste: {n}',
   'today.quota.reached': 'Limite di carte raggiunto',
 
@@ -39,6 +41,8 @@ export const it: Record<TranslationKey, string> = {
   'preview.unclear': 'Non è abbastanza chiaro.',
   'preview.invalid': 'Non sembra una parola o una frase in questa lingua.',
   'preview.suggestions': 'Forse intendevi',
+  'preview.saveInvalid': 'Questa parola non si può salvare così com’è.',
+  'preview.tooMany': 'Per ora non puoi salvare altre parole (limite {limit}).',
   'quota.message': 'Hai raggiunto il limite di carte ({limit} nel piano {tier}). Riprova più tardi.',
 
   'section.meaning': 'Significato',
@@ -108,6 +112,7 @@ export const it: Record<TranslationKey, string> = {
   'import.parse_failed': 'Non riesco a leggere il testo. Prova con una parola o frase per riga.',
   'import.nothing_found': 'Nel testo non ho trovato parole.',
   'import.invalid_language': 'Queste parole non sembrano nella lingua dell’app.',
+  'import.too_many': 'Troppe parole in una volta. Il limite è {limit}.',
   'import.too_long': 'Il testo è troppo lungo. Il limite è {limit} caratteri.',
 
   'settings.title': 'Impostazioni',
@@ -127,6 +132,8 @@ export const it: Record<TranslationKey, string> = {
   'settings.reminders': 'Promemoria',
   'settings.reminders.on': 'Attivi. Tocca per sospendere.',
   'settings.reminders.off': 'In pausa. Tocca per riprendere.',
+  'settings.reminders.unavailable': 'Per ricevere i promemoria, apri la chat del bot e premi Start.',
+  'settings.reminders.allow': 'Consenti messaggi',
   'settings.interface': 'Lingua dell’app',
   'settings.saveFailed': 'Salvataggio non riuscito. Ho ripristinato la scelta precedente.',
   'lang.en': 'English',

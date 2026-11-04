@@ -64,11 +64,11 @@ class TestMe:
 
         body = (await api.get(f"{BASE}/me", headers=_as())).json()
 
-        assert set(body) == {"language", "settings", "quota", "words", "options"}
+        assert set(body) == {"reminders_available", "language", "settings", "quota", "words", "options"}
         assert body["language"] == {"code": "it", "name": "Italian", "country": "it"}
         assert set(body["settings"]) == {"target_level", "primary_language", "secondary_language", "review_mode",
                                          "review_interval_minutes", "is_active"}
-        assert body["words"] == {"total": 2, "ready": 1}
+        assert body["words"] == {"total": 2, "ready": 1, "pending": False}
         assert body["quota"] == {"used": 0, "limit": 10}
         assert body["options"]["levels"] == ["A1", "A2", "B1", "B2", "C1", "C2"]
         assert {"code": "fa", "name": "Persian", "country": "ir"} in body["options"]["languages"]
@@ -371,8 +371,9 @@ class TestRateLimitsOnTheRealRoutes:
         assert api.app.state.limiters["llm"].limit == 20 and api.app.state.limiters["general"].limit == 120
         api.app.state.limiters["llm"] = RateLimiter(2)
 
-        statuses = [(await api.post(f"{BASE}/study/prepare", headers=_as())).status_code for _ in range(3)]
+        statuses = [(await api.post(f"{BASE}/cards/preview", headers=_as(), json={"text": "andare"})).status_code
+                    for _ in range(3)]
         general = await api.get(f"{BASE}/study/current", headers=_as())
 
-        assert statuses == [202, 202, 429]
+        assert statuses == [200, 200, 429]
         assert general.status_code == 200

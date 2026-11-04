@@ -63,7 +63,7 @@ class TestSignIn:
         response = await _get(app, "/api/v1/study/current", headers=auth_header(42, username="noor"))
 
         assert response.status_code == 200 and response.json() == {"card": None, "undo_available": False}
-        app.state.core.user_service.record_seen.assert_awaited_once_with(42, "noor")
+        app.state.core.user_service.record_seen.assert_awaited_once_with(42, "noor", False)
 
     async def test_the_error_does_not_echo_the_init_data(self):
         header = auth_header(42, bot_token="9:other")

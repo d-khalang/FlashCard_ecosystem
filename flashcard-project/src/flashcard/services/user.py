@@ -60,6 +60,8 @@ class UserService:
                 # exact interval in Python, where an unreadable date is reported.
                 {"last_reviewed_at": {"$type": "string"}},
             ],
+            # Users who never opened the bot chat cannot be messaged: no card is generated for them.
+            "bot_chat_open": {"$ne": False},
         }
         if exclude_pending:
             query["has_pending"] = False
@@ -146,22 +148,28 @@ class UserService:
         )
         return result.modified_count > 0
 
-    async def record_seen(self, user_id: UserId, username: Optional[str]):
+    async def record_seen(self, user_id: UserId, username: Optional[str], bot_chat_open: bool = True):
         """
         Records that the user interacted with the bot, and syncs their Telegram username.
 
         The only writer that creates user documents, so `created_at` (the trial start)
         is always the first interaction. Every other writer updates existing users only.
+
+        `bot_chat_open`: whether the bot can message this user. The bot path (default) is a
+        message from the user, so it is True and always written. The Mini App passes True only
+        when Telegram says the user allows the bot to write to them; otherwise a new user is
+        stored with False and an existing user keeps what they have (it never downgrades).
         """
         now = now_utc()
-        await self.users.update_one(
-            {"user_id": stored_user_id(user_id)},
-            {
-                "$set": {"username": username, "last_seen_at": now},
-                "$setOnInsert": {"created_at": now},
-            },
-            upsert=True
-        )
+        update = {
+            "$set": {"username": username, "last_seen_at": now},
+            "$setOnInsert": {"created_at": now},
+        }
+        if bot_chat_open:
+            update["$set"]["bot_chat_open"] = True
+        else:
+            update["$setOnInsert"]["bot_chat_open"] = False
+        await self.users.update_one({"user_id": stored_user_id(user_id)}, update, upsert=True)
 
     async def backfill_created_at(self, user_id: UserId, created_at: datetime) -> bool:
         """

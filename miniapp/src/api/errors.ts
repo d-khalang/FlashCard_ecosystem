@@ -7,6 +7,7 @@ export type ApiErrorKind =
   | 'unavailable' // 503 generation_failed
   | 'server' // other HTTP errors
   | 'network' // fetch failed: offline, DNS, TLS
+  | 'timeout' // no answer in time; safe to retry
   | 'bad_response'; // 2xx with a shape this client does not know
 
 export class ApiError extends Error {

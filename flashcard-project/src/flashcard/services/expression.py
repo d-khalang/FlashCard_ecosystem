@@ -377,6 +377,19 @@ class ExpressionService:
         )
         return "graded" if result.modified_count else "not_pending"
 
+    async def defer_review(self, user_id: UserId, expression_id: str) -> None:
+        """
+        Rest a card for the cooldown (12 h) without sending or grading it, by setting only
+        `last_activity_at`. For a word the LLM cannot make a card of: it must not be picked again
+        at once. The user's own card only.
+        """
+        if not isinstance(expression_id, str) or not ObjectId.is_valid(expression_id):
+            return
+        await self.expressions.update_one(
+            {"_id": ObjectId(expression_id), "user_id": stored_user_id(user_id)},
+            {"$set": {"last_activity_at": now_utc()}},
+        )
+
     async def undo_grade(self, user_id: UserId, expression_id: str, delivery_id: int) -> UndoOutcome:
         """
         Put a card back as it was before the app grade that stored `grade_undo`: its stats, cooldown

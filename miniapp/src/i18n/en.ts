@@ -21,6 +21,8 @@ export const en = {
   'today.empty.body': 'Add your first word below, or import a list of words.',
   'today.caughtUp.title': 'All caught up',
   'today.caughtUp.body': 'No words are due right now.',
+  'today.continue': 'Continue your card',
+  'today.pending.title': 'A card is waiting for you',
   'today.quota.left': 'Cards left: {n}',
   'today.quota.reached': 'Card limit reached',
 
@@ -37,6 +39,8 @@ export const en = {
   'preview.unclear': 'This one is not clear enough.',
   'preview.invalid': 'This does not look like a word or phrase in this language.',
   'preview.suggestions': 'Did you mean',
+  'preview.saveInvalid': 'This word could not be saved as written.',
+  'preview.tooMany': 'You cannot save more words right now (limit {limit}).',
   'quota.message': 'You reached your card limit ({limit} on the {tier} plan). Try again later.',
 
   'section.meaning': 'Meaning',
@@ -106,6 +110,7 @@ export const en = {
   'import.parse_failed': 'Could not read this text. Try one word or phrase per line.',
   'import.nothing_found': 'No words were found in this text.',
   'import.invalid_language': 'These words do not look like this app language.',
+  'import.too_many': 'Too many words at once. The limit is {limit}.',
   'import.too_long': 'The text is too long. The limit is {limit} characters.',
 
   'settings.title': 'Settings',
@@ -125,6 +130,8 @@ export const en = {
   'settings.reminders': 'Reminders',
   'settings.reminders.on': 'On. Tap to pause.',
   'settings.reminders.off': 'Paused. Tap to resume.',
+  'settings.reminders.unavailable': 'To get reminders, open the bot chat and press Start.',
+  'settings.reminders.allow': 'Allow messages',
   'settings.interface': 'App language',
   'settings.saveFailed': 'Could not save. Your previous choice was restored.',
   'lang.en': 'English',

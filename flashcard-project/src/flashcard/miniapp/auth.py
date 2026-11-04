@@ -28,6 +28,8 @@ class InitDataError(ValueError):
 class TelegramIdentity:
     user_id: int
     username: Optional[str]
+    # Telegram says the user allows the bot to write to them (the bot can start the chat).
+    allows_write_to_pm: bool = False
 
 
 def _reject_constant(value: str) -> None:
@@ -100,4 +102,4 @@ def validate_init_data(
             raise ValueError("bad username")
     except (KeyError, ValueError, TypeError, AttributeError) as exc:
         raise InitDataError("invalid user") from exc
-    return TelegramIdentity(user_id=user_id, username=username)
+    return TelegramIdentity(user_id=user_id, username=username, allows_write_to_pm=user.get("allows_write_to_pm") is True)

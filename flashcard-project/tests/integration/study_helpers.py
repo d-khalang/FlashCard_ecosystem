@@ -42,6 +42,8 @@ class FakeStudyLLM:
         self.fail_cards = False
         self.fail_sections = False
         self.card_delay = 0.0
+        # Words the LLM cannot make sense of (it answers success=False for them).
+        self.unclear: set[str] = set()
         self.card = make_card()
         # Called with the section name while a section is being generated (to race a grade in).
         self.during_section: Optional[Callable[[str], Awaitable[None]]] = None
@@ -56,6 +58,9 @@ class FakeStudyLLM:
             await asyncio.sleep(self.card_delay)
         if self.fail_cards:
             raise RuntimeError("LLM unavailable")
+        if kwargs.get("raw") in self.unclear:
+            return ExpressionCard(success=False, norm=kwargs["raw"], learning_definition=None, translations=[],
+                                  learning_example=None, note="not clear", suggestions=["x"])
         return self.card.model_copy(update={"norm": kwargs.get("raw", self.card.norm)})
 
     async def generate_card_section(self, section: str, **kwargs: Any) -> CardSection:
@@ -75,12 +80,15 @@ class FakeStudyLLM:
 
 
 def sign_init_data(user_id: int, *, bot_token: str = BOT_TOKEN, auth_age_seconds: int = 0,
-                   username: str = "tester", extra: Optional[dict] = None, user: Optional[str] = None) -> str:
+                   username: str = "tester", extra: Optional[dict] = None, user: Optional[str] = None,
+                   allows_write_to_pm: Optional[bool] = None) -> str:
     """Telegram-format initData signed with `bot_token`."""
+    profile = {"id": user_id, "first_name": "T", "username": username}
+    if allows_write_to_pm is not None:
+        profile["allows_write_to_pm"] = allows_write_to_pm
     fields = {
         "auth_date": str(int(time.time()) - auth_age_seconds),
-        "user": user if user is not None else json.dumps({"id": user_id, "first_name": "T", "username": username},
-                                                          separators=(",", ":")),
+        "user": user if user is not None else json.dumps(profile, separators=(",", ":")),
         "query_id": "AAH",
         **(extra or {}),
     }

@@ -24,7 +24,8 @@ from bson import ObjectId
 from flashcard.app.cards import card_settings
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy, Usage
 from flashcard.app.review import (
-    CardNotFound, Graded, GradeResult, NoCandidate, NotPending, ReviewReady, ReviewUseCases,
+    CardGenerationFailed, CardNotFound, GenerationGate, GenerationHeld, Graded, GradeResult, NoCandidate,
+    NotPending, ReviewReady, ReviewUseCases, Throttled,
 )
 from flashcard.app.shadow import shadow_write
 from flashcard.schemas.expression import (
@@ -81,11 +82,14 @@ class Delivered:
 @dataclass(frozen=True)
 class GenerationFailed:
     """No card could be made in time (provider error, invalid answer, or the 30 s limit)."""
+    # The LLM answered but could not make sense of the word (which is now deferred), as opposed
+    # to an error or timeout: trying the next word may work.
+    unclear: bool = False
 
 
-NextResult = Union[Delivered, NoCandidate, QuotaExceeded, GenerationFailed]
+NextResult = Union[Delivered, NoCandidate, QuotaExceeded, GenerationFailed, Throttled]
 # What a prepare-ahead task ends with; only a ReviewReady is worth keeping.
-PrepareOutcome = Union[ReviewReady, NoCandidate, QuotaExceeded, GenerationFailed]
+PrepareOutcome = Union[ReviewReady, NoCandidate, QuotaExceeded, GenerationFailed, Throttled]
 PreparedSource = Callable[[], Awaitable[Optional[ReviewReady]]]
 
 
@@ -107,7 +111,7 @@ class Refreshed:
     card: StudyCard
 
 
-RefreshResult = Union[Refreshed, NotPending, QuotaExceeded, GenerationFailed]
+RefreshResult = Union[Refreshed, NotPending, QuotaExceeded, GenerationFailed, Throttled]
 
 
 @dataclass(frozen=True)
@@ -115,6 +119,8 @@ class Overview:
     user: UserDB
     quota: Usage
     words: WordCounts
+    # A delivered card is waiting for a grade (the same rule as resuming it).
+    pending: bool
 
 
 class _UserLocks:
@@ -163,6 +169,7 @@ class StudyUseCases:
             user=user,
             quota=self.quota.usage(user, "cards"),
             words=await self.expressions.count_words(user_id),
+            pending=await self._resumable(user_id, user) is not None,
         )
 
     async def current(self, user_id: UserId) -> CurrentState:
@@ -170,22 +177,35 @@ class StudyUseCases:
         user = await self.users.get_user(user_id)
         return CurrentState(card=await self._resumable(user_id, user), undo_available=_undo_available(user))
 
-    async def prepare(self, user_id: UserId) -> PrepareOutcome:
+    async def prepare(
+        self, user_id: UserId, before_generation: Optional[GenerationGate] = None,
+    ) -> PrepareOutcome:
         """
         Pick and generate the next card without delivering it (the prepare-ahead task).
         Nothing is stored or counted: an abandoned card costs one LLM call and no quota.
+        `before_generation` is asked right before the LLM call (see ReviewUseCases.prepare_next).
         """
         try:
-            return await asyncio.wait_for(self.review.prepare_next(user_id), GENERATION_TIMEOUT_SECONDS)
+            result = await asyncio.wait_for(
+                self.review.prepare_next(user_id, before_generation=before_generation), GENERATION_TIMEOUT_SECONDS)
+        except CardGenerationFailed:
+            logger.warning("The LLM could not make a card for user %s", user_id)
+            return GenerationFailed(unclear=True)
         except Exception:
             logger.warning("Card generation failed for user %s", user_id, exc_info=True)
             return GenerationFailed()
+        return GenerationFailed() if isinstance(result, GenerationHeld) else result
 
-    async def next(self, user_id: UserId, take_prepared: Optional[PreparedSource] = None) -> NextResult:
+    async def next(
+        self, user_id: UserId, take_prepared: Optional[PreparedSource] = None,
+        before_generation: Optional[GenerationGate] = None,
+    ) -> NextResult:
         """
         Deliver the next card. If one is already waiting for a grade, that same card is
         returned (a double tap is safe). Otherwise a card prepared ahead is used while it is
-        still valid; if not, a new one is generated.
+        still valid; if not, a new one is generated (`before_generation` is asked right before
+        each LLM call). A word the LLM cannot make sense of is deferred; the next word is then
+        tried once before giving up.
         """
         async with self._delivery_locks.hold(user_id):
             user = await self.users.get_user(user_id)
@@ -199,7 +219,9 @@ class StudyUseCases:
                 if prepared is not None:
                     ready = await self._still_valid(user_id, user, prepared)
             if ready is None:
-                outcome = await self.prepare(user_id)
+                outcome = await self.prepare(user_id, before_generation)
+                if isinstance(outcome, GenerationFailed) and outcome.unclear:
+                    outcome = await self.prepare(user_id, before_generation)
                 if not isinstance(outcome, ReviewReady):
                     return outcome
                 ready = outcome
@@ -226,7 +248,7 @@ class StudyUseCases:
             user = await self.users.get_user(user_id)
             sent_at = await self._sent_at(user_id, user, expression_id, delivery_id)
 
-            await self.review_state.record_reviewed(user_id)
+            reviewed_at = await self.review_state.record_reviewed(user_id)
             await shadow_write(
                 self.review_state.record_graded(user_id, expression_id, direction),
                 f"record_graded user={user_id} expression={expression_id}",
@@ -247,7 +269,8 @@ class StudyUseCases:
                     delivery_id=delivery_id,
                     previous_reviewed_at=user.last_reviewed_at,
                     sent_at=sent_at,
-                    graded_at=now_utc(),
+                    # The time written to the user: undo restores the interval only while it is unchanged.
+                    graded_at=reviewed_at,
                 )),
                 f"record_app_grade user={user_id} expression={expression_id}",
             )
@@ -283,6 +306,7 @@ class StudyUseCases:
 
     async def refresh_section(
         self, user_id: UserId, delivery_id: int, section: CardSectionName,
+        before_generation: Optional[GenerationGate] = None,
     ) -> RefreshResult:
         """
         Write one section of the pending card again (definition, translations or example). Costs
@@ -303,6 +327,13 @@ class StudyUseCases:
             quota = self.quota.check(user, "cards")
             if isinstance(quota, QuotaExceeded):
                 return quota
+
+            if before_generation is not None:
+                refused = before_generation()
+                if isinstance(refused, GenerationHeld):
+                    return GenerationFailed()
+                if refused is not None:
+                    return refused
 
             stored = expression.last_card
             try:
@@ -351,14 +382,17 @@ class StudyUseCases:
     async def _still_valid(self, user_id: UserId, user: UserDB, ready: ReviewReady) -> Optional[ReviewReady]:
         """
         A card prepared earlier, if it may still be delivered: its expression is active and past its
-        cooldown, its settings still match the user's, and quota still allows a fresh card.
+        cooldown, its settings and review mode still match the user's, and quota still allows
+        a fresh card.
         None means: prepare again (which also handles falling back to the stored card).
         """
         if not await self.expressions.still_due(user_id, ready.expression_id):
             return None
         if ready.from_storage:
-            return ready
+            return None  # only fresh cards are kept ahead; a stored one costs nothing to derive again
         if ready.settings != card_settings(user):
+            return None
+        if ready.direction == "reverse" and user.review_mode != "dual":
             return None
         quota = self.quota.check(user, "cards")
         if isinstance(quota, QuotaExceeded):
