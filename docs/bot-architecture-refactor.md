@@ -22,7 +22,8 @@ rebuilt on top of it. Every step is behavior-preserving unless stated.
 ## Production rollout (one update after the full refactor)
 
 **Status:** v2.0.0 was deployed on 2026-11-03 with `REVIEW_PAUSE_RULE=legacy`: steps 1–3 are
-done, about 6 minutes of downtime. Steps 4–7 are open. The steps below stay as the record.
+done, about 6 minutes of downtime. v2.0.1 (grade-once fix) was deployed on 2026-11-04 on the same
+rule. Steps 5–7 are open. The steps below stay as the record.
 
 Everything shipped in **one update** once the refactor was finished, then these production
 steps run in order:
@@ -94,10 +95,11 @@ have run, never go back to the old image on the live data: ship a fixed image in
 
 **Order of what is left, one change at a time:**
 
-1. Step 4 for 1–2 days: the shadow compare is clean.
-2. Patch release v2.0.1 with the grade-once fix (a double tap graded a card twice; on `main`, not
-   released yet), through the release checklist in the `kartino-deploy` README. Watch for about a day.
-3. Step 5, then watch for a few days.
+1. Done: step 4 ran for about 25 hours; the shadow compare was clean (`missing_current_review=0`,
+   `new_pauses=0`, `unreadable=0`).
+2. Done on 2026-11-04: patch release v2.0.1 with the grade-once fix (a double tap graded a card twice).
+   Watch for about a day.
+3. Step 5, then watch for a few days. Keep reading the shadow compare until then.
 4. Steps 6 and 7, as later updates. Step 6 stays apart from any fix: it removes the way back to
    the `legacy` rule.
 
@@ -189,7 +191,7 @@ Migration (each step deployable; the pause rule can be switched back, the image 
   missing_current_review=… new_pauses=…`; per-user mismatches at DEBUG. Expected:
   `resumed_by_interaction` (intended change), `missing_current_review` before the
   backfill run. Investigate any `new_pauses` or `unreadable`. Read-only; failures never break a tick
-- [ ] (prod, rollout step 4) Observe for a few days after deploy + backfill
+- [x] (prod, rollout step 4) Observe after deploy + backfill: clean for about 25 hours (2026-11-04)
 - [x] Switch code: `REVIEW_PAUSE_RULE` setting (`legacy` default | `current_review`), read in
   `bot.py` and passed to `scheduler_loop`; rule in `app/review_schedule.paused`. Dual writes stay
 - [ ] (prod, rollout step 5) Flip the setting
