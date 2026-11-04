@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import os
 import hmac
 import json
 import time
@@ -18,7 +19,7 @@ from bson import ObjectId
 
 from flashcard.schemas.expression import CardSection, ExpressionCard, TranslationLine
 
-BOT_TOKEN = "123456:test-token"  # what tests/conftest.py sets as BOT_TOKEN
+BOT_TOKEN = os.environ["BOT_TOKEN"]  # set by tests/conftest.py unless the environment sets it, as CI does
 
 LONG_AGO = datetime(2020, 1, 1, tzinfo=timezone.utc)
 

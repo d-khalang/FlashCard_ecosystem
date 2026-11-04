@@ -24,7 +24,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parent
@@ -111,10 +111,11 @@ def load_env(path: Path) -> dict:
 
 def uri_hosts(uri: str) -> list[str]:
     """Every host of a MongoDB URI (a seed list has several), without credentials and ports."""
-    parts = urlsplit(uri)
-    if parts.scheme != "mongodb":  # mongodb+srv resolves hosts from DNS: not checkable here
+    # Split by hand: urlsplit refuses a seed list that holds an IPv6 host on newer Python versions.
+    scheme, _, rest = uri.partition("://")
+    if scheme != "mongodb":  # mongodb+srv resolves hosts from DNS: not checkable here
         return ["?"]
-    netloc = parts.netloc.rpartition("@")[2]
+    netloc = rest.split("/", 1)[0].split("?", 1)[0].rpartition("@")[2]
     hosts = []
     for entry in netloc.split(","):
         if entry.startswith("["):  # [::1]:27017
