@@ -6,6 +6,11 @@
   box-sizing: border-box;
 }
 
+:root {
+  /* Card reading size: follows the window width, so the text keeps its proportion on narrow windows. */
+  --type-card: clamp(15px, 2.2vw + 6.5px, 17px);
+}
+
 html,
 body,
 #root {

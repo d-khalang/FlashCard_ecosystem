@@ -66,8 +66,8 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
         { code: 'de', name: 'German', country: 'de' },
         { code: 'ar', name: 'Arabic', country: 'sa' },
       ],
-      min_interval: 30,
-      max_interval: 1440,
+      min_interval: 15,
+      max_interval: 240,
     },
   });
 

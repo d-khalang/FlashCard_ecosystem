@@ -122,11 +122,11 @@ refresh-grade-undo loops and failing `next` calls could repeat for free. Each LL
 charged, at the moment the call really starts, against two in-memory per-user allowances: 20 per minute and
 `MINIAPP_LLM_DAILY_ATTEMPTS` per UTC day (default 300, six times the largest non-admin daily card limit of
 50; admins are exempt from the daily one). Over either: `rate_limited` 429 with `Retry-After`. Resuming a
-waiting card, using the prepared card, a `prepare` that starts nothing and a refresh of a card that is no
+waiting card, using the prepared card, a `prepare` that makes no LLM call and a refresh of a card that is no
 longer pending cost nothing. Use cases stay free of HTTP: they take an optional `before_generation`
-callback and return a typed `Throttled`/`GenerationHeld` result. A `prepare` is charged when it starts its
-task (it cannot know before running that there is a candidate), so one that finds nothing still costs one
-attempt.
+callback and return a typed `Throttled`/`GenerationHeld` result. A `prepare` is charged inside its task, right
+before the LLM call, so it always answers 202: a refused one just leaves nothing prepared, and `next` then
+answers for itself.
 
 ## Refresh a section
 

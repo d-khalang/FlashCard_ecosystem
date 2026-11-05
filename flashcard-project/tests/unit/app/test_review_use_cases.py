@@ -142,6 +142,16 @@ class TestPrepareNext:
         assert kwargs["lang2_code"] is None
         assert kwargs["lang2_label"] is None
 
+    async def test_the_same_language_twice_is_asked_for_once(self):
+        user = _user(primary_language="en", secondary_language="en")
+        use_cases, _, _, _, llm = _use_cases(candidate=_candidate(), user=user)
+
+        await use_cases.prepare_next(111)
+        kwargs = llm.generate_expression_card.await_args.kwargs
+        assert kwargs["lang1_code"] == "en"
+        assert kwargs["lang2_code"] is None
+        assert kwargs["lang2_label"] is None
+
     async def test_generation_failure_propagates(self):
         use_cases, _, _, consumption, llm = _use_cases(candidate=_candidate())
         llm.generate_expression_card.side_effect = RuntimeError("provider down")

@@ -179,15 +179,15 @@ async def test_only_a_failure_holds_generating():
     assert prepared.held(2) is False
 
 
-async def test_hold_marks_a_failure_found_elsewhere_and_would_start_sees_it():
+async def test_hold_marks_a_failure_found_elsewhere_and_start_respects_it():
     clock = Clock()
     prepared = PreparedCards(clock=clock)
 
     prepared.hold(1)
 
-    assert prepared.held(1) is True and prepared.would_start(1) is False and prepared.start(1, _no_candidate) is False
+    assert prepared.held(1) is True and prepared.start(1, _no_candidate) is False
     clock.now = 30
-    assert prepared.would_start(1) is True
+    assert prepared.start(1, _no_candidate) is True
 
 
 async def test_hold_does_not_disturb_a_running_task():

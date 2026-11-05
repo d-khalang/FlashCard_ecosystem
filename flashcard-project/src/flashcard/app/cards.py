@@ -30,7 +30,8 @@ async def generate_card(
 ) -> ExpressionCard:
     """Generate a card. `on_fallback` is awaited if the primary LLM provider fails over."""
     primary = settings.primary_language
-    secondary = settings.secondary_language
+    # The same language twice would only ask for the same translation twice.
+    secondary = settings.secondary_language if settings.secondary_language != primary else None
     return await llm.generate_expression_card(
         raw=raw,
         level=settings.level,

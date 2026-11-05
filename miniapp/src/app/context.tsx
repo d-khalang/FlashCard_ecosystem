@@ -23,6 +23,8 @@ interface AppValue {
 
 const Ctx = createContext<AppValue | null>(null);
 
+const NO_LANGUAGES: LanguageInfo[] = [];
+
 interface ProviderProps {
   api: Api;
   authLost: boolean;
@@ -58,7 +60,7 @@ export function AppProvider({ api, authLost, children }: ProviderProps) {
     window.setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), 3500);
   }, []);
 
-  const languages: LanguageInfo[] = me?.options.languages ?? [];
+  const languages = me?.options.languages ?? NO_LANGUAGES;
   const languageName = useCallback(
     (country: string | null | undefined, fallbackLabel: string) => {
       const hit = country ? languages.find((l) => l.country?.toLowerCase() === country.toLowerCase()) : undefined;

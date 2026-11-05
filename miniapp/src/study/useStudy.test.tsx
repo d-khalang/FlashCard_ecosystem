@@ -62,16 +62,40 @@ describe('study entry', () => {
   });
 
   it('shows the finished state for status none, and quota for quota', async () => {
-    let hook = renderHook(() => useStudy(fakeApi({ next: vi.fn(async () => ({ status: 'none' })) })));
+    const noneApi = fakeApi({ next: vi.fn(async () => ({ status: 'none' })) });
+    let hook = renderHook(() => useStudy(noneApi));
     await waitFor(() => expect(hook.result.current.state.phase).toBe('finished'));
-    hook = renderHook(() => useStudy(fakeApi({ next: vi.fn(async () => ({ status: 'quota', tier: 'free', limit: 20 })) })));
+    const quotaApi = fakeApi({ next: vi.fn(async () => ({ status: 'quota', tier: 'free', limit: 20 })) });
+    hook = renderHook(() => useStudy(quotaApi));
     await waitFor(() => expect(hook.result.current.state.phase).toBe('quota'));
   });
 
   it('reports a load failure with the error', async () => {
-    const hook = renderHook(() => useStudy(fakeApi({ next: vi.fn(async () => { throw new ApiError('network', 'x'); }) })));
+    const api = fakeApi({
+      next: vi.fn(async () => {
+        throw new ApiError('network', 'x');
+      }),
+    });
+    const hook = renderHook(() => useStudy(api));
     await waitFor(() => expect(hook.result.current.state.phase).toBe('error'));
     expect(hook.result.current.state.error?.kind).toBe('network');
+  });
+
+  it('gets the undo state back when retrying a failed first load', async () => {
+    const api = fakeApi({
+      current: vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError('network', 'x'))
+        .mockResolvedValueOnce({ card: null, undo_available: true }),
+    });
+    const hook = renderHook(() => useStudy(api));
+    await waitFor(() => expect(hook.result.current.state.phase).toBe('error'));
+
+    act(() => hook.result.current.retry());
+
+    await waitFor(() => expect(hook.result.current.state.phase).toBe('question'));
+    expect(hook.result.current.state.undoAvailable).toBe(true);
+    expect(api.current).toHaveBeenCalledTimes(2);
   });
 });
 

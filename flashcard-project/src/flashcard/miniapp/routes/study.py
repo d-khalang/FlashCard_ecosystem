@@ -6,9 +6,7 @@ from flashcard.app.quota import QuotaExceeded
 from flashcard.app.review import CardNotFound, Graded, NoCandidate, NotPending
 from flashcard.app.study import Delivered, GenerationFailed, NothingToUndo, Refreshed, Undone
 from flashcard.miniapp.errors import generation_failed, invalid_request, not_found
-from flashcard.miniapp.routes.deps import (
-    CoreDep, GeneralUser, LlmUser, charge_generation, generation_gate, refuse,
-)
+from flashcard.miniapp.routes.deps import CoreDep, GeneralUser, LlmUser, generation_gate, refuse
 from flashcard.miniapp.schemas import (
     CurrentOut, GradedOut, GradeIn, QuotaResult, ReadyCard, RefreshIn, StatusOnly, UndoneOut,
     quota_out, study_card_out,
@@ -49,11 +47,10 @@ async def next_card(
 
 @router.post("/prepare", status_code=202)
 async def prepare(caller: LlmUser, core: CoreDep, request: Request) -> dict:
-    prepared = request.app.state.prepared
-    # A prepare that starts nothing (a card is ready or being made, or a failure holds) costs nothing.
-    if prepared.would_start(caller.user_id):
-        refuse(charge_generation(request, caller))
-        prepared.start(caller.user_id, lambda: core.study_use_cases.prepare(caller.user_id))
+    # Charged only when the task is about to call the LLM. A refusal just leaves nothing prepared.
+    gate = generation_gate(request, caller)
+    request.app.state.prepared.start(
+        caller.user_id, lambda: core.study_use_cases.prepare(caller.user_id, before_generation=gate))
     return {}
 
 

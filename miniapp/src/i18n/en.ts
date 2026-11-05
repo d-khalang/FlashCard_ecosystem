@@ -58,6 +58,9 @@ export const en = {
   'study.prompt.reverse': 'Which word is this?',
   'study.reveal': 'Tap the card to see the answer',
   'study.revealAria': 'Show the answer',
+  'study.hint.reveal': 'Try to recall it first, then tap the card to see the answer.',
+  'study.hint.grades': '0 means you forgot, 5 means it was easy. Answer honestly and the harder words come back sooner.',
+  'study.hint.refresh': 'Want a different version? Tap the circular arrow next to a section’s title to rewrite just that part.',
   'study.refresh.meaning': 'Write a new meaning (uses 1 card)',
   'study.refresh.translation': 'Write a new translation (uses 1 card)',
   'study.refresh.example': 'Write a new example (uses 1 card)',
@@ -109,7 +112,7 @@ export const en = {
   'import.all_duplicates': 'All of these words are already in your collection.',
   'import.parse_failed': 'Could not read this text. Try one word or phrase per line.',
   'import.nothing_found': 'No words were found in this text.',
-  'import.invalid_language': 'These words do not look like this app language.',
+  'import.invalid_language': 'These words do not look like they are in the language you are studying.',
   'import.too_many': 'Too many words at once. The limit is {limit}.',
   'import.too_long': 'The text is too long. The limit is {limit} characters.',
 
