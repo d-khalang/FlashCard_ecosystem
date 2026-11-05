@@ -22,31 +22,45 @@ export interface Hint {
 export const HINTS: readonly Hint[] = [
   { id: 'reveal', phase: 'question', text: 'study.hint.reveal', dismissOn: ['reveal'] },
   { id: 'grades', phase: 'answer', text: 'study.hint.grades', dismissOn: ['grade'] },
-  { id: 'refresh', phase: 'answer', text: 'study.hint.refresh', dismissOn: ['grade', 'refresh'] },
+  { id: 'refresh', phase: 'answer', text: 'study.hint.refresh', dismissOn: ['refresh'] },
 ];
 
 export const HINTS_STORAGE_KEY = 'kartino.study-hints.v1';
 
-/** The ids already seen. Never throws: unavailable or damaged storage reads as "nothing seen". */
-export function loadSeenHints(hints: readonly Hint[] = HINTS): Set<string> {
-  try {
-    const raw = localStorage.getItem(HINTS_STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    const known = new Set(hints.map((h) => h.id));
-    return new Set(parsed.filter((id): id is string => typeof id === 'string' && known.has(id)));
-  } catch {
-    return new Set();
-  }
+/**
+ * Ids seen during this page view. Storage can be blocked, so this copy keeps a dismissed hint
+ * dismissed when the study screen unmounts and mounts again. It only ever grows.
+ */
+let seenThisPageView = new Set<string>();
+
+/** For tests: forget what this page view has seen. */
+export function resetSeenHintsMemory(): void {
+  seenThisPageView = new Set();
 }
 
-/** Best effort. If storage is full, blocked or missing, the hint still stays dismissed for this page view. */
-export function saveSeenHints(seen: ReadonlySet<string>): void {
+/** The ids already seen: this page view plus storage. Never throws: unavailable or damaged storage adds nothing. */
+export function loadSeenHints(hints: readonly Hint[] = HINTS): Set<string> {
+  const seen = new Set(seenThisPageView);
   try {
-    localStorage.setItem(HINTS_STORAGE_KEY, JSON.stringify([...seen]));
+    const raw = localStorage.getItem(HINTS_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) {
+      const known = new Set(hints.map((h) => h.id));
+      for (const id of parsed) if (typeof id === 'string' && known.has(id)) seen.add(id);
+    }
   } catch {
-    // Ignored on purpose.
+    // Blocked or damaged storage: the in-memory copy still applies.
+  }
+  return seen;
+}
+
+/** Remembers in memory first, then best effort in storage (it can be full, blocked or missing). */
+export function saveSeenHints(seen: ReadonlySet<string>): void {
+  for (const id of seen) seenThisPageView.add(id);
+  try {
+    localStorage.setItem(HINTS_STORAGE_KEY, JSON.stringify([...seenThisPageView]));
+  } catch {
+    // Ignored on purpose: the in-memory copy above already holds it.
   }
 }
 

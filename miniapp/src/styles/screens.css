@@ -474,6 +474,7 @@
   color: var(--color-ink);
   border: var(--border-width-control) solid var(--color-outline);
   border-radius: var(--radius-control);
+  margin-bottom: 10px; /* 3 lines at 320 px fit the foot's 92 px, so the question card does not shrink */
   box-shadow: var(--shadow-button-small);
   animation: hint-in 0.25s ease-out;
 }

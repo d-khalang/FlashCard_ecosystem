@@ -7,11 +7,12 @@ interface StudyHintProps {
   onClose: () => void;
 }
 
-/** A passive tip in the page flow. Never takes focus and never covers the study controls. */
+/** A passive tip. The permanent status region around it is in StudyScreen, so new tips are announced.
+ * Never takes focus and never covers the study controls. */
 export function StudyHint({ text, onClose }: StudyHintProps) {
   const { t } = useI18n();
   return (
-    <div className="study-hint" role="status">
+    <div className="study-hint">
       <span className="study-hint-icon" aria-hidden="true">
         <Lightbulb size={18} strokeWidth={2.6} />
       </span>

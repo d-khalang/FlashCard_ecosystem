@@ -10,7 +10,7 @@ import { StudyPanel } from '../components/StudyPanel';
 import { useI18n } from '../i18n';
 import type { TranslationKey } from '../i18n/en';
 import { useStudy } from '../study/useStudy';
-import { useStudyHints } from '../study/useStudyHints';
+import { useShortViewport, useStudyHints } from '../study/useStudyHints';
 import { haptic, pushBackHandler } from '../telegram';
 
 const NOTICE_TEXT: Record<'gradeFailed' | 'undoNothing' | 'undoFailed', TranslationKey> = {
@@ -36,7 +36,9 @@ export function StudyScreen({ onExit }: StudyScreenProps) {
 
   useEffect(() => pushBackHandler(exit), []);
 
-  const hints = useStudyHints(state.phase);
+  // No hint while an error notice shows (a retry must not use one up) or on a very short window.
+  const short = useShortViewport();
+  const hints = useStudyHints(state.phase, state.notice !== null || short, state.card?.delivery_id ?? null);
 
   const onGrade = (g: Grade) => {
     haptic(g >= 3 ? 'light' : 'medium');
@@ -151,9 +153,10 @@ export function StudyScreen({ onExit }: StudyScreenProps) {
 
       <div className="study-main">{body}</div>
 
-      {hints.hint && state.card ? <StudyHint text={hints.hint.text} onClose={hints.dismiss} /> : null}
-
       <div className="study-foot">
+        <div className="study-hint-slot" role="status">
+          {hints.hint && state.card ? <StudyHint text={hints.hint.text} onClose={hints.dismiss} /> : null}
+        </div>
         {state.phase === 'answer' ? (
           <GradeBar onGrade={onGrade} />
         ) : state.phase === 'question' && !hints.hint ? (
