@@ -4,6 +4,8 @@ import { asApiError, type ApiError } from '../api/errors';
 import { MIN_SEARCH_CHARS, type CollectionItem } from '../api/types';
 
 export const PAGE_SIZE = 30;
+/** Searching is not paged, so it asks for the most the server allows. */
+export const SEARCH_LIMIT = 50;
 export const SEARCH_DEBOUNCE_MS = 300;
 
 /** Search term to send, or undefined when the box is empty or too short. */
@@ -33,7 +35,7 @@ export function useCollection(api: Pick<Api, 'collection'>, rawQuery: string) {
       setLoading(true);
       setError(null);
       try {
-        const page = await api.collection({ limit: PAGE_SIZE, cursor: after, q });
+        const page = await api.collection({ limit: q ? SEARCH_LIMIT : PAGE_SIZE, cursor: after, q });
         if (request.current !== id) return;
         setItems((prev) => (after ? [...prev, ...page.items] : page.items));
         // Searching is not paged.

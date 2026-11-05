@@ -46,11 +46,6 @@ class PreparedCards:
         self._clock = clock
         self._slots: dict[UserId, _Slot] = {}
 
-    def would_start(self, user_id: UserId) -> bool:
-        """Whether `start` would begin a task now (no live slot and no hold). Changes nothing."""
-        self._forget_stale(self._clock())
-        return user_id not in self._slots
-
     def held(self, user_id: UserId) -> bool:
         """A recent failure keeps generating for this user paused."""
         slot = self._slots.get(user_id)

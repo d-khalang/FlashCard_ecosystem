@@ -212,10 +212,22 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 14px;
-  overflow: hidden;
+  /* Above .reveal-hit, so a long clue scrolls; a tap on it still reveals (see StudyCardView). */
+  position: relative;
+  z-index: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   text-align: center;
+}
+
+/* Centered while it fits; auto margins, unlike justify-content, never cut off the top when it overflows. */
+.face-front-body > :first-child {
+  margin-top: auto;
+}
+
+.face-front-body > :last-child {
+  margin-bottom: auto;
 }
 
 .reveal-hit {
@@ -248,29 +260,29 @@
 }
 
 .q-prompt {
-  font-size: 15px;
+  font-size: calc(var(--type-card) * 0.88);
   font-weight: 800;
   color: var(--color-ink-muted);
 }
 
 .fit-xl {
-  font-size: 42px;
+  font-size: calc(var(--type-card) * 2.47);
 }
 
 .fit-l {
-  font-size: 34px;
+  font-size: calc(var(--type-card) * 2);
 }
 
 .fit-m {
-  font-size: 27px;
+  font-size: calc(var(--type-card) * 1.59);
 }
 
 .fit-s {
-  font-size: 22px;
+  font-size: calc(var(--type-card) * 1.29);
 }
 
 .fit-xs {
-  font-size: 18px;
+  font-size: calc(var(--type-card) * 1.06);
 }
 
 .answer-head {
@@ -442,7 +454,7 @@
 
 @media (max-height: 640px) {
   .fit-xl {
-    font-size: 36px;
+    font-size: calc(var(--type-card) * 2.12);
   }
 }
 
@@ -494,7 +506,7 @@
   flex: 1;
   min-width: 0;
   padding: 6px 0;
-  font-size: 14px;
+  font-size: max(13px, calc(var(--type-card) * 0.82));
   line-height: 1.35;
   font-weight: 700;
   overflow-wrap: anywhere;

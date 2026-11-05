@@ -86,7 +86,7 @@ export function useStudy(api: StudyApi) {
     const s = stateRef.current;
     if (s.phase !== 'question' || !s.card) return;
     dispatch({ type: 'reveal' });
-    // Fire and forget, once per reveal: a repeated prepare is free on the server and a miss only costs speed.
+    // Fire and forget, once per reveal: only a real LLM call is charged and a miss only costs speed.
     api.prepare().catch(() => undefined);
   }, [api]);
 
@@ -194,12 +194,10 @@ export function useStudy(api: StudyApi) {
     [api],
   );
 
+  // A failed first load or failed next: start over, so a pending card and the undo state come back too.
   const retry = useCallback(() => {
-    void run(async () => {
-      // A failed first load or failed next: ask the server for the pending card again.
-      await loadNext();
-    });
-  }, [run, loadNext]);
+    void start();
+  }, [start]);
 
   const dismissNotice = useCallback(() => dispatch({ type: 'dismiss_notice' }), []);
 

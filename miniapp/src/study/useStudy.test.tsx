@@ -80,6 +80,23 @@ describe('study entry', () => {
     await waitFor(() => expect(hook.result.current.state.phase).toBe('error'));
     expect(hook.result.current.state.error?.kind).toBe('network');
   });
+
+  it('gets the undo state back when retrying a failed first load', async () => {
+    const api = fakeApi({
+      current: vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError('network', 'x'))
+        .mockResolvedValueOnce({ card: null, undo_available: true }),
+    });
+    const hook = renderHook(() => useStudy(api));
+    await waitFor(() => expect(hook.result.current.state.phase).toBe('error'));
+
+    act(() => hook.result.current.retry());
+
+    await waitFor(() => expect(hook.result.current.state.phase).toBe('question'));
+    expect(hook.result.current.state.undoAvailable).toBe(true);
+    expect(api.current).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('reveal and prepare', () => {

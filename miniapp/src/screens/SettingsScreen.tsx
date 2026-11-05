@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Settings } from '../api/types';
 import { useApp } from '../app/context';
 import { Field, LanguagePicker, Segmented, Stepper, Switch } from '../components/Controls';
@@ -13,6 +13,22 @@ export function SettingsScreen(_props: ScreenProps) {
   const { api, me, meError, reloadMe, setSettings } = useApp();
   const { t, locale, setLocale } = useI18n();
   const [failed, setFailed] = useState(false);
+
+  // Saves run one at a time. On screen: the server's latest settings plus the changes still on their way.
+  const pending = useRef<Array<Partial<Settings>>>([]);
+  const confirmed = useRef<Settings | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  if (me && pending.current.length === 0) confirmed.current = me.settings;
+
+  // Pick up changes made elsewhere (the bot) on opening this screen and on coming back to the app.
+  useEffect(() => {
+    const sync = () => {
+      if (!document.hidden && pending.current.length === 0) void reloadMe();
+    };
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => document.removeEventListener('visibilitychange', sync);
+  }, [reloadMe]);
 
   if (!me) {
     return (
@@ -31,22 +47,25 @@ export function SettingsScreen(_props: ScreenProps) {
   const s = me.settings;
   const { options } = me;
 
-  /** Optimistic save: show the change at once, restore only the changed keys if the server refuses. */
-  const change = async (patch: Partial<Settings>) => {
-    const before = s;
+  const showLatest = () => {
+    if (confirmed.current) setSettings(Object.assign({}, confirmed.current, ...pending.current) as Settings);
+  };
+
+  /** Optimistic save: show the change at once; if the server refuses, only that change goes away. */
+  const change = (patch: Partial<Settings>) => {
     setFailed(false);
-    setSettings((cur) => ({ ...cur, ...patch }));
-    try {
-      setSettings(await api.updateSettings(patch));
-    } catch {
-      const restore: Partial<Settings> = {};
-      for (const key of Object.keys(patch) as Array<keyof Settings>) {
-        (restore as Record<string, unknown>)[key] = before[key];
+    pending.current.push(patch);
+    showLatest();
+    queue.current = queue.current.then(async () => {
+      try {
+        confirmed.current = await api.updateSettings(patch);
+      } catch {
+        setFailed(true);
+        haptic('error');
       }
-      setSettings((cur) => ({ ...cur, ...restore }));
-      setFailed(true);
-      haptic('error');
-    }
+      pending.current.splice(pending.current.indexOf(patch), 1);
+      showLatest();
+    });
   };
 
   return (
@@ -83,7 +102,8 @@ export function SettingsScreen(_props: ScreenProps) {
         <LanguagePicker
           label={t('settings.secondary')}
           value={s.secondary_language}
-          options={options.languages}
+          // The same language twice adds nothing. A choice already saved stays listed, so the row can name it.
+          options={options.languages.filter((l) => l.code !== s.primary_language || l.code === s.secondary_language)}
           noneLabel={t('settings.none')}
           onChange={(code) => void change({ secondary_language: code })}
         />

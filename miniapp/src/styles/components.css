@@ -51,7 +51,7 @@
   color: var(--color-ink);
   border: var(--border-width-chip) solid var(--color-outline);
   border-radius: var(--radius-chip);
-  font-size: 18px;
+  font-size: calc(var(--type-card) * 1.06);
   font-weight: 800;
 }
 
@@ -78,7 +78,7 @@
 }
 
 .sec-title {
-  font-size: 14px;
+  font-size: max(13px, calc(var(--type-card) * 0.82));
   font-weight: 800;
 }
 
@@ -87,14 +87,14 @@
 }
 
 .sec-text {
-  font-size: 17px;
+  font-size: var(--type-card);
   line-height: 1.38;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
 
 .sec-note {
-  font-size: 15px;
+  font-size: calc(var(--type-card) * 0.88);
   color: var(--color-ink-muted);
 }
 

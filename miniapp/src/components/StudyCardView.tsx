@@ -87,7 +87,8 @@ export function StudyCardView({ card, revealed, onReveal, refresh, onRefresh }: 
       <div className="flip-inner">
         <div className="face face-front" inert={revealed}>
           <Badges card={card} />
-          <div className="face-front-body">
+          {/* Sits above the button so long text can scroll. Keyboards and screen readers use the button. */}
+          <div className="face-front-body" onClick={onReveal}>
             <QuestionBody card={card} />
           </div>
           <button type="button" className="reveal-hit" onClick={onReveal} aria-label={t('study.revealAria')} />

@@ -134,9 +134,40 @@ class TestLlmAllowance:
         import_ = await api.post(f"{BASE}/collection/import", headers=_as(), json={"text": "due"})
         preview = await api.post(f"{BASE}/cards/preview", headers=_as(), json={"text": "andare"})
         next_ = await api.post(f"{BASE}/study/next", headers=_as())
-        prepare = await api.post(f"{BASE}/study/prepare", headers=_as())
 
-        assert [r.status_code for r in (import_, preview, next_, prepare)] == [429] * 4
+        assert [r.status_code for r in (import_, preview, next_)] == [429] * 3
+
+    async def test_a_refused_prepare_makes_no_llm_call_and_leaves_nothing_prepared(self, api, ready_user, study_llm):
+        api.app.state.budget = DailyBudget(0)
+
+        response = await api.post(f"{BASE}/study/prepare", headers=_as())
+        await api.app.state.prepared._slots[USER].task
+
+        assert response.status_code == 202
+        assert study_llm.card_calls == 0
+        assert await api.app.state.prepared.take(USER) is None
+
+    async def test_a_prepare_that_finds_no_card_costs_nothing(self, api, mongo_cols, study_llm):
+        await add_user(mongo_cols, USER)
+        api.app.state.budget = DailyBudget(1)
+
+        await api.post(f"{BASE}/study/prepare", headers=_as())
+        await api.app.state.prepared._slots[USER].task
+
+        assert api.app.state.budget.charge(USER) == 0
+
+    async def test_a_prepare_over_quota_with_a_stored_card_costs_nothing(
+            self, api, mongo_cols, study_core, study_llm, monkeypatch):
+        monkeypatch.setattr(study_core.quota, "check", lambda user, kind: QuotaExceeded(tier="normal", limit=10))
+        await add_user(mongo_cols, USER)
+        await add_word(mongo_cols, USER, "andare", last_card=_stored_card())
+        api.app.state.budget = DailyBudget(1)
+
+        await api.post(f"{BASE}/study/prepare", headers=_as())
+        await api.app.state.prepared._slots[USER].task
+
+        assert study_llm.card_calls == 0
+        assert api.app.state.budget.charge(USER) == 0
 
     async def test_admins_are_exempt(self, api, mongo_cols, study_llm):
         await add_user(mongo_cols, USER, tier="admin")
