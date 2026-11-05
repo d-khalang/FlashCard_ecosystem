@@ -5,10 +5,12 @@ import { useApp } from '../app/context';
 import { ErrorState } from '../components/ErrorState';
 import { GradeBar } from '../components/GradeBar';
 import { StudyCardView } from '../components/StudyCardView';
+import { StudyHint } from '../components/StudyHint';
 import { StudyPanel } from '../components/StudyPanel';
 import { useI18n } from '../i18n';
 import type { TranslationKey } from '../i18n/en';
 import { useStudy } from '../study/useStudy';
+import { useStudyHints } from '../study/useStudyHints';
 import { haptic, pushBackHandler } from '../telegram';
 
 const NOTICE_TEXT: Record<'gradeFailed' | 'undoNothing' | 'undoFailed', TranslationKey> = {
@@ -34,8 +36,11 @@ export function StudyScreen({ onExit }: StudyScreenProps) {
 
   useEffect(() => pushBackHandler(exit), []);
 
+  const hints = useStudyHints(state.phase);
+
   const onGrade = (g: Grade) => {
     haptic(g >= 3 ? 'light' : 'medium');
+    hints.onAction('grade');
     study.grade(g);
   };
 
@@ -53,10 +58,14 @@ export function StudyScreen({ onExit }: StudyScreenProps) {
           revealed={state.phase === 'answer'}
           onReveal={() => {
             haptic('select');
+            hints.onAction('reveal');
             study.reveal();
           }}
           refresh={state.refresh}
-          onRefresh={(s) => void study.refresh(s)}
+          onRefresh={(s) => {
+            hints.onAction('refresh');
+            void study.refresh(s);
+          }}
         />
       ) : null;
       break;
@@ -142,10 +151,12 @@ export function StudyScreen({ onExit }: StudyScreenProps) {
 
       <div className="study-main">{body}</div>
 
+      {hints.hint && state.card ? <StudyHint text={hints.hint.text} onClose={hints.dismiss} /> : null}
+
       <div className="study-foot">
         {state.phase === 'answer' ? (
           <GradeBar onGrade={onGrade} />
-        ) : state.phase === 'question' ? (
+        ) : state.phase === 'question' && !hints.hint ? (
           <p className="reveal-hint">{t('study.reveal')}</p>
         ) : null}
       </div>
