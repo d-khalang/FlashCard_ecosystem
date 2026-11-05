@@ -4,19 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## v2.1.0-rc.2 (2026-11-05)
-
-### Feat
-
-- Mini App: one-time hints on the study screen, and Italian copy corrections.
-
-## v2.1.0-rc.1 (2026-11-04)
+## v2.1.0 (2026-11-05)
 
 No data migration. New fields are optional. New image `flashcard-miniapp`; the bot image must be this version or later wherever the Mini App runs, because older bots pause reminders on cards opened in the app.
 
 ### Feat
 
-- Telegram Mini App: study with undo and per-section refresh, collection, settings. See `docs/mini-app.md`.
+- Telegram Mini App: study with undo and per-section refresh, collection, settings, and one-time hints on the study screen. See `docs/mini-app.md`.
 
 ### Fix
 
