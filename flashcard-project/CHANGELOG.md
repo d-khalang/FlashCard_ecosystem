@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v2.1.1-rc.1 (2026-11-06)
+
+### Fix
+
+- Mini App: on iOS, the question no longer shows through mirrored after a card flips.
+
 ## v2.1.0 (2026-11-05)
 
 No data migration. New fields are optional. New image `flashcard-miniapp`; the bot image must be this version or later wherever the Mini App runs, because older bots pause reminders on cards opened in the app.

@@ -169,13 +169,16 @@
   flex: 1;
   min-height: 0;
   perspective: 1400px;
+  --flip-duration: 0.5s;
+  /* When the card is edge-on: this easing reaches 90deg at 20% of the duration. Recheck if it changes. */
+  --flip-edge-on: calc(var(--flip-duration) * 0.2);
 }
 
 .flip-inner {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(0.3, 0.7, 0.2, 1);
+  transition: transform var(--flip-duration) cubic-bezier(0.3, 0.7, 0.2, 1);
 }
 
 .is-flipped .flip-inner {
@@ -195,10 +198,26 @@
   box-shadow: var(--shadow-card);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  /*
+   * iOS WebKit skips backface-visibility on composited descendants (the scrolling bodies),
+   * so the turned-away face showed through mirrored. Hide it with opacity instead, an
+   * instant swap (no fade) when the card is edge-on.
+   * Opacity, unlike visibility, keeps the answer heading focusable on reveal.
+   */
+  transition: opacity 0s var(--flip-edge-on);
 }
 
 .face-back {
   transform: rotateY(180deg);
+  opacity: 0;
+}
+
+.is-flipped .face-front {
+  opacity: 0;
+}
+
+.is-flipped .face-back {
+  opacity: 1;
 }
 
 .face-front {
@@ -460,7 +479,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .flip-inner {
+  .flip-inner,
+  .face {
     transition: none;
   }
 }
