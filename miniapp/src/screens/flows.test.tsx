@@ -15,7 +15,7 @@ afterEach(cleanup);
 const baseMe = (words: Partial<Me['words']>): Me => ({
   language: { code: 'it', name: 'Italiano', country: null },
   settings: { target_level: 'B1', primary_language: 'en', secondary_language: null, review_mode: 'standard', review_interval_minutes: 120, is_active: true },
-  quota: { used: 0, limit: 20 },
+  quota: { used: 0, limit: 20, card_cost: 2, section_cost: 1 },
   words: { total: 10, ready: 0, pending: false, ...words },
   reminders_available: true,
   options: { levels: ['B1'], languages: [{ code: 'en', name: 'English', country: null }], min_interval: 30, max_interval: 1440 },
@@ -53,6 +53,18 @@ describe('Today', () => {
   it('shows Study now when words are ready', async () => {
     wrap({ me: async () => baseMe({ ready: 3 }) }, <TodayScreen onStudy={() => undefined} />);
     expect(await screen.findByRole('button', { name: 'Study now' })).toBeTruthy();
+  });
+});
+
+describe('AddWord credits', () => {
+  it('reloads the credits after a ready preview, even if the word is never saved', async () => {
+    const me = vi.fn(async () => baseMe({}));
+    wrap({ me, preview: vi.fn(readyPreview('mare')) } as Partial<Api>, <AddWord />);
+    await waitFor(() => expect(me).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText('Add a word'), { target: { value: 'mare' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await screen.findByRole('button', { name: 'Save' });
+    await waitFor(() => expect(me).toHaveBeenCalledTimes(2));
   });
 });
 

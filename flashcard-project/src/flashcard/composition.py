@@ -148,7 +148,7 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
             review_state=review_state,
             language_validator=language_validator,
         ),
-        settings_use_cases=SettingsUseCases(user_service=user_service),
+        settings_use_cases=SettingsUseCases(user_service=user_service, quota=quota),
         story_use_cases=StoryUseCases(
             expression_service=expression_service,
             user_service=user_service,

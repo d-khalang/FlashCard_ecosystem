@@ -24,7 +24,7 @@ def _policy():
 def _consumption(system=0, own=0):
     from flashcard.utils.time import now_utc
     return {"consumption_date": now_utc().date().isoformat(),
-            "system_api": {"cards_generated": system}, "user_api": {"cards_generated": own}}
+            "system_api": {"credits_used": system}, "user_api": {"credits_used": own}}
 
 
 class TestUsage:
@@ -36,7 +36,7 @@ class TestUsage:
 
         usage = _policy().usage(user, "cards")
 
-        assert (usage.used, usage.limit) == (4, 10)
+        assert (usage.used, usage.limit) == (4, 20)
 
     def test_own_key_and_admin_are_not_limited(self):
         own = make_user(user_id=1, api_config=UserAPIConfig(api_key="k"), consumption=_consumption(system=3, own=7))
@@ -47,7 +47,7 @@ class TestUsage:
 
     def test_yesterdays_count_does_not_show(self):
         user = make_user(user_id=1, consumption={"consumption_date": "2000-01-01",
-                                                 "system_api": {"cards_generated": 9}})
+                                                 "system_api": {"credits_used": 9}})
 
         assert _policy().usage(user, "cards").used == 0
 

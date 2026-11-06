@@ -81,6 +81,8 @@ export function ImportSheet({ onClose }: { onClose: () => void }) {
       if (result.status === 'imported') {
         haptic('success');
         void reloadMe();
+      } else if (result.status === 'quota') {
+        void reloadMe(); // the shown credits were stale
       }
     } catch (e) {
       setOutcome({ kind: 'error', error: asApiError(e) });

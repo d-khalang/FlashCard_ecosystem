@@ -9,7 +9,7 @@ from typing import Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator
 
 from flashcard.app.collection import CollectionItem, ItemDetail
-from flashcard.app.quota import QuotaExceeded
+from flashcard.app.quota import CARD_CREDITS, SECTION_CREDITS, QuotaExceeded
 from flashcard.app.study import Overview, StudyCard
 from flashcard.language import LanguageConfig
 from flashcard.schemas.expression import ExpressionCard
@@ -56,6 +56,7 @@ class StudyCardOut(Content):
 class QuotaResult(BaseModel):
     status: Literal["quota"] = "quota"
     tier: str
+    # Today's credit limit.
     limit: int
 
 
@@ -75,8 +76,11 @@ class LanguageOut(BaseModel):
 
 
 class QuotaUsage(BaseModel):
+    """Today's card credits; `limit` is null when nothing limits the user. Counters reset at 00:00 UTC."""
     used: int
     limit: Optional[int]
+    card_cost: int
+    section_cost: int
 
 
 class Words(BaseModel):
@@ -289,7 +293,8 @@ def me_out(overview: Overview, language: LanguageConfig) -> MeOut:
         reminders_available=overview.user.bot_chat_open,
         language=LanguageOut(code=language.code, name=language.name, country=country_from_flag(language.flag)),
         settings=settings_out(overview.user),
-        quota=QuotaUsage(used=overview.quota.used, limit=overview.quota.limit),
+        quota=QuotaUsage(used=overview.quota.used, limit=overview.quota.limit,
+                         card_cost=CARD_CREDITS, section_cost=SECTION_CREDITS),
         words=Words(total=overview.words.total, ready=overview.words.ready, pending=overview.pending),
         options=Options(
             levels=list(get_args(LanguageLevel)),

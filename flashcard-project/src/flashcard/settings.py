@@ -51,8 +51,9 @@ class Settings(BaseSettings):
     MINIAPP_ALLOWED_USER_IDS: Optional[str] = None
     # Directory with the built frontend, served next to the API when set.
     MINIAPP_STATIC_DIR: Optional[str] = None
-    # Per-user LLM attempts per UTC day (admins exempt). The largest non-admin daily card limit is
-    # 50, so 300 is six times that: heavy use passes, a loop that costs no quota does not.
+    # Per-user LLM attempts per UTC day (admins exempt). The largest non-admin daily credit limit is
+    # 100 and every LLM call costs at least 1 credit, so 300 is three times that: heavy use passes,
+    # a loop that costs no quota does not.
     MINIAPP_LLM_DAILY_ATTEMPTS: int = 300
     # Saved words per user in the Mini App (save and import).
     MINIAPP_MAX_WORDS: int = 5000
@@ -60,13 +61,15 @@ class Settings(BaseSettings):
     # ──────────────────────────────────────────────
     # Quota / Tier Limits
     # ──────────────────────────────────────────────
-    TIER_LIMITS_NORMAL_CARDS: int = 10
+    # Card credits a day: a new card costs 2, a refreshed card part 1 (see app/quota.py).
+    # Renamed from TIER_LIMITS_*_CARDS when the unit changed, so an old env value cannot halve it.
+    TIER_LIMITS_NORMAL_CREDITS: int = 20
+    TIER_LIMITS_DIGI_CREDITS: int = 80
+    TIER_LIMITS_PLUS_CREDITS: int = 100
+    TIER_LIMITS_ADMIN_CREDITS: int = 1998
     TIER_LIMITS_NORMAL_STORIES: int = 2
-    TIER_LIMITS_DIGI_CARDS: int = 40
     TIER_LIMITS_DIGI_STORIES: int = 3
-    TIER_LIMITS_PLUS_CARDS: int = 50
     TIER_LIMITS_PLUS_STORIES: int = 10
-    TIER_LIMITS_ADMIN_CARDS: int = 999
     TIER_LIMITS_ADMIN_STORIES: int = 99
     # Generated audio clips a day. A card has up to 5 parts.
     TIER_LIMITS_NORMAL_AUDIO: int = 30

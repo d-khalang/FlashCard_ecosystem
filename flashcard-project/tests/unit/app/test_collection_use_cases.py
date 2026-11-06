@@ -158,7 +158,7 @@ class TestImportQuota:
 
         await use_cases.import_items(333, "andare, fare")
 
-        consumption.increment.assert_awaited_once_with(333, "cards_generated", uses_own_key=False)
+        consumption.increment.assert_awaited_once_with(333, "cards_generated", uses_own_key=False, credits=2)
 
     @pytest.mark.parametrize("kwargs", [
         {"parsed": ImportResponse(success=False, import_list=[], log="not a list")},
@@ -188,7 +188,7 @@ class TestImportQuota:
         use_cases, _, _, consumption, _ = _use_cases(user=user)
 
         await use_cases.import_items(333, "andare")
-        consumption.increment.assert_awaited_once_with(333, "cards_generated", uses_own_key=True)
+        consumption.increment.assert_awaited_once_with(333, "cards_generated", uses_own_key=True, credits=2)
 
     async def test_llm_error_is_not_counted(self):
         use_cases, _, _, consumption, llm = _use_cases()

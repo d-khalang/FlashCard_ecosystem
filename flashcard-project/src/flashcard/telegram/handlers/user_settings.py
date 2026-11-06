@@ -4,6 +4,10 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 from contextlib import suppress
+from typing import Optional
+
+from flashcard.app.quota import Usage
+from flashcard.telegram.helpers.credits import credits_line
 
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 
@@ -29,7 +33,7 @@ async def cmd_settings(message: Message, settings_use_cases: SettingsUseCases, i
     user_data = await settings_use_cases.get(message.from_user.id)
 
     # Send Main Inline Menu
-    await message.answer(_get_settings_menu_text(i18n, user_data), reply_markup=get_main_settings_keyboard(i18n, user_data))
+    await message.answer(_get_settings_menu_text(i18n, user_data, settings_use_cases.credits(user_data)), reply_markup=get_main_settings_keyboard(i18n, user_data))
 
     # also ensure Reply Keyboard is present (optional, user might have closed it)
     quick_kb = get_reply_settings_keyboard(i18n, user_data.is_active)
@@ -46,7 +50,7 @@ async def handle_settings_nav(callback: CallbackQuery, callback_data: SettingsCa
         user_data = await settings_use_cases.get(user_id)
         with suppress(TelegramBadRequest):
             await callback.message.edit_text(
-                text=_get_settings_menu_text(i18n, user_data),
+                text=_get_settings_menu_text(i18n, user_data, settings_use_cases.credits(user_data)),
                 reply_markup=get_main_settings_keyboard(i18n, user_data)
             )
 
@@ -117,7 +121,7 @@ async def handle_settings_select(callback: CallbackQuery, callback_data: Setting
             user_data = await settings_use_cases.get(user_id)
             with suppress(TelegramBadRequest):
                 await callback.message.edit_text(
-                    text=_get_settings_menu_text(i18n, user_data), reply_markup=get_main_settings_keyboard(i18n, user_data))
+                    text=_get_settings_menu_text(i18n, user_data, settings_use_cases.credits(user_data)), reply_markup=get_main_settings_keyboard(i18n, user_data))
             await safe_answer_callback(
                 callback, i18n.get("commands.settings.switched_mode", mode=review_mode_label(i18n, new_mode)))
             return
@@ -177,7 +181,7 @@ def _is_no_language(code) -> bool:
     return code is None
 
 
-def _get_settings_menu_text(i18n: I18nService, user_data: UserDB) -> str:
+def _get_settings_menu_text(i18n: I18nService, user_data: UserDB, credits: Optional[Usage] = None) -> str:
     primary_lang_code = user_data.primary_language
     primary_lang = f"{get_language_flag(primary_lang_code)} {get_language_name(primary_lang_code)}"
 
@@ -199,4 +203,7 @@ def _get_settings_menu_text(i18n: I18nService, user_data: UserDB) -> str:
         i18n.get("commands.settings.menu.review_interval", review_interval_minutes=review_interval_minutes),
         i18n.get("commands.settings.menu.review_mode", review_mode=review_mode_label(i18n, user_data.review_mode)),
     ]
+    line = credits_line(i18n, credits)
+    if line:
+        lines.append("\n" + line)
     return "\n".join(lines)

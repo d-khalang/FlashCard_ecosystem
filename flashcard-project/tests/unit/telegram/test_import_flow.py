@@ -114,8 +114,7 @@ class TestImportInput:
         d = _deps(can_generate=False)
         message = await _run(d)
 
-        assert _answered(message) == i18n.get(
-            "messages.errors.quota_exceeded", type="card", tier="normal", limit=10)
+        assert _answered(message) == i18n.get("messages.errors.credits_exceeded", limit=10, card_cost=2)
         d.llm_service.parse_import_list.assert_not_awaited()
         d.consumption_service.increment.assert_not_awaited()
 
@@ -124,7 +123,7 @@ class TestImportInput:
         await _run(d)
 
         d.consumption_service.increment.assert_awaited_once_with(
-            USER_ID, "cards_generated", uses_own_key=False)
+            USER_ID, "cards_generated", uses_own_key=False, credits=2)
 
 
 class TestImportParsing:

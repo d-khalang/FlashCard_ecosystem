@@ -175,7 +175,7 @@ class CollectionUseCases:
         if len(text) > MAX_IMPORT_CHARS:
             return TooLong(limit=MAX_IMPORT_CHARS)
 
-        # An import that saves something costs one card generation; the length
+        # An import that saves something costs one card generation (CARD_CREDITS); the length
         # limit bounds its size. Imports that save nothing are free.
         user = await self.users.get_user(user_id)
         quota = self.quota.check(user, "cards")

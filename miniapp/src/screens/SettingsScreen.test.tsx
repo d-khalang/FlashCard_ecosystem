@@ -20,7 +20,7 @@ const SETTINGS: Settings = {
 const me = (over: Partial<Settings> = {}): Me => ({
   language: { code: 'it', name: 'Italiano', country: null },
   settings: { ...SETTINGS, ...over },
-  quota: { used: 0, limit: 20 },
+  quota: { used: 0, limit: 20, card_cost: 2, section_cost: 1 },
   words: { total: 10, ready: 0, pending: false },
   reminders_available: true,
   options: {

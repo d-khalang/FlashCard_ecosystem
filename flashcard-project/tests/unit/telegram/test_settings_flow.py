@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from aiogram.types import ForceReply, ReplyKeyboardRemove
 
+from flashcard.app.quota import QuotaPolicy
 from flashcard.app.settings import SettingsUseCases
+from flashcard.services.consumption import ConsumptionService
 from flashcard.services.user import UserService
 from tests.integration.helpers import make_cols
 from flashcard.schemas.languages import get_language_flag, get_language_name
@@ -21,7 +23,7 @@ from flashcard.telegram.keyboards import (
 )
 from flashcard.telegram.states.settings import SettingsPrompts
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
-from tests.helpers import make_user, TEST_LANGUAGE
+from tests.helpers import make_user, TEST_LANGUAGE, TEST_LIMITS
 
 
 USER_ID = 777
@@ -33,7 +35,7 @@ def _user(**overrides) -> UserDB:
     return make_user(**fields)
 
 
-def _deps(user=None, *, state_name=None):
+def _deps(user=None, *, state_name=None, with_quota=False):
     # A real UserService on the in-memory Mongo fake, so its setters' rules apply.
     doc = (user or _user()).model_dump()
     cols = make_cols(users=[doc])
@@ -45,7 +47,10 @@ def _deps(user=None, *, state_name=None):
     state.clear = AsyncMock()
     return SimpleNamespace(user_service=user_service, state=state, initial=dict(doc),
                            saved=lambda: cols["users"].docs[0],
-                           settings_use_cases=SettingsUseCases(user_service=user_service))
+                           settings_use_cases=SettingsUseCases(
+                               user_service=user_service,
+                               quota=QuotaPolicy(ConsumptionService(users=cols["users"]), TEST_LIMITS)
+                               if with_quota else None))
 
 
 def _message(text="/settings"):
@@ -137,6 +142,46 @@ class TestSettingsMenu:
             i18n.get("commands.settings.menu.review_mode", review_mode=label))
         assert i18n.get("commands.settings.menu_options.review_mode", mode=label) in [
             b.text for row in get_main_settings_keyboard(i18n, _user(review_mode=mode)).inline_keyboard for b in row]
+
+
+class TestSettingsCredits:
+    """The credits line, with a real QuotaPolicy wired into SettingsUseCases."""
+
+    @staticmethod
+    def _spent(credits):
+        from datetime import timedelta
+        from flashcard.utils.time import now_utc
+        return _user(tier="normal", created_at=now_utc() - timedelta(days=30), consumption={
+            "consumption_date": now_utc().date().isoformat(), "system_api": {"credits_used": credits}})
+
+    @staticmethod
+    def _line(left, limit):
+        return i18n.get("commands.settings.menu.credits", left=left, limit=limit, card_cost=2)
+
+    async def test_settings_shows_the_credits_left(self):
+        d = _deps(self._spent(6), with_quota=True)
+        message = _message()
+
+        await user_settings.cmd_settings(message, settings_use_cases=d.settings_use_cases, i18n=i18n)
+
+        assert message.answer.await_args_list[0].args[0].endswith(self._line(14, 20))
+
+    async def test_going_back_to_the_menu_and_switching_mode_keep_the_line(self):
+        d = _deps(self._spent(6), with_quota=True)
+
+        nav = await _nav(d, "main")
+        select = await _select(d, "review_mode", "dual")
+
+        assert nav.message.edit_text.await_args.kwargs["text"].endswith(self._line(14, 20))
+        assert select.message.edit_text.await_args.kwargs["text"].endswith(self._line(14, 20))
+
+    async def test_no_line_when_nothing_limits_the_user(self):
+        d = _deps(_user(tier="admin"), with_quota=True)
+        message = _message()
+
+        await user_settings.cmd_settings(message, settings_use_cases=d.settings_use_cases, i18n=i18n)
+
+        assert "⚡" not in message.answer.await_args_list[0].args[0]
 
 
 class TestSettingsNavigation:

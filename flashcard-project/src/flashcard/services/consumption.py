@@ -27,6 +27,7 @@ class ConsumptionService:
         user_id: UserId,
         metric: str,
         uses_own_key: bool = False,
+        credits: int = 0,
     ) -> None:
         """
         Increment a daily consumption counter for a user.
@@ -39,10 +40,14 @@ class ConsumptionService:
             metric: One of 'cards_generated', 'stories_generated', 'verb_lookups'
             uses_own_key: If True, increments under user_api instead of system_api
                           (only applies to LLM metrics; verb_lookups is always top-level)
+            credits: Card credits to add to credits_used in the same bucket, in the same write
         """
         if metric not in VALID_METRICS:
             logger.warning(f"Unknown consumption metric: {metric}")
             return
+        if credits and metric not in LLM_METRICS:
+            # Credits live in the LLM buckets; a top-level metric must not write them.
+            raise ValueError(f"Credits apply only to LLM metrics, not {metric}")
 
         user_id_str = stored_user_id(user_id)
         today = self._today()
@@ -79,9 +84,12 @@ class ConsumptionService:
             # Top-level metric (verb_lookups)
             inc_path = f"consumption.{metric}"
 
+        inc = {inc_path: 1}
+        if credits:
+            inc[f"consumption.{'user_api' if uses_own_key else 'system_api'}.credits_used"] = credits
         await self.users.update_one(
             {"user_id": user_id_str},
-            {"$inc": {inc_path: 1}},
+            {"$inc": inc},
         )
 
         logger.debug(f"Consumption incremented: user={user_id_str} {inc_path}")

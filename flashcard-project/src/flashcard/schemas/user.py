@@ -15,7 +15,8 @@ class UserAPIConfig(BaseModel):
 
 class LLMUsage(BaseModel):
     """Tracks LLM API call counts (daily)."""
-    cards_generated: int = Field(0, description="Card generations (text→card, regen, /get, scheduled)")
+    cards_generated: int = Field(0, description="Card generations (text→card, regen, /get, scheduled, part refresh)")
+    credits_used: int = Field(0, description="Card credits spent: 2 per new card, 1 per refreshed card part")
     stories_generated: int = Field(0, description="Story generations (/story)")
 
 class UserConsumption(BaseModel):

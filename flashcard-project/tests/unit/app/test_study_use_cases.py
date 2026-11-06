@@ -24,7 +24,7 @@ SETTINGS = CardSettings(level="A2", primary_language="en", secondary_language=No
 NOW = datetime.now(timezone.utc)
 
 
-def _ready(quota=Allowed(uses_own_key=False)) -> ReviewReady:
+def _ready(quota=Allowed(uses_own_key=False, credits=2)) -> ReviewReady:
     return ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward", card=make_card(),
                        settings=SETTINGS, quota=quota)
 
@@ -385,7 +385,7 @@ class TestRefresh:
         review_state = CurrentReview(expression_id=EXPRESSION_ID, direction="forward", message_id=-7, sent_at=NOW)
         return make_user(user_id=42, current_review=review_state), _expression(pending_message_id=-7)
 
-    async def test_generates_merges_and_counts_one_card(self):
+    async def test_generates_merges_and_spends_one_credit(self):
         user, expression = self._waiting()
         study, _, expressions, _, consumption, llm, _ = _build(user=user, expression=expression)
 
@@ -395,7 +395,7 @@ class TestRefresh:
         assert llm.generate_card_section.await_args.args == ("definition",)
         expressions.merge_card_section.assert_awaited_once()
         assert expressions.merge_card_section.await_args.args[:4] == (42, EXPRESSION_ID, -7, "definition")
-        consumption.increment.assert_awaited_once()
+        consumption.increment.assert_awaited_once_with(42, "cards_generated", uses_own_key=False, credits=1)
 
     async def test_losing_the_compare_and_set_costs_nothing(self):
         user, expression = self._waiting()

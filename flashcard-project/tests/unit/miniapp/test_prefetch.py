@@ -16,7 +16,7 @@ SETTINGS = CardSettings(level="A2", primary_language="en", secondary_language=No
 
 def _ready(expression_id="e1") -> ReviewReady:
     return ReviewReady(expression_id=expression_id, value="andare", direction="forward", card=make_card(),
-                       settings=SETTINGS, quota=Allowed(uses_own_key=False))
+                       settings=SETTINGS, quota=Allowed(uses_own_key=False, credits=2))
 
 
 class Clock:

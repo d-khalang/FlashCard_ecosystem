@@ -158,7 +158,7 @@ class TestLlmAllowance:
 
     async def test_a_prepare_over_quota_with_a_stored_card_costs_nothing(
             self, api, mongo_cols, study_core, study_llm, monkeypatch):
-        monkeypatch.setattr(study_core.quota, "check", lambda user, kind: QuotaExceeded(tier="normal", limit=10))
+        monkeypatch.setattr(study_core.quota, "check", lambda user, kind, credits=2: QuotaExceeded(tier="normal", limit=10))
         await add_user(mongo_cols, USER)
         await add_word(mongo_cols, USER, "andare", last_card=_stored_card())
         api.app.state.budget = DailyBudget(1)
@@ -318,7 +318,7 @@ class TestOverQuota:
 
     @pytest.fixture
     def over_quota(self, study_core, monkeypatch):
-        monkeypatch.setattr(study_core.quota, "check", lambda user, kind: QuotaExceeded(tier="normal", limit=10))
+        monkeypatch.setattr(study_core.quota, "check", lambda user, kind, credits=2: QuotaExceeded(tier="normal", limit=10))
 
     async def test_the_app_uses_a_stored_word_when_the_top_word_has_none(
             self, api, mongo_cols, study_llm, over_quota):

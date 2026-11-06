@@ -37,6 +37,8 @@ export function AddWord() {
     setPreview({ phase: 'loading' });
     try {
       const result = await api.preview(value);
+      // A ready preview spends credits even if it is never saved, and a quota answer means the count is stale.
+      if (result.status === 'ready' || result.status === 'quota') void reloadMe();
       if (run.current === id) setPreview({ phase: 'done', result });
     } catch (e) {
       if (run.current === id) setPreview({ phase: 'error', error: asApiError(e) });
@@ -55,7 +57,7 @@ export function AddWord() {
     void start(text);
   };
 
-  /** Saving never repeats the preview (it costs a card): a failed save retries only the save. */
+  /** Saving never repeats the preview (it costs credits): a failed save retries only the save. */
   const save = async (norm: string) => {
     setSaving(true);
     setProblem(null);

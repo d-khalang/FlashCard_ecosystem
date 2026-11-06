@@ -93,6 +93,24 @@ class TestIncrementRouting:
         inc = cols["users"].update_one.call_args[0][1]["$inc"]
         assert inc == {"consumption.user_api.cards_generated": 1}
 
+    async def test_credits_are_added_in_the_same_write_and_bucket(self):
+        service, cols = _make_service(user_doc=_today_consumption())
+
+        await service.increment(123, "cards_generated", uses_own_key=True, credits=2)
+
+        cols["users"].update_one.assert_awaited_once()
+        inc = cols["users"].update_one.call_args[0][1]["$inc"]
+        assert inc == {"consumption.user_api.cards_generated": 1, "consumption.user_api.credits_used": 2}
+
+    async def test_credits_on_a_top_level_metric_are_refused(self):
+        import pytest
+        service, cols = _make_service(user_doc=_today_consumption())
+
+        with pytest.raises(ValueError):
+            await service.increment(123, "audio_generated", credits=1)
+
+        cols["users"].update_one.assert_not_awaited()
+
     async def test_verb_lookups_top_level(self):
         """verb_lookups lives at top level, not under system_api."""
         service, cols = _make_service(user_doc=_today_consumption())

@@ -1,7 +1,7 @@
 // Development-only fake API. Loaded by main.tsx behind `import.meta.env.DEV` and `?mock`,
 // so it is not part of the production build.
 //
-// Query options: scenario=empty|caught|quota, long=1 (long word), reverse=1 (reverse cards),
+// Query options: scenario=empty|caught|low|quota (low: few credits left), long=1 (long word), reverse=1 (reverse cards),
 // fail=grade|refresh|undo|audio (make that route fail), audio=limit (daily audio limit used up), slow=1 (add latency), n=3 (cards in the queue),
 // stored=1 (cards come from storage), pending=1 (a card is waiting), noremind=1 (reminders unavailable).
 
@@ -39,6 +39,16 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
   let current: StudyCard | null = null;
   const pendingFlag = params.has('pending');
   let undo: StudyCard | null = null;
+  // Credits spent today, like the server: a new card or import 2, a refreshed part 1.
+  const LIMIT = 40;
+  let used = scenario === 'quota' ? LIMIT : scenario === 'low' ? 37 : 6;
+  const quotaResult = { status: 'quota', tier: 'normal', limit: LIMIT };
+  /** Spends `cost` credits if they fit; false when they do not. */
+  const spend = (cost: number) => {
+    if (used + cost > LIMIT) return false;
+    used += cost;
+    return true;
+  };
 
   const makeCard = (value: string): StudyCard => ({
     ...CONTENT,
@@ -54,7 +64,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
   const me = (): Me => ({
     language: { code: 'it', name: 'Italiano', country: 'it' },
     settings: settings,
-    quota: scenario === 'quota' ? { used: 19, limit: 20 } : { used: 3, limit: 20 },
+    quota: { used, limit: LIMIT, card_cost: 2, section_cost: 1 },
     words: { total: scenario === 'empty' ? 0 : 40, ready: queue.length, pending: pendingFlag || current !== null },
     reminders_available: !params.has('noremind'),
     options: {
@@ -91,11 +101,12 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
     if (path === '/me') return json(200, me());
     if (path === '/study/current') return json(200, { card: current, undo_available: undo !== null });
     if (path === '/study/next') {
-      if (scenario === 'quota') return json(200, { status: 'quota', tier: 'free', limit: 20 });
       if (!current) {
-        const w = queue.shift();
-        if (!w) return json(200, { status: 'none' });
-        current = makeCard(w);
+        if (queue.length === 0) return json(200, { status: 'none' });
+        const card = makeCard(queue[0]!);
+        if (!card.from_storage && !spend(2)) return json(200, quotaResult);
+        queue.shift();
+        current = card;
       }
       return json(200, { status: 'ready', card: current });
     }
@@ -117,6 +128,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
       if (fail === 'refresh') return err(503, 'generation_failed', 'boom');
       await sleep(800);
       if (!current) return json(200, { status: 'not_pending' });
+      if (!spend(1)) return json(200, quotaResult);
       const section = body.section as string;
       if (section === 'definition') current = { ...current, definition: 'Ampia distesa d’acqua salata (versione nuova).' };
       if (section === 'example') current = { ...current, example: 'Il mare è calmo stamattina.' };
@@ -129,6 +141,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
       if (text === 'xx') return json(200, { status: 'invalid', suggestions: ['mare', 'marea'] });
       if (text === 'yy') return json(200, { status: 'unclear', note: 'Did you mean a different spelling?', suggestions: ['sedia', 'sedile'] });
       await sleep(600);
+      if (!spend(2)) return json(200, quotaResult);
       return json(200, { status: 'ready', norm: text, content: CONTENT });
     }
     if (path === '/collection' && method === 'GET') {
@@ -138,6 +151,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
     }
     if (path === '/collection' && method === 'POST') return json(201, { status: 'saved' });
     if (path === '/collection/import' && String(body.text).startsWith('many')) return json(200, { status: 'too_many', limit: 50 });
+    if (path === '/collection/import' && !spend(2)) return json(200, quotaResult);
     if (path === '/collection/import') return json(200, { status: 'imported', items: String(body.text).split(/[\n,]/).filter(Boolean) });
     if (path === '/settings') {
       settings = { ...settings, ...(body as Partial<Me['settings']>) };
