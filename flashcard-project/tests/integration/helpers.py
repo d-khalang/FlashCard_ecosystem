@@ -190,7 +190,7 @@ class InMemoryCollection:
         # another collation are a separate index in MongoDB.
         self.indexes: set[tuple[tuple[str, ...], bool, bool]] = set()
 
-    async def create_index(self, keys, *, unique: bool = False, collation=None, name: str | None = None) -> str:
+    async def create_index(self, keys, *, unique: bool = False, collation=None, name: str | None = None, **_options) -> str:
         fields = tuple(field for field, _ in keys)
         document = collation.document if collation is not None else {}
         case_insensitive = document.get("strength") in (1, 2)
@@ -615,6 +615,7 @@ def make_cols(*, users: list[dict[str, Any]] | None = None, expressions: list[di
         "users": InMemoryCollection(users),
         "expression": InMemoryCollection(expressions),
         "conjugation": InMemoryCollection(conjugations),
+        "audio_words": InMemoryCollection(),
     }
 
 

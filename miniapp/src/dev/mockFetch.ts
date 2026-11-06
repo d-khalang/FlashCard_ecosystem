@@ -2,9 +2,10 @@
 // so it is not part of the production build.
 //
 // Query options: scenario=empty|caught|quota, long=1 (long word), reverse=1 (reverse cards),
-// fail=grade|refresh|undo (make that route fail), slow=1 (add latency), n=3 (cards in the queue),
+// fail=grade|refresh|undo|audio (make that route fail), audio=limit (daily audio limit used up), slow=1 (add latency), n=3 (cards in the queue),
 // stored=1 (cards come from storage), pending=1 (a card is waiting), noremind=1 (reminders unavailable).
 
+import { SILENT_CLIP } from '../audio/player';
 import type { Content, Me, StudyCard } from '../api/types';
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -142,6 +143,13 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
       settings = { ...settings, ...(body as Partial<Me['settings']>) };
       if (body.target_level === 'C2') return err(422, 'invalid_request', 'nope');
       return json(200, settings);
+    }
+    if (path.startsWith('/audio/')) {
+      if (fail === 'audio') return err(503, 'generation_failed', 'boom');
+      if (params.get('audio') === 'limit') return err(429, 'audio_limit', 'used up');
+      await sleep(400);
+      const bytes = Uint8Array.from(atob(SILENT_CLIP.slice(SILENT_CLIP.indexOf(',') + 1)), (c) => c.charCodeAt(0));
+      return new Response(bytes, { status: 200, headers: { 'Content-Type': 'audio/mpeg' } });
     }
     const detail = /^\/collection\/(.+)$/.exec(path);
     if (detail) {

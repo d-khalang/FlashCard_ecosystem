@@ -298,7 +298,8 @@
   text-align: center;
 }
 
-.answer-head .badge {
+.answer-head .badge,
+.answer-head .listen-btn {
   color: var(--color-on-accent);
 }
 

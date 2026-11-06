@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     COLLECTION_USERS: str
     COLLECTION_EXPRESSION: str
     COLLECTION_CONJUGATION: str
+    # Fixed name in every database: scripts/backup.sh in kartino-deploy excludes it by this name.
+    COLLECTION_AUDIO_WORDS: str = "audio_words"
     PORT: int = 8000
     IN_DOCKER: int = 0
     SCRAPER_API_KEY: Optional[str] = None
@@ -66,6 +68,11 @@ class Settings(BaseSettings):
     TIER_LIMITS_PLUS_STORIES: int = 10
     TIER_LIMITS_ADMIN_CARDS: int = 999
     TIER_LIMITS_ADMIN_STORIES: int = 99
+    # Generated audio clips a day. A card has up to 5 parts.
+    TIER_LIMITS_NORMAL_AUDIO: int = 30
+    TIER_LIMITS_DIGI_AUDIO: int = 100
+    TIER_LIMITS_PLUS_AUDIO: int = 150
+    TIER_LIMITS_ADMIN_AUDIO: int = 9999
 
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

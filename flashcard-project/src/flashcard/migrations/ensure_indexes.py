@@ -15,6 +15,7 @@ import asyncio
 from collections import Counter
 from dataclasses import dataclass
 
+from flashcard.services.audio_cache import AudioWordCache
 from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
 
@@ -25,13 +26,16 @@ class IndexReport:
     indexes_built: bool = False
 
 
-async def ensure_indexes(cols: dict, users: UserService, expressions: ExpressionService, *, apply: bool) -> IndexReport:
+async def ensure_indexes(
+    cols: dict, users: UserService, expressions: ExpressionService, audio_words: AudioWordCache, *, apply: bool,
+) -> IndexReport:
     report = IndexReport()
     ids = Counter([doc.get("user_id") async for doc in cols["users"].find({}, {"user_id": 1})])
     report.duplicate_user_ids = sum(1 for count in ids.values() if count > 1)
     if apply and not report.duplicate_user_ids:
         await users.ensure_indexes()
         await expressions.ensure_indexes()
+        await audio_words.ensure_indexes()
         report.indexes_built = True
     return report
 
@@ -48,6 +52,7 @@ async def _main(apply: bool) -> None:
             cols,
             UserService(users=cols["users"], defaults=LanguageConfig.from_settings(settings).user_defaults),
             ExpressionService(expressions=cols["expression"]),
+            AudioWordCache(words=cols["audio_words"]),
             apply=apply,
         )
     finally:

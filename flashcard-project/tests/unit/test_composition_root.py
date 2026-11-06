@@ -69,7 +69,7 @@ def test_handler_data_exposes_use_cases_and_no_raw_service(monkeypatch):
     assert set(data) == {
         "logger_bot", "admin_id", "language", "i18n", "user_service",
         "review_use_cases", "creation_use_cases", "settings_use_cases",
-        "story_use_cases", "verb_use_cases", "collection_use_cases",
+        "story_use_cases", "verb_use_cases", "collection_use_cases", "audio_use_cases",
     }
     assert data["logger_bot"] is logger_bot
     assert data["admin_id"] == 7

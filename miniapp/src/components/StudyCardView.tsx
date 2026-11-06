@@ -5,6 +5,7 @@ import type { RefreshStatus } from '../study/reducer';
 import { CardSections } from './CardSections';
 import { Flag } from './Flag';
 import { flagUrl } from './flags';
+import { ListenButton } from './ListenButton';
 import { useApp } from '../app/context';
 
 /** Size class so long phrases shrink instead of wrapping badly. */
@@ -37,6 +38,7 @@ function QuestionBody({ card }: { card: StudyCard }) {
         <h1 className={`q-word ${fitClass(card.value)}`} dir="auto">
           {card.value}
         </h1>
+        <ListenButton expressionId={card.expression_id} part="word" text={card.value} />
         <p className="q-prompt">{t('study.prompt.forward')}</p>
       </>
     );
@@ -76,7 +78,11 @@ interface StudyCardViewProps {
 /** Two-faced card with a CSS 3D flip. The hidden face is inert so focus and readers skip it. */
 export function StudyCardView({ card, revealed, onReveal, refresh, onRefresh }: StudyCardViewProps) {
   const { t } = useI18n();
+  const { player } = useApp();
   const answerHeading = useRef<HTMLHeadingElement>(null);
+
+  // A clip of this card must not start, or go on, over the next card.
+  useEffect(() => () => player.stop(), [player, card.delivery_id]);
 
   useEffect(() => {
     if (revealed) answerHeading.current?.focus({ preventScroll: true });
@@ -98,10 +104,11 @@ export function StudyCardView({ card, revealed, onReveal, refresh, onRefresh }: 
             <h1 ref={answerHeading} tabIndex={-1} className={`a-word ${fitClass(card.value)}`} dir="auto">
               {card.value}
             </h1>
+            <ListenButton expressionId={card.expression_id} part="word" text={card.value} small />
             <Badges card={card} />
           </header>
           <div className="answer-body">
-            <CardSections content={card} refresh={refresh} onRefresh={onRefresh} />
+            <CardSections content={card} refresh={refresh} onRefresh={onRefresh} expressionId={card.expression_id} />
           </div>
         </article>
       </div>

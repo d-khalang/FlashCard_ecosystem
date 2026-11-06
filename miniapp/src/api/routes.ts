@@ -1,6 +1,7 @@
 import type { HttpClient } from './client';
 import { ApiError } from './errors';
 import type {
+  AudioPart,
   CollectionDetail,
   CollectionPage,
   CurrentResponse,
@@ -88,6 +89,8 @@ export function createApi(http: HttpClient) {
         'too_many',
         'quota',
       ]),
+
+    audio: (expressionId: string, part: AudioPart) => http.blob(`/audio/${encodeURIComponent(expressionId)}/${part}`),
 
     updateSettings: (patch: Partial<Settings>) => http.request<Settings>('PATCH', '/settings', { body: patch }),
   };

@@ -21,7 +21,7 @@ from flashcard.language import LanguageConfig
 from flashcard.miniapp.errors import install_error_handlers
 from flashcard.miniapp.prefetch import PreparedCards
 from flashcard.miniapp.rate_limit import DailyBudget, RateLimiter
-from flashcard.miniapp.routes import cards, collection, me, settings as settings_routes, study
+from flashcard.miniapp.routes import audio, cards, collection, me, settings as settings_routes, study
 from flashcard.settings import Settings, get_setting
 from flashcard.utils.logger import configure_log_level
 
@@ -31,6 +31,8 @@ MAX_BODY_BYTES = 64 * 1024
 # Per user and minute: the routes that call the LLM, and all others.
 LLM_LIMIT_PER_MINUTE = 20
 GENERAL_LIMIT_PER_MINUTE = 120
+# Per user and minute: generated audio clips. A stored word replayed is not charged.
+AUDIO_LIMIT_PER_MINUTE = 30
 
 CONTENT_SECURITY_POLICY = "; ".join([
     "default-src 'self'",
@@ -39,6 +41,8 @@ CONTENT_SECURITY_POLICY = "; ".join([
     "img-src 'self' data:",
     "font-src 'self' data:",
     "connect-src 'self'",
+    # Card audio is fetched with sign-in and played from a blob; data: is the clip that unlocks playback.
+    "media-src 'self' blob: data:",
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors https://web.telegram.org https://*.telegram.org",
@@ -160,13 +164,14 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     app.state.limiters = {
         "llm": RateLimiter(LLM_LIMIT_PER_MINUTE),
         "general": RateLimiter(GENERAL_LIMIT_PER_MINUTE),
+        "audio": RateLimiter(AUDIO_LIMIT_PER_MINUTE),
     }
     app.state.budget = DailyBudget(settings.MINIAPP_LLM_DAILY_ATTEMPTS)
     app.state.prepared = PreparedCards()
     install_error_handlers(app)
 
     api = APIRouter(prefix=API_PREFIX)
-    for module in (me, study, cards, collection, settings_routes):
+    for module in (me, study, cards, collection, audio, settings_routes):
         api.include_router(module.router)
     api.include_router(health.router)
     app.include_router(api)

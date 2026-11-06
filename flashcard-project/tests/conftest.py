@@ -47,6 +47,7 @@ def clear_aiogram_routers_state():
         reply_commands,
         start,
         review,
+        audio,
         verb,
         story,
         collection,
@@ -58,7 +59,7 @@ def clear_aiogram_routers_state():
     
     routers = [
         user_settings.router, feedback.router, reply_commands.router, 
-        start.router, review.router, verb.router, story.router, 
+        start.router, review.router, audio.router, verb.router, story.router,
         collection.router, inline_remove.router, unknown.router, 
         creation.router, errors.router
     ]

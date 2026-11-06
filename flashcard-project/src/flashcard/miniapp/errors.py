@@ -51,6 +51,15 @@ def generation_failed() -> ApiError:
     return ApiError(503, "generation_failed", "Could not generate the card. Try again in a moment.")
 
 
+def speech_failed() -> ApiError:
+    return ApiError(503, "generation_failed", "Could not generate the audio. Try again in a moment.")
+
+
+def audio_limit_reached(limit: int) -> ApiError:
+    """No Retry-After: the limit lasts until the next UTC day, so retrying soon is pointless."""
+    return ApiError(429, "audio_limit", f"The daily limit of {limit} audio clips is used up.")
+
+
 def rate_limited(retry_after: int) -> ApiError:
     return ApiError(429, "rate_limited", "Too many requests. Try again shortly.",
                     headers={"Retry-After": str(retry_after)})

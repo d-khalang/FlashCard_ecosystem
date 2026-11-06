@@ -47,6 +47,9 @@ export const en = {
   'section.translation': 'Translation',
   'section.context': 'In context',
   'section.note': 'Note',
+  'audio.listen': 'Listen',
+  'audio.failed': 'Could not play the audio. Try again in a moment.',
+  'audio.limit': 'Daily audio limit reached. More tomorrow.',
   'card.noContent': 'Nothing stored for this card.',
 
   'study.finish': 'Finish',

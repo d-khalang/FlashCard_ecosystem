@@ -8,7 +8,7 @@ logger = get_logger(__name__)
 LLM_METRICS = {"cards_generated", "stories_generated"}
 
 # Metrics at the top level of consumption
-TOP_LEVEL_METRICS = {"verb_lookups"}
+TOP_LEVEL_METRICS = {"verb_lookups", "audio_generated"}
 
 VALID_METRICS = LLM_METRICS | TOP_LEVEL_METRICS
 

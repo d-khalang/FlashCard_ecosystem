@@ -27,6 +27,8 @@ dependencies = [
     # Capped: tests mock the providers, so a new major version needs one real generation first.
     "google-genai>=1.10,<2",
     "groq>=0.31,<2",
+    # The service refuses old clients with a 403 (7.2.8 on 2026-11-05), so images must be rebuilt in time.
+    "edge-tts>=7.3.1,<8",
 ]
 
 [project.scripts]

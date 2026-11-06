@@ -21,6 +21,11 @@
             "invalid_data": "Dati di callback non validi.",
             "error_generic": "Si è verificato un errore."
         },
+        "audio": {
+            "already_sent": "È qui sopra nella chat. 🔊",
+            "limit": "Hai usato i {limit} audio di oggi. Altri domani! 🔊",
+            "unavailable": "Audio non disponibile al momento. Riprova tra poco."
+        },
         "inline_remove": {
             "result_description": "Condividi questa carta inline, poi usa il pulsante sotto se vuoi che Kartino la metta via.",
             "prompt": "Piccolo controllo: premi di nuovo Rimuovi per confermare.",
@@ -152,7 +157,11 @@
             "close_settings": "❌ Chiudi Impostazioni",
             "verb_web_table": "📖 Tabella completa sul web",
             "grade_0": "0 - Non ne avevo idea",
-            "grade_5": "5 - Conosciuto come la famiglia"
+            "grade_5": "5 - Conosciuto come la famiglia",
+            "listen": "🔊 Ascolta",
+            "listen_word": "🔊 Parola",
+            "listen_definition": "🔊 Significato",
+            "listen_example": "🔊 Esempio"
         },
         "tips": {
             "first_save": "💡 <b>Consiglio:</b> Vai su /settings per impostare la lingua di traduzione, il tuo livello di {language} e il ritmo dei ripassi!",
