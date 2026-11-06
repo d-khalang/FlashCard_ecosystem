@@ -7,6 +7,7 @@ import { useI18n } from '../i18n';
 import { haptic } from '../telegram';
 import { CardSections } from './CardSections';
 import { ErrorState } from './ErrorState';
+import { ListenButton } from './ListenButton';
 import { Sheet } from './Sheet';
 
 interface Props {
@@ -22,7 +23,7 @@ function formatDate(locale: string, iso: string | null): string {
 }
 
 export function WordDetailSheet({ id, onClose, onRemoved }: Props) {
-  const { api, toast, reloadMe } = useApp();
+  const { api, player, toast, reloadMe } = useApp();
   const { t, locale } = useI18n();
   const [detail, setDetail] = useState<CollectionDetail | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
@@ -41,6 +42,9 @@ export function WordDetailSheet({ id, onClose, onRemoved }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A clip of this word must not start, or go on, after the sheet closes.
+  useEffect(() => () => player.stop(), [player]);
 
   const remove = async () => {
     setRemoving(true);
@@ -71,6 +75,7 @@ export function WordDetailSheet({ id, onClose, onRemoved }: Props) {
       {!error && !detail ? <p className="note-line" role="status">{t('common.loading')}</p> : null}
       {detail ? (
         <>
+          <ListenButton expressionId={detail.id} part="word" text={detail.value} />
           <p className="meta-line">
             {t('collection.stats', { reps: detail.reps, lapses: detail.lapses })}
           </p>
@@ -79,7 +84,7 @@ export function WordDetailSheet({ id, onClose, onRemoved }: Props) {
           ) : null}
           {detail.content ? (
             <>
-              <CardSections content={detail.content} />
+              <CardSections content={detail.content} expressionId={detail.id} />
               {formatDate(locale, detail.generated_at) ? <p className="meta-line">{t('detail.generated', { date: formatDate(locale, detail.generated_at) })}</p> : null}
             </>
           ) : (

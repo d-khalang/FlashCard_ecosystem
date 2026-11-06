@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Api } from '../api/routes';
 import { asApiError, type ApiError } from '../api/errors';
+import { createBrowserPlayer, type ClipPlayer } from '../audio/player';
 import type { LanguageInfo, Me, Settings } from '../api/types';
 import { cleanLabel } from '../components/flags';
 
@@ -12,6 +13,7 @@ interface Toast {
 
 interface AppValue {
   api: Api;
+  player: ClipPlayer;
   me: Me | null;
   meError: ApiError | null;
   reloadMe: () => Promise<void>;
@@ -36,6 +38,7 @@ export function AppProvider({ api, authLost, children }: ProviderProps) {
   const [meError, setMeError] = useState<ApiError | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
+  const [player] = useState(createBrowserPlayer);
 
   const reloadMe = useCallback(async () => {
     try {
@@ -70,8 +73,8 @@ export function AppProvider({ api, authLost, children }: ProviderProps) {
   );
 
   const value = useMemo<AppValue>(
-    () => ({ api, me, meError, reloadMe, setSettings, languageName, toast, authLost }),
-    [api, me, meError, reloadMe, setSettings, languageName, toast, authLost],
+    () => ({ api, player, me, meError, reloadMe, setSettings, languageName, toast, authLost }),
+    [api, player, me, meError, reloadMe, setSettings, languageName, toast, authLost],
   );
 
   return (

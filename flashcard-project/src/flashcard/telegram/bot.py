@@ -17,6 +17,7 @@ from flashcard.telegram.handlers import (
     reply_commands,
     start,
     review,
+    audio,
     verb,
     story,
     collection,
@@ -79,6 +80,7 @@ def build_bot_dispatcher(bot_token: str, language: LanguageConfig) -> tuple[Bot,
     # 3. Domain Features
     dp.include_router(start.router)      # /start, /help
     dp.include_router(review.router)     # /get + grade callback
+    dp.include_router(audio.router)      # listening to a review card
     if language.conjugation:
         dp.include_router(verb.router)   # /verb + conjugation callback
     dp.include_router(story.router)      # /story

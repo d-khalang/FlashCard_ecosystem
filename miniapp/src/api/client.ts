@@ -18,6 +18,8 @@ export interface RequestOptions {
 
 export interface HttpClient {
   request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, opts?: RequestOptions): Promise<T>;
+  /** A GET whose answer is a file. Errors are the same JSON errors as everywhere else. */
+  blob(path: string): Promise<Blob>;
 }
 
 function buildQuery(query: RequestOptions['query']): string {
@@ -51,47 +53,55 @@ async function readError(res: Response): Promise<ApiError> {
 export const DEFAULT_TIMEOUT_MS = 45_000;
 
 export function createClient(options: ClientOptions): HttpClient {
-  return {
-    async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
-      const doFetch = options.fetch ?? fetch;
-      const headers: Record<string, string> = {
-        Authorization: `tma ${options.getInitData()}`,
-        Accept: 'application/json',
-      };
-      let body: string | undefined;
-      if (opts.body !== undefined) {
-        headers['Content-Type'] = 'application/json';
-        body = JSON.stringify(opts.body);
-      }
-      const controller = new AbortController();
-      let timedOut = false;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  /** Sends the request and hands a successful response to `read`, all under one timeout. */
+  async function send<T>(method: string, path: string, opts: RequestOptions, accept: string, read: (res: Response) => Promise<T>, unreadable: string): Promise<T> {
+    const doFetch = options.fetch ?? fetch;
+    const headers: Record<string, string> = {
+      Authorization: `tma ${options.getInitData()}`,
+      Accept: accept,
+    };
+    let body: string | undefined;
+    if (opts.body !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      body = JSON.stringify(opts.body);
+    }
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    try {
+      let res: Response;
       try {
-        let res: Response;
-        try {
-          res = await doFetch(`${options.baseUrl}${path}${buildQuery(opts.query)}`, { method, headers, body, signal: controller.signal });
-        } catch (e) {
-          if (timedOut) throw new ApiError('timeout', 'Request timed out');
-          throw new ApiError('network', e instanceof Error ? e.message : 'Network error');
-        }
-        if (!res.ok) {
-          const err = await readError(res);
-          if (err.kind === 'auth') options.onUnauthorized?.();
-          throw err;
-        }
-        if (res.status === 204) return undefined as T;
-        try {
-          return (await res.json()) as T;
-        } catch {
-          if (timedOut) throw new ApiError('timeout', 'Request timed out');
-          throw new ApiError('bad_response', 'Response was not JSON', { status: res.status });
-        }
-      } finally {
-        clearTimeout(timer);
+        res = await doFetch(`${options.baseUrl}${path}${buildQuery(opts.query)}`, { method, headers, body, signal: controller.signal });
+      } catch (e) {
+        if (timedOut) throw new ApiError('timeout', 'Request timed out');
+        throw new ApiError('network', e instanceof Error ? e.message : 'Network error');
       }
+      if (!res.ok) {
+        const err = await readError(res);
+        if (err.kind === 'auth') options.onUnauthorized?.();
+        throw err;
+      }
+      if (res.status === 204) return undefined as T;
+      try {
+        return await read(res);
+      } catch {
+        if (timedOut) throw new ApiError('timeout', 'Request timed out');
+        throw new ApiError('bad_response', unreadable, { status: res.status });
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return {
+    request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
+      return send(method, path, opts, 'application/json', (res) => res.json() as Promise<T>, 'Response was not JSON');
+    },
+    blob(path: string): Promise<Blob> {
+      return send('GET', path, {}, 'audio/mpeg, application/json', (res) => res.blob(), 'Response could not be read');
     },
   };
 }

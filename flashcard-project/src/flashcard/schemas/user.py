@@ -24,6 +24,7 @@ class UserConsumption(BaseModel):
     system_api: LLMUsage = Field(LLMUsage(), description="Usage on system API keys (tier-limited)")
     user_api: LLMUsage = Field(LLMUsage(), description="Usage on user's own API keys")
     verb_lookups: int = Field(0, description="Third-party verb API lookups")
+    audio_generated: int = Field(0, description="Audio clips generated (stored words replayed are not counted)")
 
 # Telegram user id. Code passes it as an int; documents store it as text, so only the
 # services that own a collection convert it, with `stored_user_id`.

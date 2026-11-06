@@ -152,7 +152,8 @@ async def mongo_cols():
         pytest.skip(f"no MongoDB at {TEST_MONGO_URI} (set KARTINO_TEST_MONGO_URI)")
     name = f"kartino_test_{uuid.uuid4().hex}"
     db = client[name]
-    cols = {"users": db["users"], "expression": db["expression"], "conjugation": db["conjugation"]}
+    cols = {"users": db["users"], "expression": db["expression"], "conjugation": db["conjugation"],
+            "audio_words": db["audio_words"]}
     try:
         yield cols
     finally:

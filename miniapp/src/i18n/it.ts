@@ -49,6 +49,9 @@ export const it: Record<TranslationKey, string> = {
   'section.translation': 'Traduzione',
   'section.context': 'Esempio',
   'section.note': 'Nota',
+  'audio.listen': 'Ascolta',
+  'audio.failed': 'Audio non disponibile. Riprova tra poco.',
+  'audio.limit': 'Limite giornaliero di audio raggiunto. Altri domani.',
   'card.noContent': 'Niente di salvato per questa carta.',
 
   'study.finish': 'Termina',

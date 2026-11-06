@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Optional
 
+from flashcard.app.audio import AudioUseCases
 from flashcard.app.collection import CollectionUseCases
 from flashcard.app.creation import CreationUseCases
 from flashcard.app.quota import QuotaPolicy
@@ -19,6 +20,7 @@ from flashcard.app.study import StudyUseCases
 from flashcard.app.verb import VerbUseCases
 from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.language import LanguageConfig
+from flashcard.services.audio_cache import AudioWordCache
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.i18n import I18nService
@@ -26,6 +28,7 @@ from flashcard.services.http_client import close_http_client_on_client, init_and
 from flashcard.services.language_validation import get_language_validator
 from flashcard.services.llm.llm import LLMConfig, LLMService
 from flashcard.services.review_state import ReviewStateStore
+from flashcard.services.speech import EdgeSpeechProvider
 from flashcard.services.user import UserService
 from flashcard.services.verb import ScraperConfig, VerbService
 
@@ -70,6 +73,7 @@ class Core:
     # None when conjugation is disabled; the verb router is not included then.
     verb_use_cases: Optional[VerbUseCases]
     collection_use_cases: CollectionUseCases
+    audio_use_cases: AudioUseCases
     # Mini App only; the bot's handlers do not receive it.
     study_use_cases: StudyUseCases
 
@@ -89,6 +93,7 @@ class Core:
             "story_use_cases": self.story_use_cases,
             "verb_use_cases": self.verb_use_cases,
             "collection_use_cases": self.collection_use_cases,
+            "audio_use_cases": self.audio_use_cases,
         }
 
 
@@ -161,6 +166,14 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
             llm_service=llm_service,
             review_state=review_state,
             language_validator=language_validator,
+        ),
+        audio_use_cases=AudioUseCases(
+            expression_service=expression_service,
+            user_service=user_service,
+            quota=quota,
+            word_cache=AudioWordCache(words=cols["audio_words"]),
+            speech=EdgeSpeechProvider(),
+            language=language,
         ),
         study_use_cases=StudyUseCases(
             review_use_cases=review_use_cases,

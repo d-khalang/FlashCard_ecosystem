@@ -174,6 +174,7 @@ QuotaResult  {status: "quota", tier: str, limit: int}
 | `DELETE /collection/{id}` | | 204 or 404 |
 | `POST /collection/import` * | `{text}` (max 1000) | `{status: "imported", items}` or `{status: "all_duplicates"\|"parse_failed"\|"nothing_found"\|"invalid_language"}` or `{status: "too_long", limit}` or `{status: "too_many", limit}` or `QuotaResult`. `items` is `str[]`: the values newly saved. The body schema allows up to 5000 characters so that `too_long` (over 1000) can be answered |
 | `PATCH /settings` | any `Settings` fields | `Settings`. Bad values are 422 (`SettingsUseCases` raises `ValueError`) |
+| `GET /audio/{expression_id}/{part}` | part: `word`, `definition`, `example`, `translation_0`, `translation_1` | `audio/mpeg` of that part of the user's stored card. 404 if the card or part is gone, 429 `audio_limit` (no `Retry-After`) when the daily audio limit is used up, 429 `rate_limited` above 30 generated clips a minute, 503 `generation_failed` when the speech service fails |
 
 `words.pending` is true when a delivered card is waiting for a grade, by the same rule as resuming it (the review
 exists, its expression still has a stored card and is still pending under that delivery id).

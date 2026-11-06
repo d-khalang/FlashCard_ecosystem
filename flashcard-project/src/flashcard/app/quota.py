@@ -74,7 +74,19 @@ class QuotaPolicy:
         """Count one delivered `kind` under the bucket `check` chose."""
         await self.consumption.increment(user_id, _METRICS[kind], uses_own_key=allowed.uses_own_key)
 
-    def limit(self, user: UserDB, kind: Kind) -> int:
+    def check_audio(self, user: UserDB) -> QuotaResult:
+        """Whether the user may generate one more audio clip today. An own LLM key does not pay for audio."""
+        if user.tier == UserTier.admin:
+            return Allowed(uses_own_key=False)
+        limit = self.limit(user, "audio")
+        if self.consumption.resolve_consumption(user.consumption).audio_generated >= limit:
+            return QuotaExceeded(tier=user.tier.value, limit=limit)
+        return Allowed(uses_own_key=False)
+
+    async def record_audio(self, user_id: UserId) -> None:
+        await self.consumption.increment(user_id, "audio_generated")
+
+    def limit(self, user: UserDB, kind: str) -> int:
         """Daily limit for the user's tier; normal users in their trial get plus limits."""
         tier = UserTier.plus if self._in_trial(user) else user.tier
         return getattr(self.settings, f"TIER_LIMITS_{tier.name.upper()}_{kind.upper()}")

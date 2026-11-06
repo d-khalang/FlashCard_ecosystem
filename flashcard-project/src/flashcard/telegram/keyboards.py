@@ -1,6 +1,10 @@
 # src/flashcard/telegram/keyboards.py
+from typing import Optional
+
 from aiogram.types import (InlineKeyboardMarkup, ReplyKeyboardMarkup)
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from flashcard.app.audio import ListenablePart
+from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
@@ -82,9 +86,18 @@ def get_verb_keyboard(i18n: I18nService, data: ConjugationResponse) -> InlineKey
 
     return builder.as_markup()
 
-def get_review_keyboard(i18n: I18nService, expression_id: str, direction: str = "forward") -> InlineKeyboardMarkup:
+def _audio_part_text(i18n: I18nService, part: ListenablePart) -> str:
+    # A translation's button is its own label: the flag says which language it speaks.
+    return part.label or i18n.get(f"messages.buttons.listen_{part.part}")
+
+
+def get_review_keyboard(
+    i18n: I18nService, expression_id: str, direction: str = "forward",
+    audio_parts: Optional[list[ListenablePart]] = None,
+) -> InlineKeyboardMarkup:
+    """The grade buttons and a Listen button; given `audio_parts`, a row per those parts in its place."""
     # Let's use 'fwd' and 'rev'.
-    
+
     dir_code = "rev" if direction == "reverse" else "fwd"
     
     builder = InlineKeyboardBuilder()
@@ -99,7 +112,16 @@ def get_review_keyboard(i18n: I18nService, expression_id: str, direction: str = 
     # Row 3: 5
     builder.button(text=i18n.get("messages.buttons.grade_5"), callback_data=GradeCallback(expression_id=expression_id, grade=5, direction=dir_code).pack())
     
-    builder.adjust(1, 4, 1)
+    def audio_data(part: str) -> str:
+        return AudioCallback(expression_id=expression_id, part=part, direction=dir_code).pack()
+
+    if audio_parts is None:
+        builder.button(text=i18n.get("messages.buttons.listen"), callback_data=audio_data(AUDIO_MENU))
+        builder.adjust(1, 4, 1, 1)
+    else:
+        for part in audio_parts:
+            builder.button(text=_audio_part_text(i18n, part), callback_data=audio_data(part.part))
+        builder.adjust(1, 4, 1, 3, 2)
     return builder.as_markup()
 
 def get_reply_settings_keyboard(i18n: I18nService, is_active: bool) -> ReplyKeyboardMarkup:

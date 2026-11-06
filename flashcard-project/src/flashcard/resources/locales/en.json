@@ -21,6 +21,11 @@
             "invalid_data": "Hmm, something went wrong there. 🤔",
             "error_generic": "Uh oh, a little hiccup on my end. 😅"
         },
+        "audio": {
+            "already_sent": "It's right above in the chat. 🔊",
+            "limit": "You've used today's {limit} audio clips. More tomorrow! 🔊",
+            "unavailable": "Couldn't get the audio right now. Try again in a moment."
+        },
         "inline_remove": {
             "result_description": "Pick this card to remove it.",
             "prompt": "Change of mind check: tap Remove once more to confirm.",
@@ -152,7 +157,11 @@
             "close_settings": "❌ Close Settings",
             "verb_web_table": "📖 Full table online",
             "grade_0": "0 - Completely forgot 😅",
-            "grade_5": "5 - Easy peasy! 💪"
+            "grade_5": "5 - Easy peasy! 💪",
+            "listen": "🔊 Listen",
+            "listen_word": "🔊 Word",
+            "listen_definition": "🔊 Meaning",
+            "listen_example": "🔊 Example"
         },
         "tips": {
             "first_save": "💡 <b>Tip:</b> Head to /settings to customize your translation language, {language} level and review pace!",

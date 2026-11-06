@@ -13,6 +13,7 @@ def _collection_name_map(settings):
         "users": settings.COLLECTION_USERS,
         "expression": settings.COLLECTION_EXPRESSION,
         "conjugation": settings.COLLECTION_CONJUGATION,
+        "audio_words": settings.COLLECTION_AUDIO_WORDS,
     }
 
 

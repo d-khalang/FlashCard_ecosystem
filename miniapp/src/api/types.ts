@@ -3,6 +3,7 @@
 export type Direction = 'forward' | 'reverse';
 export type ReviewMode = 'standard' | 'dual';
 export type Section = 'definition' | 'translations' | 'example';
+export type AudioPart = 'word' | 'definition' | 'example' | 'translation_0' | 'translation_1';
 export type Grade = 0 | 1 | 2 | 3 | 4 | 5;
 
 export interface Translation {

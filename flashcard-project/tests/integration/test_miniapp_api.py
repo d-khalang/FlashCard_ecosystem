@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -48,6 +50,59 @@ def _as(user_id=USER) -> dict:
 
 def _error(response) -> tuple[int, str]:
     return response.status_code, response.json()["error"]["code"]
+
+
+class TestAudio:
+
+    @pytest.fixture
+    def speech(self, study_core):
+        synthesize = AsyncMock(return_value=b"mp3-bytes")
+        study_core.audio_use_cases.speech = SimpleNamespace(synthesize=synthesize)
+        return synthesize
+
+    async def test_a_word_is_generated_once_and_kept(self, api, mongo_cols, ready_user, speech):
+        first = await api.get(f"{BASE}/audio/{ready_user}/word", headers=_as())
+        second = await api.get(f"{BASE}/audio/{ready_user}/word", headers=_as())
+
+        assert first.status_code == second.status_code == 200
+        assert first.content == second.content == b"mp3-bytes"
+        assert first.headers["content-type"] == "audio/mpeg" and first.headers["cache-control"] == "no-store"
+        speech.assert_awaited_once()
+        assert await mongo_cols["audio_words"].count_documents({}) == 1
+        user = await mongo_cols["users"].find_one({"user_id": str(USER)})
+        assert user["consumption"]["audio_generated"] == 1
+
+    async def test_the_daily_limit_has_its_own_error(self, api, mongo_cols, ready_user, speech):
+        await api.get(f"{BASE}/me", headers=_as())
+        await mongo_cols["users"].update_one({"user_id": str(USER)}, {"$set": {
+            "tier": "normal", "created_at": datetime(2020, 1, 1, tzinfo=timezone.utc),
+            "consumption.consumption_date": datetime.now(timezone.utc).date().isoformat(),
+            "consumption.audio_generated": 10_000,
+        }})
+
+        response = await api.get(f"{BASE}/audio/{ready_user}/word", headers=_as())
+
+        assert _error(response) == (429, "audio_limit")
+        speech.assert_not_awaited()
+
+    async def test_someone_elses_card_is_not_found(self, api, mongo_cols, ready_user, speech):
+        await add_user(mongo_cols, OTHER)
+
+        response = await api.get(f"{BASE}/audio/{ready_user}/word", headers=_as(OTHER))
+
+        assert _error(response) == (404, "not_found")
+        speech.assert_not_awaited()
+
+    async def test_a_part_that_does_not_exist_is_refused(self, api, ready_user, speech):
+        assert _error(await api.get(f"{BASE}/audio/{ready_user}/secret", headers=_as()))[0] == 422
+
+    async def test_a_failing_service_is_a_503(self, api, ready_user, speech):
+        speech.side_effect = RuntimeError("403")
+
+        assert _error(await api.get(f"{BASE}/audio/{ready_user}/word", headers=_as())) == (503, "generation_failed")
+
+    async def test_needs_sign_in(self, api, ready_user):
+        assert (await api.get(f"{BASE}/audio/{ready_user}/word")).status_code == 401
 
 
 class TestMe:

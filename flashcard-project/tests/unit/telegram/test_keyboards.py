@@ -14,7 +14,9 @@ from flashcard.telegram.keyboards import (
     get_interval_settings_keyboard,
     get_verb_keyboard,
 )
+from flashcard.app.audio import ListenablePart
 from flashcard.schemas.conjugations import ConjugationResponse
+from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from tests.helpers import TEST_I18N
 
@@ -63,21 +65,36 @@ class TestExpressionActionKeyboard:
 # ===================================================================
 class TestReviewKeyboard:
 
-    def test_has_grades_0_through_5(self):
+    def test_has_grades_0_through_5_and_listen(self):
         kb = get_review_keyboard(TEST_I18N, "abc123")
         buttons = [btn for row in kb.inline_keyboard for btn in row]
 
-        # Should have 6 buttons: 0, 1, 2, 3, 4, 5
-        assert len(buttons) == 6
+        # 0, 1, 2, 3, 4, 5 and Listen
+        assert len(buttons) == 7
 
-    def test_layout_is_1_4_1(self):
-        """Row 1: grade 0, Row 2: grades 1-4, Row 3: grade 5."""
+    def test_layout_is_1_4_1_then_listen(self):
+        """Row 1: grade 0, Row 2: grades 1-4, Row 3: grade 5, Row 4: Listen."""
         kb = get_review_keyboard(TEST_I18N, "abc123")
 
-        assert len(kb.inline_keyboard) == 3
+        assert len(kb.inline_keyboard) == 4
         assert len(kb.inline_keyboard[0]) == 1  # "0"
         assert len(kb.inline_keyboard[1]) == 4  # 1, 2, 3, 4
         assert len(kb.inline_keyboard[2]) == 1  # "5"
+        assert AudioCallback.unpack(kb.inline_keyboard[3][0].callback_data).part == AUDIO_MENU
+
+    def test_listen_gives_way_to_the_parts_of_the_card(self):
+        parts = [ListenablePart("word"), ListenablePart("definition"), ListenablePart("example"),
+                 ListenablePart("translation_0", "🇮🇷 FA"), ListenablePart("translation_1", "🇬🇧 EN")]
+
+        kb = get_review_keyboard(TEST_I18N, "0" * 24, direction="reverse", audio_parts=parts)
+
+        rows = kb.inline_keyboard[3:]
+        assert [len(row) for row in rows] == [3, 2]
+        assert rows[1][0].text == "🇮🇷 FA"
+        data = AudioCallback.unpack(rows[1][1].callback_data)
+        assert (data.part, data.direction) == ("translation_1", "rev")
+        # Telegram refuses callback data over 64 bytes.
+        assert all(len(btn.callback_data.encode()) <= 64 for row in rows for btn in row)
 
     def test_forward_direction_encoded(self):
         kb = get_review_keyboard(TEST_I18N, "abc123", direction="forward")
