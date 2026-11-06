@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v2.2.0-rc.2 (2026-11-06)
+
+### Fix
+
+- Audio: Italian uses Elsa and Isabella only. The multilingual Giuseppe voice read some short Italian text in English and often sent no audio.
+
 ## v2.2.0-rc.1 (2026-11-06)
 
 Includes v2.1.1-rc.1. Run `python -m flashcard.migrations.ensure_indexes --apply` on each language database: it builds the expiry index of the new `audio_words` collection, which backups leave out. Requires edge-tts 7.3.1 or later (older versions are refused with 403).
