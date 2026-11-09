@@ -14,15 +14,21 @@ Config: `TIER_LIMITS_*_CARDS` is replaced by `TIER_LIMITS_*_CREDITS` (defaults 2
 - Mini App: a credit chip in the Today top bar; tap it for the costs and the time to the refill.
 - Bot: `/settings` shows today's credits, and the limit message names the daily credits and the card cost.
 
-## v2.2.0-rc.1 (2026-11-06)
+## v2.2.1 (2026-11-09)
 
-Includes v2.1.1-rc.1. Run `python -m flashcard.migrations.ensure_indexes --apply` on each language database: it builds the expiry index of the new `audio_words` collection, which backups leave out. Requires edge-tts 7.3.1 or later (older versions are refused with 403).
+No config change or data migration.
+
+### Fix
+
+- A grade that was saved no longer shows an error when Telegram drops the connection afterwards: the card edit retries once, and any remaining Telegram failure is only logged.
+
+## v2.2.0 (2026-11-06)
+
+Run `python -m flashcard.migrations.ensure_indexes --apply` on each language database: it builds the expiry index of the new `audio_words` collection, which backups leave out. Requires edge-tts 7.3.1 or later (older versions are refused with 403).
 
 ### Feat
 
-- Listen to a card: its word, meaning, example and each translation, on the bot (voice messages from a Listen button on review cards) and in the Mini App. Only word audio is stored; a daily limit counts generated clips.
-
-## v2.1.1-rc.1 (2026-11-06)
+- Listen to a card: its word, meaning, example and each translation, on the bot (voice messages from a Listen button on review cards) and in the Mini App. Only word audio is stored; a daily limit counts generated clips. Italian uses the Elsa and Isabella voices.
 
 ### Fix
 

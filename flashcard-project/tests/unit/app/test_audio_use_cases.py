@@ -225,3 +225,6 @@ class TestLanguages:
 
         assert set(VOICES) == set(LANGUAGE_DATA)
         assert all(random_voice(code) for code in LANGUAGE_DATA)
+
+    def test_no_voice_guesses_the_language(self):
+        assert not [voice for voices in VOICES.values() for voice in voices if "Multilingual" in voice]

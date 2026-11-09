@@ -15,7 +15,9 @@ MAX_PARALLEL_REQUESTS = 3
 
 # Every language in LANGUAGE_DATA. A clip uses one of its language's voices, at random.
 VOICES: dict[str, tuple[str, ...]] = {
-    "it": ("it-IT-ElsaNeural", "it-IT-IsabellaNeural", "it-IT-GiuseppeMultilingualNeural"),
+    # No multilingual voices: they guess the language from the text, so a short Italian phrase can come
+    # out in English (seen with it-IT-GiuseppeMultilingualNeural, which also often sent no audio).
+    "it": ("it-IT-ElsaNeural", "it-IT-IsabellaNeural"),
     "en": ("en-US-JennyNeural", "en-US-GuyNeural", "en-GB-SoniaNeural"),
     "es": ("es-ES-ElviraNeural", "es-ES-AlvaroNeural"),
     "fr": ("fr-FR-DeniseNeural", "fr-FR-HenriNeural"),
