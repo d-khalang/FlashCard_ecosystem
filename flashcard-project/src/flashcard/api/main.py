@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from flashcard.api.lifecycle.lifecycle import lifespan
 from flashcard.api.routes import health, webhook
 from flashcard.settings import Settings, get_setting
-from flashcard.utils.logger import configure_log_level
+from flashcard.utils.logger import configure_log_level, mask_access_log_path
 
 
 def create_app(settings: Optional[Settings] = None) -> FastAPI:
@@ -15,6 +15,8 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     """
     settings = settings or get_setting()
     configure_log_level(settings.LOG_LEVEL)
+    # The path carries a random token: anyone who reads the logs should not learn it.
+    mask_access_log_path(settings.WEBHOOK_PATH)
     app = FastAPI(lifespan=lifespan)
     app.state.settings = settings
     app.state.webhook_secret = settings.WEBHOOK_SECRET
