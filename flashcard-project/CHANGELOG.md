@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## v2.2.1-rc.1 (2026-11-09)
+## v2.2.1 (2026-11-09)
 
 No config change or data migration.
 
