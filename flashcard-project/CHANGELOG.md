@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v2.2.2-rc.1 (2026-11-09)
+
+No config change or data migration.
+
+### Fix
+
+- The webhook path no longer appears in the bot's access log; webhook requests are logged as `<webhook>`. Log lines written before this release keep the path.
+
 ## v2.2.1 (2026-11-09)
 
 No config change or data migration.
