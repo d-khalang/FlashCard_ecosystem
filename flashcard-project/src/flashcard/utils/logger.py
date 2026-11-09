@@ -1,7 +1,10 @@
 import logging
 import sys
+from urllib.parse import quote
 
 APP_LOGGER_NAME = "flashcard"
+ACCESS_LOGGER_NAME = "uvicorn.access"
+MASKED_PATH = "<webhook>"
 
 
 def _use_utf8(stream) -> None:
@@ -87,6 +90,31 @@ def configure_log_level(level: str) -> None:
     """Set the app logger's level (`LOG_LEVEL`); entry points call this at startup."""
     FlashCardLogger.setup()
     logging.getLogger(APP_LOGGER_NAME).setLevel(getattr(logging, level.upper(), logging.INFO))
+
+
+class _MaskPathFilter(logging.Filter):
+    """Replaces a request path in an access-log record's arguments; never drops the record."""
+
+    def __init__(self, path: str):
+        super().__init__()
+        # uvicorn logs the percent-encoded path, followed by the query string.
+        self._paths = {path.rstrip("/"), quote(path).rstrip("/")}
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(MASKED_PATH if self._is_masked(arg) else arg for arg in record.args)
+        return True
+
+    def _is_masked(self, arg: object) -> bool:
+        return isinstance(arg, str) and arg.partition("?")[0].rstrip("/") in self._paths
+
+
+def mask_access_log_path(path: str) -> None:
+    """Keep `path` out of uvicorn's access log; the last call in a process wins."""
+    access_logger = logging.getLogger(ACCESS_LOGGER_NAME)
+    for existing in [f for f in access_logger.filters if isinstance(f, _MaskPathFilter)]:
+        access_logger.removeFilter(existing)
+    access_logger.addFilter(_MaskPathFilter(path))
 
 
 def get_logger(name: str) -> logging.Logger:
