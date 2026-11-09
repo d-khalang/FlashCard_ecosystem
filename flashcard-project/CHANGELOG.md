@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v2.3.1-rc.1 (2026-11-09)
+
+No config change or data migration. The Mini App now calls the Telegram Bot API (`api.telegram.org`) with its existing bot token, so its container needs outbound access there.
+
+### Fix
+
+- Grading a bot card in the Mini App removes the grade buttons from its Telegram message; undoing that grade puts them back.
+- A tap on grade buttons that can no longer act (graded elsewhere, replaced by a newer card, or deleted) removes them.
+- Listen on such a card no longer brings its grade buttons back; it says the card is already answered.
+
 ## v2.3.0 (2026-11-09)
 
 Config: `TIER_LIMITS_*_CARDS` is replaced by `TIER_LIMITS_*_CREDITS` (defaults 20, 80, 100, 1998); old `_CARDS` values in an env file are ignored, so remove them. No data migration: the new `credits_used` counter starts at 0, so on release day everyone gets a fresh day of credits.

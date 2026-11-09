@@ -55,13 +55,16 @@ async def prepare(caller: LlmUser, core: CoreDep, request: Request) -> dict:
 
 
 @router.post("/grade")
-async def grade(body: GradeIn, user_id: GeneralUser, core: CoreDep) -> Union[GradedOut, StatusOnly]:
+async def grade(
+    body: GradeIn, user_id: GeneralUser, core: CoreDep, request: Request,
+) -> Union[GradedOut, StatusOnly]:
     try:
         result = await core.study_use_cases.grade(
             user_id, body.expression_id, body.grade, body.direction, delivery_id=body.delivery_id)
     except ValueError:
         raise invalid_request() from None
     if isinstance(result, Graded):
+        request.app.state.bot_buttons.remove(user_id, body.delivery_id)
         return GradedOut()
     if isinstance(result, NotPending):
         return StatusOnly(status="not_pending")
@@ -70,9 +73,10 @@ async def grade(body: GradeIn, user_id: GeneralUser, core: CoreDep) -> Union[Gra
 
 
 @router.post("/undo")
-async def undo(user_id: GeneralUser, core: CoreDep) -> Union[UndoneOut, StatusOnly]:
+async def undo(user_id: GeneralUser, core: CoreDep, request: Request) -> Union[UndoneOut, StatusOnly]:
     result = await core.study_use_cases.undo(user_id)
     if isinstance(result, Undone):
+        request.app.state.bot_buttons.restore(user_id, result.card, core.i18n)
         return UndoneOut(card=study_card_out(result.card))
     assert isinstance(result, NothingToUndo)
     return StatusOnly(status="nothing_to_undo")

@@ -18,7 +18,8 @@ from flashcard.app import study as study_module
 from flashcard.miniapp.api import create_app
 from flashcard.miniapp.rate_limit import RateLimiter
 from flashcard.settings import get_setting
-from .study_helpers import add_user, add_word, auth_header
+from flashcard.telegram.keyboards import get_review_keyboard
+from .study_helpers import add_user, add_word, auth_header, fake_bot_buttons
 
 USER = 42
 OTHER = 43
@@ -32,10 +33,12 @@ CARD_KEYS = {"delivery_id", "expression_id", "value", "direction", "from_storage
 async def api(study_core, mongo_cols):
     app = create_app(get_setting())
     app.state.core = study_core
+    app.state.bot_buttons = fake_bot_buttons()
     async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         client.app = app
         yield client
     await app.state.prepared.close()
+    await app.state.bot_buttons.close()
 
 
 @pytest.fixture
@@ -164,6 +167,25 @@ class TestStudyFlow:
         undone = (await api.post(f"{BASE}/study/undo", headers=_as())).json()
         assert undone == {"status": "undone", "card": card}
         assert (await api.post(f"{BASE}/study/undo", headers=_as())).json() == {"status": "nothing_to_undo"}
+
+    async def test_grading_a_bot_card_removes_its_buttons_and_undo_restores_them(self, api, study_core, ready_user):
+        bot = api.app.state.bot_buttons.bot
+        ready = await study_core.review_use_cases.prepare_next(USER)
+        await study_core.review_use_cases.mark_sent(USER, ready, 555)
+        grade = {"delivery_id": 555, "expression_id": ready_user, "direction": "forward", "grade": 4}
+
+        # Not the delivered message: nothing is graded, so nothing may be edited.
+        stale = (await api.post(f"{BASE}/study/grade", headers=_as(), json={**grade, "delivery_id": 556})).json()
+        assert stale == {"status": "not_pending"}
+
+        assert (await api.post(f"{BASE}/study/grade", headers=_as(), json=grade)).json()["status"] == "graded"
+        assert (await api.post(f"{BASE}/study/undo", headers=_as())).json()["status"] == "undone"
+        await api.app.state.bot_buttons.close()
+
+        edits = [call.kwargs for call in bot.edit_message_reply_markup.await_args_list]
+        assert [(edit["chat_id"], edit["message_id"]) for edit in edits] == [(USER, 555), (USER, 555)]
+        assert edits[0]["reply_markup"] is None
+        assert edits[1]["reply_markup"] == get_review_keyboard(study_core.i18n, ready_user, direction="forward")
 
     async def test_no_words_is_none(self, api, mongo_cols):
         await add_user(mongo_cols, USER)

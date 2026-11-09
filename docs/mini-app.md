@@ -63,8 +63,10 @@ grade-once code then applies, and `pending_message_id` stays through the contrac
 - In-app delivery does not call `mark_pending` (the legacy flag). It stores the card, records usage and
   writes `current_review`, as `mark_sent` does otherwise.
 - If `current_review` exists and its expression still has a stored card (bot or app delivered), the app
-  resumes that same card, with the same delivery id. Grading it there resolves it; the old bot message then
-  answers "already graded". Direction `unknown` is treated as `forward`. No stored card: deliver a new one.
+  resumes that same card, with the same delivery id. Grading it there resolves it and removes the
+  buttons from the old bot message; undoing that grade puts them back (`miniapp/bot_buttons.py`). This runs
+  after the response, in order per user, and a failure is only logged: a tap on a button left behind answers
+  "already graded" and removes them. Direction `unknown` is treated as `forward`. No stored card: deliver a new one.
 - `from_storage` on resume: true when `last_card.generated_at` is more than 60 s older than `sent_at`.
 
 ## Undo

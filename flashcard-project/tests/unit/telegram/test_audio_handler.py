@@ -8,6 +8,7 @@ from aiogram.types import BufferedInputFile
 
 from flashcard.app.audio import Clip, ListenablePart, PartMissing, SpeechFailed
 from flashcard.app.quota import QuotaExceeded
+from flashcard.app.review import CardNotFound, NotPending
 from flashcard.telegram.handlers import audio as handler
 from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback
 from tests.helpers import TEST_I18N
@@ -65,13 +66,33 @@ class TestMenu:
         assert len(keyboard) == 4
         assert [button.text for button in keyboard[3]] == [TEST_I18N.get("messages.buttons.listen_word"), "🇮🇷 FA"]
 
-    async def test_a_card_that_is_gone_says_so(self):
+    async def test_asks_about_the_message_that_was_tapped(self):
+        uses = _uses(parts=[ListenablePart("word")])
+
+        await _tap(_callback(), AUDIO_MENU, uses, _bot())
+
+        uses.parts.assert_awaited_once_with(7, EXPRESSION_ID, message_id=99)
+
+    @pytest.mark.parametrize("result, key", [
+        (CardNotFound(), "callbacks.grade.error_missing"),
+        (NotPending(), "callbacks.grade.not_pending"),
+    ])
+    async def test_a_card_no_longer_waiting_says_so_and_loses_its_buttons(self, result, key):
         callback, bot = _callback(), _bot()
 
-        await _tap(callback, AUDIO_MENU, _uses(parts=None), bot)
+        await _tap(callback, AUDIO_MENU, _uses(parts=result), bot)
 
-        bot.edit_message_reply_markup.assert_not_awaited()
-        assert callback.answer.await_args.args[0] == TEST_I18N.get("callbacks.grade.error_missing")
+        bot.edit_message_reply_markup.assert_awaited_once_with(chat_id=7, message_id=99, reply_markup=None)
+        assert callback.answer.await_args.args[0] == TEST_I18N.get(key)
+
+    async def test_failing_to_remove_dead_buttons_does_not_escape(self):
+        callback, bot = _callback(), _bot()
+        bot.edit_message_reply_markup.side_effect = TelegramBadRequest(
+            method=MagicMock(), message="Bad Request: message to edit not found")
+
+        await _tap(callback, AUDIO_MENU, _uses(parts=NotPending()), bot)
+
+        assert callback.answer.await_args.args[0] == TEST_I18N.get("callbacks.grade.not_pending")
 
     async def test_a_double_tap_is_not_an_error(self):
         callback, bot = _callback(), _bot()

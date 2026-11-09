@@ -19,7 +19,7 @@ from flashcard.miniapp.rate_limit import DailyBudget, RateLimiter
 from flashcard.scheduler.scheduler import find_users_due_for_review
 from flashcard.services.language_validation import LatinScriptLanguageValidityChecker
 from flashcard.settings import get_setting
-from .study_helpers import add_user, add_word, auth_header, make_card
+from .study_helpers import add_user, add_word, auth_header, fake_bot_buttons, make_card
 
 USER = 42
 OTHER = 43
@@ -30,10 +30,12 @@ BASE = "/api/v1"
 async def api(study_core, mongo_cols):
     app = create_app(get_setting().model_copy(update={}))
     app.state.core = study_core
+    app.state.bot_buttons = fake_bot_buttons()
     async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         client.app = app
         yield client
     await app.state.prepared.close()
+    await app.state.bot_buttons.close()
 
 
 def _as(user_id=USER, **kwargs) -> dict:
