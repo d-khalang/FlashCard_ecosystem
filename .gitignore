@@ -33,3 +33,4 @@ model_benchmark/
 .env.dev
 .env.local
 .claude/launch.json
+tts_test_sandbox
