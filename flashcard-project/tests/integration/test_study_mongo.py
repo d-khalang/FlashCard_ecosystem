@@ -125,11 +125,11 @@ class TestDelivery:
         await _delivered(core)  # makes the stored card
         await core.study_use_cases.grade(USER, expression_id, 4, "forward",
                                          delivery_id=(await _expr(cols, expression_id))["pending_message_id"])
-        # Back to ready, and today's cards used up (normal tier limit 10; the test users are past their trial).
+        # Back to ready, and today's credits used up (normal tier limit 20; the test users are past their trial).
         await cols["expression"].update_one({"_id": ObjectId(expression_id)}, {"$set": {"last_activity_at": None}})
         await cols["users"].update_one({"user_id": str(USER)}, {"$set": {"consumption": {
             "consumption_date": datetime.now(timezone.utc).date().isoformat(),
-            "system_api": {"cards_generated": 10}}}})
+            "system_api": {"cards_generated": 10, "credits_used": 20}}}})
         calls = core.llm_service.card_calls
 
         card = await _delivered(core)
@@ -142,7 +142,7 @@ class TestDelivery:
         core, cols, _ = setup
         await cols["users"].update_one({"user_id": str(USER)}, {"$set": {"consumption": {
             "consumption_date": datetime.now(timezone.utc).date().isoformat(),
-            "system_api": {"cards_generated": 10}}}})
+            "system_api": {"cards_generated": 10, "credits_used": 20}}}})
 
         assert isinstance(await core.study_use_cases.next(USER), QuotaExceeded)
 
@@ -493,7 +493,7 @@ class TestRefresh:
     async def test_over_quota_is_a_quota_result_without_calling_the_llm(self, setup):
         core, cols, _ = setup
         card = await _delivered(core)
-        await cols["users"].update_one({"user_id": str(USER)}, {"$set": {"consumption.system_api.cards_generated": 10}})
+        await cols["users"].update_one({"user_id": str(USER)}, {"$set": {"consumption.system_api.credits_used": 20}})
 
         assert isinstance(await core.study_use_cases.refresh_section(USER, card.delivery_id, "example"), QuotaExceeded)
         assert core.llm_service.section_calls == []

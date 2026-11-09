@@ -156,7 +156,8 @@ Tracks resource usage (LLM tokens, API calls) with lazy daily resets.
 
 | Metric | Bucket | Description |
 |--------|--------|-------------|
-| `cards_generated` | `system_api` / `user_api` | LLM card generations (text→card, regen, /get, scheduled) |
+| `cards_generated` | `system_api` / `user_api` | LLM card generations (text→card, regen, /get, scheduled, part refresh), for stats |
+| `credits_used` | `system_api` / `user_api` | Card credits spent, checked against the daily limit: 2 per new card, 1 per refreshed part. Added in the same write as `cards_generated` (`increment(..., credits=n)`) |
 | `stories_generated` | `system_api` / `user_api` | LLM story generations (/story) |
 | `verb_lookups` | top-level | Third-party verb scraper calls (always system-side) |
 

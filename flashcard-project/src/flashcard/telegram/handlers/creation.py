@@ -5,6 +5,7 @@ from typing import Optional
 
 from flashcard.app.creation import CardReady, CreationUseCases, GenerateResult, InvalidInput, Saved
 from flashcard.app.quota import QuotaExceeded
+from flashcard.telegram.helpers.credits import credits_exceeded_text
 from flashcard.services.i18n import I18nService
 from flashcard.language import LanguageConfig
 from flashcard.telegram.ui.expression import render_expression_card
@@ -27,12 +28,7 @@ def _present(i18n: I18nService, result: GenerateResult, language: LanguageConfig
             text = f"{text}\n" + "\n".join(result.suggestions[:3])
         return text, None
     if isinstance(result, QuotaExceeded):
-        return i18n.get(
-            "messages.errors.quota_exceeded",
-            type="card",
-            tier=result.tier,
-            limit=result.limit,
-        ), None
+        return credits_exceeded_text(i18n, result), None
     content = render_expression_card(result.card, learning_flag=language.flag)["content"]
     if isinstance(result, CardReady):
         return content, expression_action_kb(i18n, result.card.norm)

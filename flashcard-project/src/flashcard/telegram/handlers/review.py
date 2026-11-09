@@ -8,6 +8,7 @@ import asyncio
 from typing import Awaitable
 
 from flashcard.app.review import CardNotFound, NoCandidate, NotPending, QuotaExceeded, ReviewUseCases
+from flashcard.telegram.helpers.credits import credits_exceeded_text
 from flashcard.language import LanguageConfig
 from flashcard.services.i18n import I18nService
 from flashcard.telegram.ui.expression import format_review_message
@@ -38,12 +39,7 @@ async def cmd_get(message: Message, review_use_cases: ReviewUseCases, language: 
         return
 
     if isinstance(result, QuotaExceeded):
-        await message.answer(i18n.get(
-            "messages.errors.quota_exceeded",
-            type="card",
-            tier=result.tier,
-            limit=result.limit,
-        ))
+        await message.answer(credits_exceeded_text(i18n, result))
         return
 
     text = format_review_message(

@@ -49,7 +49,7 @@ async def _cards_generated(env) -> int:
 async def _use_up_quota(env):
     """More cards today than any tier allows."""
     await env["cols"]["users"].update_one({"user_id": str(USER_ID)}, {"$set": {"consumption": {
-        "consumption_date": now_utc().date().isoformat(), "system_api": {"cards_generated": 999}}}})
+        "consumption_date": now_utc().date().isoformat(), "system_api": {"cards_generated": 999, "credits_used": 9999}}}})
 
 
 def _fail_generation(env, failure):
@@ -118,7 +118,7 @@ class TestStoredCard:
 
         await _feed(dispatcher_env, make_message_update(text="/get"))
 
-        assert "daily limit" in _sent_texts(dispatcher_env)[-1]
+        assert "today's credits" in _sent_texts(dispatcher_env)[-1]
         assert await _cards_generated(dispatcher_env) == 999
 
     @pytest.mark.parametrize("failure", ["provider_error", "unclear_card"])

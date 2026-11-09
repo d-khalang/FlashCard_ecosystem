@@ -90,7 +90,9 @@
                 "secondary_lang": "Lingua secondaria: <b>{secondary_lang}</b>",
                 "target_level": "Livello target: <b>{target_level}</b>",
                 "review_interval": "Intervallo di revisione: <b>{review_interval_minutes} minuti</b>",
-                "review_mode": "Modalità di ripasso: <b>{review_mode}</b>"
+                "review_mode": "Modalità di ripasso: <b>{review_mode}</b>",
+                "credits": "⚡ Crediti di oggi: ne restano <b>{left} su {limit}</b>. Una nuova carta costa {card_cost}. Si ricaricano alle 00:00 UTC.",
+                "credits_unlimited": "⚡ Crediti di oggi: <b>illimitati</b>. Una nuova carta costa {card_cost}."
             },
             "status_active": "Attivo ✅",
             "status_paused": "In pausa ⏸",
@@ -144,6 +146,7 @@
             "feedback_failed": "Errore nell'invio del feedback: {error}",
             "input_too_long": "Ehi, è un po' troppo lungo! 😅 Manteniamolo a parole o brevi espressioni (massimo 150 caratteri).",
             "invalid_learning_language_input": "Questo non sembra {language}. Prova con una parola o breve espressione in {language}.",
+            "credits_exceeded": "Hai usato i crediti di oggi. 🛑\n\nNe hai {limit} al giorno e una nuova carta costa {card_cost}. Si ricaricano alle 00:00 UTC.\n\nSe te ne servono di più, contatta l'amministratore con /feedback. Puoi anche usare la tua chiave API in /settings per carte illimitate! 🚀",
             "quota_exceeded": "Hai raggiunto il tuo limite giornaliero di generazioni {type}. 🛑\n\nLe nostre risorse sono limitate ☹️ e il tuo limite è di {limit} al giorno. Se ne hai bisogno di più, contatta l'amministratore con /feedback. Puoi anche usare la tua chiave API in /settings per avere accesso illimitato! 🚀"
         },
         "buttons": {

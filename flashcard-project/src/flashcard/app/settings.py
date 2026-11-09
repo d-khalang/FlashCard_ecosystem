@@ -9,6 +9,7 @@ first. Callers own presentation (labels, flags, keyboards).
 """
 from typing import Optional, cast, get_args
 
+from flashcard.app.quota import QuotaPolicy, Usage
 from flashcard.schemas.user import UserId
 from flashcard.schemas.languages import NONE_MAP, LanguageLevel, normalize_language_input
 from flashcard.schemas.user import MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, ReviewMode, UserDB
@@ -16,11 +17,16 @@ from flashcard.services.user import UserService
 
 
 class SettingsUseCases:
-    def __init__(self, user_service: UserService):
+    def __init__(self, user_service: UserService, quota: Optional[QuotaPolicy] = None):
         self.users = user_service
+        self.quota = quota
 
     async def get(self, user_id: UserId) -> UserDB:
         return await self.users.get_user(user_id)
+
+    def credits(self, user: UserDB) -> Optional[Usage]:
+        """Today's card credits, shown with the settings; None without a quota policy."""
+        return self.quota.usage(user, "cards") if self.quota is not None else None
 
     async def update(self, user_id: UserId, changes: dict) -> UserDB:
         """

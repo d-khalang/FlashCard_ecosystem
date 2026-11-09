@@ -90,7 +90,9 @@
                 "secondary_lang": "Secondary Language: <b>{secondary_lang}</b>",
                 "target_level": "Target Level: <b>{target_level}</b>",
                 "review_interval": "Review Interval: <b>{review_interval_minutes} minutes</b>",
-                "review_mode": "Review Mode: <b>{review_mode}</b>"
+                "review_mode": "Review Mode: <b>{review_mode}</b>",
+                "credits": "⚡ Credits today: <b>{left} of {limit}</b> left. A new card costs {card_cost}. They refill at 00:00 UTC.",
+                "credits_unlimited": "⚡ Credits today: <b>unlimited</b>. A new card costs {card_cost}."
             },
             "status_active": "Active ✅",
             "status_paused": "Paused ⏸",
@@ -144,6 +146,7 @@
             "feedback_failed": "Couldn't send that feedback just now 😅: {error}",
             "input_too_long": "Whoa, that's a bit too long! 😅 Let's keep it to short words or expressions (max 150 characters).",
             "invalid_learning_language_input": "That does not look like {language}. Try a short word or expression in {language}.",
+            "credits_exceeded": "You've used today's credits. 🛑\n\nYou get {limit} a day and a new card costs {card_cost}. They refill at 00:00 UTC.\n\nIf you need more, contact the admin with /feedback. You can also use your own API key in /settings for unlimited cards! 🚀",
             "quota_exceeded": "You've reached your daily limit for {type} generations today. 🛑\n\nOur resources are limited ☹️ and your limit is {limit} per day. If you need more, please contact admin with /feedback. You can also use your own API key in /settings to have unlimited access! 🚀"
         },
         "buttons": {

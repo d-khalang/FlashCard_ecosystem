@@ -7,6 +7,7 @@ from flashcard.app.collection import (
     AllDuplicates, CollectionUseCases, Imported, InvalidLanguage, NothingFound, ParseFailed, TooLong,
 )
 from flashcard.app.quota import QuotaExceeded
+from flashcard.telegram.helpers.credits import credits_exceeded_text
 from flashcard.services.i18n import I18nService
 from flashcard.telegram.ui.expression_lists import format_expression_list
 from flashcard.utils.logger import get_logger
@@ -49,8 +50,7 @@ async def cmd_import(message: Message, command: CommandObject, collection_use_ca
     elif isinstance(result, TooLong):
         await message.answer(i18n.get("commands.import.too_long", limit=result.limit))
     elif isinstance(result, QuotaExceeded):
-        await message.answer(i18n.get(
-            "messages.errors.quota_exceeded", type="card", tier=result.tier, limit=result.limit))
+        await message.answer(credits_exceeded_text(i18n, result))
 
 
 @router.message(Command("list_my_flashcards"))

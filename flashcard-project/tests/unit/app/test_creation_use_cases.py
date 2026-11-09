@@ -62,7 +62,7 @@ class TestGenerate:
         use_cases, _, _, consumption, _ = _use_cases(card=card)
 
         assert await use_cases.generate(222, "andare") == CardReady(card=card)
-        consumption.increment.assert_awaited_once_with(222, "cards_generated", uses_own_key=False)
+        consumption.increment.assert_awaited_once_with(222, "cards_generated", uses_own_key=False, credits=2)
 
     async def test_unclear_card_is_returned_and_not_counted(self):
         card = _card(success=False)
@@ -107,7 +107,7 @@ class TestGenerate:
         use_cases, _, _, consumption, _ = _use_cases(user=user)
 
         await use_cases.generate(222, "andare")
-        consumption.increment.assert_awaited_once_with(222, "cards_generated", uses_own_key=True)
+        consumption.increment.assert_awaited_once_with(222, "cards_generated", uses_own_key=True, credits=2)
 
     async def test_generation_uses_preferences_and_fallback_notifier(self):
         user = _user(primary_language="fa", secondary_language="en", target_level="A2")

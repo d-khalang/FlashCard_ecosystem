@@ -73,7 +73,7 @@ def _use_cases(d) -> CreationUseCases:
                             language_validator=d.validator)
 
 
-QUOTA_TEXT = lambda: i18n.get("messages.errors.quota_exceeded", type="card", tier="normal", limit=10)
+QUOTA_TEXT = lambda: i18n.get("messages.errors.credits_exceeded", limit=10, card_cost=2)
 
 
 # ===================================================================
@@ -100,7 +100,7 @@ class TestTextMessage:
         status.edit_text.assert_awaited_once_with(
             text=render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"], reply_markup=expression_action_kb(i18n, "andare"))
         d.consumption_service.increment.assert_awaited_once_with(
-            USER_ID, "cards_generated", uses_own_key=False)
+            USER_ID, "cards_generated", uses_own_key=False, credits=2)
 
     async def test_generation_uses_user_preferences_without_defaults(self):
         d = _deps(user=_user(primary_language="fa", secondary_language="en", target_level="A2"))
@@ -131,7 +131,7 @@ class TestTextMessage:
         await _run_text(d)
 
         d.consumption_service.increment.assert_awaited_once_with(
-            USER_ID, "cards_generated", uses_own_key=True)
+            USER_ID, "cards_generated", uses_own_key=True, credits=2)
 
     async def test_unclear_input_shows_note_without_actions_or_usage(self):
         d = _deps(card=_card(success=False))
@@ -213,7 +213,7 @@ class TestRegenerate:
             "text": render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"], "reply_markup": expression_action_kb(i18n, "andare")}
         assert d.llm_service.generate_expression_card.await_args.kwargs["raw"] == "andare"
         d.consumption_service.increment.assert_awaited_once_with(
-            USER_ID, "cards_generated", uses_own_key=False)
+            USER_ID, "cards_generated", uses_own_key=False, credits=2)
 
     async def test_quota_exceeded_keeps_the_card_and_sends_the_limit(self):
         """The quota text is too long for an alert, so it is a message; the card stays usable."""

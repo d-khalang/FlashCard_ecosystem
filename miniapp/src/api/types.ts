@@ -41,6 +41,7 @@ export interface Settings {
 export interface QuotaResult {
   status: 'quota';
   tier: string;
+  /** Today's credit limit. */
   limit: number;
 }
 
@@ -53,7 +54,8 @@ export interface LanguageInfo {
 export interface Me {
   language: LanguageInfo;
   settings: Settings;
-  quota: { used: number; limit: number | null };
+  /** Today's card credits; `limit` is null when nothing limits the user. Refills at 00:00 UTC. */
+  quota: { used: number; limit: number | null; card_cost: number; section_cost: number };
   /** False until the user has started the bot chat, so reminders cannot be delivered. */
   reminders_available: boolean;
   words: { total: number; ready: number; /** A card is waiting for an answer. */ pending: boolean };

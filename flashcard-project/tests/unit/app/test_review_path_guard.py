@@ -41,7 +41,7 @@ def env():
 def _ready(expression_id, quota=None):
     from flashcard.app.quota import Allowed
     return ReviewReady(expression_id=expression_id, value="andare", direction="forward", card=make_card(),
-                       settings=SETTINGS, quota=Allowed(uses_own_key=False) if quota is None else quota)
+                       settings=SETTINGS, quota=Allowed(uses_own_key=False, credits=2) if quota is None else quota)
 
 
 async def test_mark_sent_still_stores_the_message_id_and_sets_the_legacy_flag(env):

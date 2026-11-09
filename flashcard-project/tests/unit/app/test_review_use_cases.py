@@ -95,7 +95,7 @@ class TestPrepareNext:
 
         assert await use_cases.prepare_next(111) == ReviewReady(
             expression_id=EXPRESSION_ID, value="andare", direction="reverse",
-            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False))
+            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False, credits=2))
 
     async def test_object_id_is_returned_as_string(self):
         from bson import ObjectId
@@ -122,7 +122,7 @@ class TestPrepareNext:
         use_cases, *_ = _use_cases(candidate=_candidate(), user=user)
 
         result = await use_cases.prepare_next(111)
-        assert result.quota == Allowed(uses_own_key=True)
+        assert result.quota == Allowed(uses_own_key=True, credits=2)
 
     async def test_generation_uses_user_preferences(self):
         user = _user(primary_language="fa", secondary_language="en", target_level="A2")
@@ -175,14 +175,14 @@ class TestMarkSent:
     async def test_records_message_push_and_usage(self, uses_own_key):
         use_cases, expressions, users, consumption, _ = _use_cases()
         ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
-                            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=uses_own_key))
+                            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=uses_own_key, credits=2))
 
         await use_cases.mark_sent(111, ready, 42)
 
         expressions.update_expression_sent.assert_awaited_once()
         assert expressions.update_expression_sent.await_args.args == (EXPRESSION_ID, 42)
         use_cases.review_state.mark_pending.assert_awaited_once_with(111)
-        consumption.increment.assert_awaited_once_with(111, "cards_generated", uses_own_key=uses_own_key)
+        consumption.increment.assert_awaited_once_with(111, "cards_generated", uses_own_key=uses_own_key, credits=2)
 
 
 class TestStoredCardFallback:
@@ -340,7 +340,7 @@ class TestStoredCardFallback:
     async def test_mark_sent_stores_a_fresh_card(self):
         use_cases, expressions, _, consumption, _ = _use_cases()
         ready = ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="forward",
-                            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False))
+                            card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False, credits=2))
 
         await use_cases.mark_sent(111, ready, 42)
 
@@ -487,7 +487,7 @@ class TestReviewStateShadow:
 
     def _ready(self):
         return ReviewReady(expression_id=EXPRESSION_ID, value="andare", direction="reverse",
-                           card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False))
+                           card=CARD, settings=SETTINGS, quota=Allowed(uses_own_key=False, credits=2))
 
     async def test_mark_sent_records_the_current_review(self):
         use_cases, _, _, _, _ = _use_cases()

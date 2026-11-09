@@ -107,6 +107,23 @@ just loses it.
   card over quota is generated again, which falls back to its stored card, or quota result).
 - Usage is counted only on delivery, as now. An abandoned prepared card costs one LLM call and no quota.
 
+## Credits
+
+Card quota is paid in daily credits (`TIER_LIMITS_*_CREDITS`, reset at 00:00 UTC): a new card, a bot
+regenerate or an `/import` costs 2 (`CARD_CREDITS`), a refreshed card part 1 (`SECTION_CREDITS`). A
+generation is refused when its cost does not fit, so with 1 credit left a part refresh still works and a new
+card does not. Stories and audio keep their own daily counts. Own-key and admin users are not limited.
+
+- Mini App: a chip in the Today top bar shows the credits left with a small meter, and turns to its low look
+  when fewer than two new cards are left. Tapping it opens a sheet with the costs and the time to the refill.
+  When `quota.limit` is null it shows `∞` with a full meter and the same sheet. The refresh buttons show no cost.
+- Bot: `/settings` shows a credits line ("unlimited" when there is no limit); the limit message names the daily
+  credits and the card cost.
+
+Open: the unlimited view was added so admins can see the normal layouts. Own-key users get it too, because the
+API sends `limit: null` for both, but the own-key feature is not active today. Before activating it, design a
+better counter for those users: costs and "Refills in" mean little to someone paying with their own key.
+
 ## Unintelligible words and LLM allowance
 
 **One word must not block study.** When the LLM answers `success=false` and the expression has no stored
@@ -120,8 +137,8 @@ answers 503.
 **Free LLM calls.** Quota counts delivered results only, so unclear previews, imports that save nothing,
 refresh-grade-undo loops and failing `next` calls could repeat for free. Each LLM attempt is therefore
 charged, at the moment the call really starts, against two in-memory per-user allowances: 20 per minute and
-`MINIAPP_LLM_DAILY_ATTEMPTS` per UTC day (default 300, six times the largest non-admin daily card limit of
-50; admins are exempt from the daily one). Over either: `rate_limited` 429 with `Retry-After`. Resuming a
+`MINIAPP_LLM_DAILY_ATTEMPTS` per UTC day (default 300, three times the largest non-admin daily credit limit
+of 100, and every LLM call costs at least one credit; admins are exempt from the daily one). Over either: `rate_limited` 429 with `Retry-After`. Resuming a
 waiting card, using the prepared card, a `prepare` that makes no LLM call and a refresh of a card that is no
 longer pending cost nothing. Use cases stay free of HTTP: they take an optional `before_generation`
 callback and return a typed `Throttled`/`GenerationHeld` result. A `prepare` is charged inside its task, right
@@ -155,12 +172,12 @@ StudyCard    Content + {delivery_id: int, expression_id: str, value: str, direct
                         from_storage: bool, older_settings: bool}
 Settings     {target_level, primary_language, secondary_language: str|null, review_mode: "standard"|"dual",
               review_interval_minutes: int, is_active: bool}
-QuotaResult  {status: "quota", tier: str, limit: int}
+QuotaResult  {status: "quota", tier: str, limit: int}   (limit: today's credits)
 ```
 
 | Route | Body / query | Response |
 |---|---|---|
-| `GET /me` | | `{reminders_available: bool, language: {code, name, country}, settings: Settings, quota: {used, limit: int\|null}, words: {total, ready, pending: bool}, options: {levels: str[], languages: [{code, name, country}], min_interval, max_interval}}` |
+| `GET /me` | | `{reminders_available: bool, language: {code, name, country}, settings: Settings, quota: {used, limit: int\|null, card_cost, section_cost}, words: {total, ready, pending: bool}, options: {levels: str[], languages: [{code, name, country}], min_interval, max_interval}}` |
 | `GET /study/current` | | `{card: StudyCard\|null, undo_available: bool}` |
 | `POST /study/next` * | | `{status: "ready", card}` or `{status: "none"}` or `QuotaResult`. Returns the pending card if one exists, so a double tap is safe |
 | `POST /study/prepare` * | | `202 {}` |

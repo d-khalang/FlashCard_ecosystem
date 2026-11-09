@@ -22,7 +22,7 @@ from typing import Awaitable, Callable, Optional, Union, get_args
 from bson import ObjectId
 
 from flashcard.app.cards import card_settings
-from flashcard.app.quota import QuotaExceeded, QuotaPolicy, Usage
+from flashcard.app.quota import SECTION_CREDITS, QuotaExceeded, QuotaPolicy, Usage
 from flashcard.app.review import (
     CardGenerationFailed, CardNotFound, GenerationGate, GenerationHeld, Graded, GradeResult, NoCandidate,
     NotPending, ReviewReady, ReviewUseCases, Throttled,
@@ -312,7 +312,7 @@ class StudyUseCases:
     ) -> RefreshResult:
         """
         Write one section of the pending card again (definition, translations or example). Costs
-        one card; the card is unchanged on any failure.
+        SECTION_CREDITS; the card is unchanged on any failure.
         """
         if section not in get_args(CardSectionName):
             raise ValueError(f"Unknown card section: {section!r}")
@@ -326,7 +326,7 @@ class StudyUseCases:
                     or expression.pending_message_id != delivery_id):
                 return NotPending()
 
-            quota = self.quota.check(user, "cards")
+            quota = self.quota.check(user, "cards", credits=SECTION_CREDITS)
             if isinstance(quota, QuotaExceeded):
                 return quota
 

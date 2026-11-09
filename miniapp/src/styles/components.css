@@ -450,3 +450,100 @@
 .picker-value {
   flex: 1;
 }
+
+/* Credit counter: chip in the top bar, details in a sheet */
+.credit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: var(--border-width-control) solid var(--color-outline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-button-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-chip:active {
+  box-shadow: var(--shadow-button-pressed);
+  transform: translateY(2px);
+}
+
+.credit-chip-low,
+.credit-chip-out {
+  background: var(--color-example-bg);
+  color: var(--color-primary-text);
+}
+
+.credit-meter {
+  display: inline-block;
+  width: 26px;
+  height: 8px;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-outline);
+  border-radius: var(--radius-pill);
+}
+
+.credit-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+}
+
+.credit-meter-low > span,
+.credit-meter-out > span {
+  background: var(--color-primary);
+}
+
+.credit-meter-large {
+  width: 100%;
+  height: 12px;
+  border-width: var(--border-width-chip);
+}
+
+.credit-total {
+  font-weight: 700;
+}
+
+.credit-total strong {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-costs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-weight: 700;
+}
+
+.credit-costs > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.credit-costs dd {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  font-weight: 800;
+}
+
+.credit-muted {
+  color: var(--color-ink-muted);
+}
+
+.credit-note {
+  font-size: 13px;
+  font-weight: 700;
+}

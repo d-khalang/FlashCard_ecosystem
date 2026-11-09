@@ -2,22 +2,21 @@ import { useState } from 'react';
 import type { Me } from '../api/types';
 import { useApp } from '../app/context';
 import { AddWord } from '../components/AddWord';
+import { CreditChip } from '../components/CreditChip';
+import { credits, refillIn } from '../credits';
 import { ErrorState } from '../components/ErrorState';
 import { ImportSheet } from '../components/ImportSheet';
 import { Mascot } from '../components/Mascot';
-import { useI18n } from '../i18n';
+import { useI18n, type Params } from '../i18n';
 import type { TranslationKey } from '../i18n/en';
 import type { ScreenProps } from '../navigation';
 
-const QUOTA_WARN_AT = 3;
-
-/** The quota line is shown only when it matters: nearly used up, or used up. */
-export function quotaLine(quota: Me['quota']): { key: TranslationKey; n?: number } | null {
-  if (quota.limit === null) return null;
-  const left = quota.limit - quota.used;
-  if (left <= 0) return { key: 'today.quota.reached' };
-  if (left <= QUOTA_WARN_AT) return { key: 'today.quota.left', n: left };
-  return null;
+/** The credit line under the hero is shown only when it matters: few credits left, or none for a new card. */
+export function quotaLine(quota: Me['quota'], now: Date = new Date()): { key: TranslationKey; params: Params } | null {
+  const c = credits(quota);
+  if (c.level === 'ok') return null;
+  if (c.level === 'low') return { key: 'today.quota.low', params: { n: c.left } };
+  return { key: 'today.quota.out', params: refillIn(now) };
 }
 
 export function TodayScreen({ onStudy }: ScreenProps) {
@@ -47,7 +46,10 @@ export function TodayScreen({ onStudy }: ScreenProps) {
     <div className="screen">
       <header className="top-bar">
         <div className="brand">{t('app.brand')}</div>
-        <div className="pill">{me.language.name}</div>
+        <div className="top-bar-end">
+          <CreditChip quota={me.quota} />
+          <div className="pill">{me.language.name}</div>
+        </div>
       </header>
       <section className="hero">
         {total === 0 && !pending ? (
@@ -77,7 +79,7 @@ export function TodayScreen({ onStudy }: ScreenProps) {
         )}
         {quota ? (
           <p className="quota-line" role="status">
-            {t(quota.key, quota.n === undefined ? undefined : { n: quota.n })}
+            {t(quota.key, quota.params)}
           </p>
         ) : null}
       </section>

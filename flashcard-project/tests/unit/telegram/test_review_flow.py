@@ -130,8 +130,7 @@ class TestGetCommand:
         d = _deps(can_generate=False)
         message = await _run_get(d)
 
-        message.answer.assert_awaited_once_with(i18n.get(
-            "messages.errors.quota_exceeded", type="card", tier="normal", limit=10))
+        message.answer.assert_awaited_once_with(i18n.get("messages.errors.credits_exceeded", limit=10, card_cost=2))
         d.quota.check.assert_called_once_with(d.user, "cards")
         d.llm_service.generate_expression_card.assert_not_awaited()
         d.expression_service.update_expression_sent.assert_not_awaited()
@@ -149,7 +148,7 @@ class TestGetCommand:
         d.expression_service.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42, last_card=ANY)
         d.review_state.mark_pending.assert_awaited_once_with(USER_ID)
         d.consumption_service.increment.assert_awaited_once_with(
-            USER_ID, "cards_generated", uses_own_key=False)
+            USER_ID, "cards_generated", uses_own_key=False, credits=2)
 
     async def test_reverse_direction_reaches_format_and_keyboard(self, ui):
         d = _deps(direction="reverse")
@@ -164,7 +163,7 @@ class TestGetCommand:
         await _run_get(d)
 
         d.consumption_service.increment.assert_awaited_once_with(
-            USER_ID, "cards_generated", uses_own_key=True)
+            USER_ID, "cards_generated", uses_own_key=True, credits=2)
 
     async def test_send_failure_propagates_and_records_nothing(self, ui):
         d = _deps()
@@ -275,7 +274,7 @@ class TestScheduledReview:
         d.expression_service.update_expression_sent.assert_awaited_once_with(EXPRESSION_ID, 42, last_card=ANY)
         d.review_state.mark_pending.assert_awaited_once_with(USER_ID)
         d.consumption_service.increment.assert_awaited_once_with(
-            USER_ID, "cards_generated", uses_own_key=False)
+            USER_ID, "cards_generated", uses_own_key=False, credits=2)
 
     async def test_send_failure_propagates_and_records_nothing(self, ui):
         d = _deps()

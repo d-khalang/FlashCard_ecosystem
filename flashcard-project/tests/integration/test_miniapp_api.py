@@ -124,7 +124,7 @@ class TestMe:
         assert set(body["settings"]) == {"target_level", "primary_language", "secondary_language", "review_mode",
                                          "review_interval_minutes", "is_active"}
         assert body["words"] == {"total": 2, "ready": 1, "pending": False}
-        assert body["quota"] == {"used": 0, "limit": 10}
+        assert body["quota"] == {"used": 0, "limit": 20, "card_cost": 2, "section_cost": 1}
         assert body["options"]["levels"] == ["A1", "A2", "B1", "B2", "C1", "C2"]
         assert {"code": "fa", "name": "Persian", "country": "ir"} in body["options"]["languages"]
         assert (body["options"]["min_interval"], body["options"]["max_interval"]) == (15, 240)
@@ -173,11 +173,11 @@ class TestStudyFlow:
     async def test_over_quota_is_the_quota_result(self, api, mongo_cols, ready_user):
         await mongo_cols["users"].update_one({"user_id": str(USER)}, {"$set": {"consumption": {
             "consumption_date": datetime.now(timezone.utc).date().isoformat(),
-            "system_api": {"cards_generated": 10}}}})
+            "system_api": {"cards_generated": 10, "credits_used": 20}}}})
 
         body = (await api.post(f"{BASE}/study/next", headers=_as())).json()
 
-        assert body == {"status": "quota", "tier": "normal", "limit": 10}
+        assert body == {"status": "quota", "tier": "normal", "limit": 20}
 
     async def test_generation_failure_is_503_generation_failed(self, api, ready_user, study_llm):
         study_llm.fail_cards = True

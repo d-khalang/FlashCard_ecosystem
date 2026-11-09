@@ -91,9 +91,11 @@ class TestDailyBudget:
 
         assert budget.charge(1) == 1
 
-    def test_the_configured_default_is_well_above_twice_the_biggest_card_limit(self):
+    def test_the_configured_default_is_well_above_the_biggest_credit_limit(self):
+        # Every LLM call costs at least one credit, so credits bound the calls that pass quota.
         from flashcard.settings import get_setting
         settings = get_setting()
-        biggest = max(settings.TIER_LIMITS_NORMAL_CARDS, settings.TIER_LIMITS_DIGI_CARDS, settings.TIER_LIMITS_PLUS_CARDS)
+        biggest = max(settings.TIER_LIMITS_NORMAL_CREDITS, settings.TIER_LIMITS_DIGI_CREDITS,
+                      settings.TIER_LIMITS_PLUS_CREDITS)
 
-        assert settings.MINIAPP_LLM_DAILY_ATTEMPTS == 300 >= 3 * 2 * biggest
+        assert settings.MINIAPP_LLM_DAILY_ATTEMPTS == 300 >= 3 * biggest
