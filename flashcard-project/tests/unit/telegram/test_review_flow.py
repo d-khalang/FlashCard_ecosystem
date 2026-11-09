@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
-from aiogram.exceptions import TelegramForbiddenError
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError
 
 from flashcard.app.review import CardGenerationFailed, ReviewUseCases
 from flashcard.schemas.expression import (
@@ -368,6 +368,10 @@ def _callback(text="CARD TEXT"):
     return callback
 
 
+def _network_error():
+    return TelegramNetworkError(method=MagicMock(), message="ClientOSError: [Errno 104] Connection reset by peer")
+
+
 async def _run_grade(d, *, grade=4, direction="fwd", logger_bot=None):
     callback = _callback()
     data = GradeCallback(expression_id=EXPRESSION_ID, grade=grade, direction=direction)
@@ -398,6 +402,77 @@ class TestGrade:
 
         callback.message.answer.assert_awaited_once_with(i18n.get("messages.tips.first_review"))
         d.user_service.advance_onboarding.assert_awaited_once_with(USER_ID, 1)
+
+    async def _grade_with_edit_outcomes(self, *outcomes, logger_bot=None):
+        """Grade with edit_text behaving as `outcomes`; returns (callback, deps, admin notify mock)."""
+        d = _deps(user=_user(onboarding_step=2))
+        d.expression_service.grade_expression.return_value = "graded"
+        callback = _callback()
+        callback.message.edit_text = AsyncMock(side_effect=list(outcomes))
+        data = GradeCallback(expression_id=EXPRESSION_ID, grade=4, direction="fwd")
+        with patch.object(review, "notify_admin_with_trace", new=AsyncMock()) as notify, \
+                patch.object(review, "EDIT_RETRY_DELAY_SECONDS", 0):
+            await review.handle_grade(callback, data, review_use_cases=_use_cases(d),
+                                      logger_bot=logger_bot or MagicMock(), admin_id=1, i18n=i18n)
+        return callback, d, notify
+
+    @staticmethod
+    def _assert_reported_success(callback, notify):
+        callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.success"), show_alert=False)
+        notify.assert_not_awaited()
+
+    async def test_edit_reset_is_retried_once_and_reports_success(self):
+        callback, d, notify = await self._grade_with_edit_outcomes(_network_error(), None)
+
+        assert callback.message.edit_text.await_count == 2
+        d.expression_service.grade_expression.assert_awaited_once()
+        self._assert_reported_success(callback, notify)
+
+    async def test_retry_not_modified_means_first_edit_landed(self):
+        callback, _, notify = await self._grade_with_edit_outcomes(
+            _network_error(),
+            TelegramBadRequest(method=MagicMock(), message="Bad Request: message is not modified: same content"))
+
+        assert callback.message.edit_text.await_count == 2
+        self._assert_reported_success(callback, notify)
+
+    async def test_edit_failing_twice_still_reports_success(self):
+        callback, _, notify = await self._grade_with_edit_outcomes(_network_error(), _network_error())
+
+        assert callback.message.edit_text.await_count == 2
+        self._assert_reported_success(callback, notify)
+
+    async def test_permanent_edit_failure_is_not_retried_and_reports_success(self):
+        callback, _, notify = await self._grade_with_edit_outcomes(
+            TelegramBadRequest(method=MagicMock(), message="Bad Request: message can't be edited"))
+
+        callback.message.edit_text.assert_awaited_once()
+        self._assert_reported_success(callback, notify)
+
+    async def test_answer_failure_still_edits_the_card(self):
+        d = _deps(user=_user(onboarding_step=2))
+        d.expression_service.grade_expression.return_value = "graded"
+        callback = _callback()
+        callback.answer = AsyncMock(side_effect=_network_error())
+        data = GradeCallback(expression_id=EXPRESSION_ID, grade=4, direction="fwd")
+        with patch.object(review, "notify_admin_with_trace", new=AsyncMock()) as notify:
+            await review.handle_grade(callback, data, review_use_cases=_use_cases(d),
+                                      logger_bot=MagicMock(), admin_id=1, i18n=i18n)
+
+        callback.message.edit_text.assert_awaited_once()
+        notify.assert_not_awaited()
+
+    async def test_tip_failure_does_not_report_an_error(self):
+        d = _deps(user=_user(onboarding_step=1))
+        d.expression_service.grade_expression.return_value = "graded"
+        callback = _callback()
+        callback.message.answer = AsyncMock(side_effect=_network_error())
+        data = GradeCallback(expression_id=EXPRESSION_ID, grade=4, direction="fwd")
+        with patch.object(review, "notify_admin_with_trace", new=AsyncMock()) as notify:
+            await review.handle_grade(callback, data, review_use_cases=_use_cases(d),
+                                      logger_bot=MagicMock(), admin_id=1, i18n=i18n)
+
+        self._assert_reported_success(callback, notify)
 
     async def test_missing_expression_alerts_and_edits_nothing(self):
         d = _deps()
