@@ -45,6 +45,9 @@ class ConsumptionService:
         if metric not in VALID_METRICS:
             logger.warning(f"Unknown consumption metric: {metric}")
             return
+        if credits < 0:
+            # A negative $inc would hand credits back to the user.
+            raise ValueError(f"Credits cannot be negative: {credits}")
         if credits and metric not in LLM_METRICS:
             # Credits live in the LLM buckets; a top-level metric must not write them.
             raise ValueError(f"Credits apply only to LLM metrics, not {metric}")

@@ -111,6 +111,15 @@ class TestIncrementRouting:
 
         cols["users"].update_one.assert_not_awaited()
 
+    async def test_negative_credits_are_refused(self):
+        import pytest
+        service, cols = _make_service(user_doc=_today_consumption())
+
+        with pytest.raises(ValueError):
+            await service.increment(123, "cards_generated", credits=-1)
+
+        cols["users"].update_one.assert_not_awaited()
+
     async def test_verb_lookups_top_level(self):
         """verb_lookups lives at top level, not under system_api."""
         service, cols = _make_service(user_doc=_today_consumption())

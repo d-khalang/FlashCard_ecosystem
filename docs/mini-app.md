@@ -120,6 +120,10 @@ card does not. Stories and audio keep their own daily counts. Own-key and admin 
 - Bot: `/settings` shows a credits line ("unlimited" when there is no limit); the limit message names the daily
   credits and the card cost.
 
+Open: the unlimited view was added so admins can see the normal layouts. Own-key users get it too, because the
+API sends `limit: null` for both, but the own-key feature is not active today. Before activating it, design a
+better counter for those users: costs and "Refills in" mean little to someone paying with their own key.
+
 ## Unintelligible words and LLM allowance
 
 **One word must not block study.** When the LLM answers `success=false` and the expression has no stored
