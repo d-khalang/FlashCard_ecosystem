@@ -13,10 +13,12 @@ import json
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Optional
+from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import urlencode
 
 from bson import ObjectId
 
+from flashcard.miniapp.bot_buttons import BotCardButtons
 from flashcard.schemas.expression import CardSection, ExpressionCard, TranslationLine
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]  # set by tests/conftest.py unless the environment sets it, as CI does
@@ -32,6 +34,14 @@ def make_card(norm: str = "andare", **overrides) -> ExpressionCard:
     )
     fields.update(overrides)
     return ExpressionCard(**fields)
+
+
+def fake_bot_buttons() -> BotCardButtons:
+    """Bot card buttons that never reach Telegram; the calls are on `.bot`."""
+    bot = MagicMock()
+    bot.edit_message_reply_markup = AsyncMock()
+    bot.session.close = AsyncMock()
+    return BotCardButtons(bot)
 
 
 class FakeStudyLLM:

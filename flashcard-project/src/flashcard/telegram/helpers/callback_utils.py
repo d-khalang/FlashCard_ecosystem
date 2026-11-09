@@ -7,8 +7,9 @@ import asyncio
 import contextlib
 from typing import Awaitable
 
+from aiogram import Bot
 from aiogram.types import CallbackQuery
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 
 from flashcard.utils.logger import get_logger
 
@@ -32,6 +33,23 @@ async def safe_answer_callback(callback: CallbackQuery, text: str = "", show_ale
             logger.warning("Skipped callback.answer because callback query expired.")
             return
         raise
+
+
+async def clear_buttons(callback: CallbackQuery, bot: Bot) -> None:
+    """
+    Remove the buttons of a card they can no longer act on, keeping the text.
+
+    Cosmetic, so a failure is only logged. Goes through the bot because an old message
+    arrives as InaccessibleMessage, which has a chat and an id but no edit methods.
+    """
+    try:
+        await bot.edit_message_reply_markup(
+            chat_id=callback.message.chat.id,
+            message_id=callback.message.message_id,
+            reply_markup=None,
+        )
+    except TelegramAPIError as e:
+        logger.warning(f"Skipped clearing dead buttons: {e}")
 
 
 async def safe_call(coro: Awaitable, *, timeout: float = 5) -> None:

@@ -8,7 +8,7 @@ from bson import ObjectId
 
 from flashcard.app.audio import AudioUseCases, Clip, PartMissing, SpeechFailed, language_of_label
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy
-from flashcard.app.review import CardNotFound, Throttled
+from flashcard.app.review import CardNotFound, NotPending, Throttled
 from flashcard.schemas.expression import CardSettings, Expression, ExpressionCard, StoredCard, TranslationLine
 from flashcard.schemas.user import UserConsumption, UserTier
 from flashcard.services.audio_cache import AudioWordCache, word_key
@@ -18,6 +18,7 @@ from tests.helpers import TEST_LANGUAGE, TEST_LIMITS, make_user
 from tests.integration.helpers import InMemoryCollection
 
 USER = 7
+MESSAGE_ID = 99
 EXPRESSION_ID = str(ObjectId())
 NOW = datetime(2026, 11, 5, tzinfo=timezone.utc)
 
@@ -32,7 +33,8 @@ def _expression(value="il mare", card=True) -> Expression:
         settings=CardSettings(level="A2", primary_language="fa"),
         generated_at=NOW,
     ) if card else None
-    return Expression(_id=EXPRESSION_ID, user_id=str(USER), value=value, created_at=NOW, last_card=stored)
+    return Expression(_id=EXPRESSION_ID, user_id=str(USER), value=value, created_at=NOW, last_card=stored,
+                      pending_message_id=MESSAGE_ID)
 
 
 def _build(*, expression=None, user=None):
@@ -188,7 +190,7 @@ class TestParts:
     async def test_lists_only_what_can_be_spoken(self):
         uses, _, _ = _build(expression=_expression())
 
-        parts = await uses.parts(USER, EXPRESSION_ID)
+        parts = await uses.parts(USER, EXPRESSION_ID, message_id=MESSAGE_ID)
 
         assert [(p.part, p.label) for p in parts] == [
             ("word", None), ("definition", None), ("example", None), ("translation_0", "🇮🇷 FA")]
@@ -201,14 +203,19 @@ class TestParts:
         expression.last_card.card.learning_example = too_long
         uses, speech, _ = _build(expression=expression)
 
-        assert part not in [p.part for p in await uses.parts(USER, EXPRESSION_ID)]
+        assert part not in [p.part for p in await uses.parts(USER, EXPRESSION_ID, message_id=MESSAGE_ID)]
         assert isinstance(await uses.clip(USER, EXPRESSION_ID, part), PartMissing)
         speech.synthesize.assert_not_awaited()
 
-    async def test_a_card_that_is_gone_has_none(self):
+    async def test_a_card_that_is_gone_is_not_found(self):
         uses, _, _ = _build(expression=None)
 
-        assert await uses.parts(USER, EXPRESSION_ID) is None
+        assert await uses.parts(USER, EXPRESSION_ID, message_id=MESSAGE_ID) == CardNotFound()
+
+    async def test_a_message_no_longer_waiting_for_a_grade_is_not_pending(self):
+        uses, _, _ = _build(expression=_expression())
+
+        assert await uses.parts(USER, EXPRESSION_ID, message_id=MESSAGE_ID + 1) == NotPending()
 
 
 class TestLanguages:

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Callable, Literal, Optional, Union, get_args
 
 from flashcard.app.quota import QuotaExceeded, QuotaPolicy
-from flashcard.app.review import CardNotFound, Throttled
+from flashcard.app.review import CardNotFound, NotPending, Throttled
 from flashcard.language import LanguageConfig
 from flashcard.schemas.expression import Expression, TranslationLine
 from flashcard.schemas.languages import ALIAS_MAP, LANGUAGE_DATA
@@ -77,6 +77,7 @@ class ListenablePart:
 
 
 ClipResult = Union[Clip, CardNotFound, PartMissing, QuotaExceeded, SpeechFailed, Throttled]
+PartsResult = Union[list[ListenablePart], CardNotFound, NotPending]
 GenerationGate = Callable[[], Optional[Throttled]]
 
 
@@ -97,11 +98,13 @@ class AudioUseCases:
         self.speech = speech
         self.language = language
 
-    async def parts(self, user_id: UserId, expression_id: str) -> Optional[list[ListenablePart]]:
-        """What can be listened to on this card, or None when the card is gone."""
+    async def parts(self, user_id: UserId, expression_id: str, *, message_id: int) -> PartsResult:
+        """What can be listened to on the card in this message, while that message waits for a grade."""
         expression = await self.expressions.get_expression(user_id, expression_id)
         if expression is None:
-            return None
+            return CardNotFound()
+        if expression.pending_message_id != message_id:
+            return NotPending()
         found: list[ListenablePart] = []
         for part in get_args(CardPart):
             if self._text_and_language(expression, part) is not None:

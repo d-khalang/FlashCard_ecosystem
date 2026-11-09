@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 import uvicorn
+from aiogram import Bot
 from fastapi import APIRouter, FastAPI
 from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException
@@ -18,11 +19,13 @@ from starlette.staticfiles import StaticFiles
 from flashcard.api.routes import health
 from flashcard.composition import build_core, open_resources
 from flashcard.language import LanguageConfig
+from flashcard.miniapp.bot_buttons import BotCardButtons
 from flashcard.miniapp.errors import install_error_handlers
 from flashcard.miniapp.prefetch import PreparedCards
 from flashcard.miniapp.rate_limit import DailyBudget, RateLimiter
 from flashcard.miniapp.routes import audio, cards, collection, me, settings as settings_routes, study
 from flashcard.settings import Settings, get_setting
+from flashcard.telegram.session import build_ipv4_session
 from flashcard.utils.logger import configure_log_level
 
 API_PREFIX = "/api/v1"
@@ -60,6 +63,7 @@ async def lifespan(app: FastAPI):
             yield
         finally:
             await app.state.prepared.close()
+            await app.state.bot_buttons.close()
 
 
 class SecurityHeaders:
@@ -168,6 +172,8 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     }
     app.state.budget = DailyBudget(settings.MINIAPP_LLM_DAILY_ATTEMPTS)
     app.state.prepared = PreparedCards()
+    # Connects on first use, not here.
+    app.state.bot_buttons = BotCardButtons(Bot(token=settings.BOT_TOKEN, session=build_ipv4_session()))
     install_error_handlers(app)
 
     api = APIRouter(prefix=API_PREFIX)

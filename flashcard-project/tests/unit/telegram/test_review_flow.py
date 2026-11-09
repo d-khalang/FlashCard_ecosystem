@@ -364,6 +364,7 @@ def _callback(text="CARD TEXT"):
     callback.message.edit_text = AsyncMock()
     callback.message.answer = AsyncMock()
     callback.answer = AsyncMock()
+    callback.bot.edit_message_reply_markup = AsyncMock()
     return callback
 
 
@@ -473,22 +474,40 @@ class TestGrade:
 
         self._assert_reported_success(callback, notify)
 
-    async def test_missing_expression_alerts_and_edits_nothing(self):
+    async def test_missing_expression_alerts_and_only_removes_the_buttons(self):
         d = _deps()
         d.expression_service.check_gradable.return_value = "not_found"
         callback = await _run_grade(d)
 
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.error_missing"), show_alert=True)
+        callback.bot.edit_message_reply_markup.assert_awaited_once_with(
+            chat_id=callback.message.chat.id, message_id=42, reply_markup=None)
         callback.message.edit_text.assert_not_awaited()
 
-    async def test_message_no_longer_pending_answers_quietly_and_edits_nothing(self):
+    async def test_message_no_longer_pending_answers_quietly_and_only_removes_the_buttons(self):
         d = _deps(user=_user(onboarding_step=1))
         d.expression_service.check_gradable.return_value = "not_pending"
         callback = await _run_grade(d)
 
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.not_pending"), show_alert=False)
+        callback.bot.edit_message_reply_markup.assert_awaited_once_with(
+            chat_id=callback.message.chat.id, message_id=42, reply_markup=None)
         callback.message.edit_text.assert_not_awaited()
         d.user_service.advance_onboarding.assert_not_awaited()
+
+    async def test_failing_to_remove_dead_buttons_is_not_reported_as_an_error(self):
+        d = _deps()
+        d.expression_service.check_gradable.return_value = "not_pending"
+        callback = _callback()
+        callback.bot.edit_message_reply_markup = AsyncMock(
+            side_effect=TelegramBadRequest(method=MagicMock(), message="Bad Request: message is not modified"))
+        data = GradeCallback(expression_id=EXPRESSION_ID, grade=4, direction="fwd")
+        with patch.object(review, "notify_admin_with_trace", new=AsyncMock()) as notify:
+            await review.handle_grade(callback, data, review_use_cases=_use_cases(d),
+                                      logger_bot=MagicMock(), admin_id=1, i18n=i18n)
+
+        callback.answer.assert_awaited_once_with(i18n.get("callbacks.grade.not_pending"), show_alert=False)
+        notify.assert_not_awaited()
 
     async def test_out_of_range_grade_alerts_invalid_data_and_admin(self):
         d = _deps()

@@ -13,10 +13,10 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyParame
 
 from flashcard.app.audio import AudioUseCases, CardPart, Clip
 from flashcard.app.quota import QuotaExceeded
-from flashcard.app.review import CardNotFound
+from flashcard.app.review import CardNotFound, NotPending
 from flashcard.schemas.user import UserId
 from flashcard.services.i18n import I18nService
-from flashcard.telegram.helpers.callback_utils import safe_answer_callback
+from flashcard.telegram.helpers.callback_utils import clear_buttons, safe_answer_callback
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback
 from flashcard.utils.logger import get_logger
@@ -70,9 +70,16 @@ async def handle_audio(
 async def _open_parts(
     callback: CallbackQuery, data: AudioCallback, audio_use_cases: AudioUseCases, bot: Bot, i18n: I18nService,
 ) -> None:
-    parts = await audio_use_cases.parts(callback.from_user.id, data.expression_id)
-    if parts is None:
+    parts = await audio_use_cases.parts(
+        callback.from_user.id, data.expression_id, message_id=callback.message.message_id)
+    if isinstance(parts, CardNotFound):
         await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
+        await clear_buttons(callback, bot)
+        return
+    if isinstance(parts, NotPending):
+        # Opening the row would put the grade buttons back on a card they no longer work for.
+        await safe_answer_callback(callback, i18n.get("callbacks.grade.not_pending"))
+        await clear_buttons(callback, bot)
         return
     direction = "reverse" if data.direction == "rev" else "forward"
     try:

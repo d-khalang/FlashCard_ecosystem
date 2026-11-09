@@ -3,7 +3,6 @@ import contextlib
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Optional
-import socket
 from aiogram import Bot, Dispatcher
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.client.default import DefaultBotProperties
@@ -26,36 +25,17 @@ from flashcard.telegram.handlers import (
     creation,
     errors
 )
+from flashcard.telegram.session import build_ipv4_session
 from flashcard.telegram.middlewares.trace_middleware import TraceMiddleware
 from flashcard.telegram.middlewares.timeout_middleware import HandlerTimeoutMiddleware
 from flashcard.services.trace_logger import get_trace_logger
 from flashcard.utils.asyncio_errors import install_asyncio_exception_handler
 
-def _build_ipv4_session() -> "AiohttpSession":
-    """Build an aiogram session that forces IPv4.
-
-    Docker's default bridge network has no IPv6 routing, so aiohttp
-    may occasionally attempt an IPv6 connection to api.telegram.org
-    that silently hangs until the OS timeout (20-60 s).  Pinning to
-    AF_INET eliminates the issue entirely.
-    """
-    from aiogram.client.session.aiohttp import AiohttpSession
-
-    session = AiohttpSession()
-    # Inject IPv4 family into the lazy connector initialization
-    # Note: Modern aiogram (3.x) doesn't take 'connector' in __init__, so we touch internal state
-    session._connector_init["family"] = socket.AF_INET
-
-    from flashcard.utils.logger import get_logger
-    get_logger(__name__).info("Telegram session: forcing IPv4 (AF_INET)")
-    return session
-
-
 def build_bot_dispatcher(bot_token: str, language: LanguageConfig) -> tuple[Bot, Dispatcher]:
     bot = Bot(
         token=bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-        session=_build_ipv4_session(),
+        session=build_ipv4_session(),
     )
     dp = Dispatcher()
 
@@ -127,7 +107,7 @@ async def start_telegram(core: Core, settings, mode: str) -> TelegramRuntime:
     logger_bot = Bot(
         token=settings.LOGGER_BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-        session=_build_ipv4_session(),
+        session=build_ipv4_session(),
     )
     install_asyncio_exception_handler(logger_bot=logger_bot, admin_id=settings.ADMIN_ID)
     runtime = TelegramRuntime(

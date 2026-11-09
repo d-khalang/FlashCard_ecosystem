@@ -15,7 +15,7 @@ from flashcard.telegram.ui.expression import format_review_message
 from flashcard.telegram.ui.review_label import review_label
 from flashcard.telegram.keyboards import get_review_keyboard
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
-from flashcard.telegram.helpers.callback_utils import safe_answer_callback, safe_call
+from flashcard.telegram.helpers.callback_utils import clear_buttons, safe_answer_callback, safe_call
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
 
 logger = get_logger(__name__)
@@ -55,7 +55,7 @@ async def _best_effort(call: Awaitable, what: str) -> None:
     try:
         await call
     except TelegramAPIError as e:
-        logger.warning(f"Skipped {what} after a saved grade: {e}")
+        logger.warning(f"Skipped {what}: {e}")
 
 
 async def _edit_with_retry(callback: CallbackQuery, text: str) -> None:
@@ -96,10 +96,13 @@ async def handle_grade(callback: CallbackQuery, callback_data: GradeCallback, re
 
         if isinstance(result, CardNotFound):
             await safe_answer_callback(callback, i18n.get("callbacks.grade.error_missing"), show_alert=True)
+            await clear_buttons(callback, callback.bot)
             return
 
         if isinstance(result, NotPending):
             await safe_answer_callback(callback, i18n.get("callbacks.grade.not_pending"))
+            # Graded elsewhere (the Mini App) or replaced by a newer send: these buttons are dead.
+            await clear_buttons(callback, callback.bot)
             return
 
         # The grade is saved. From here on a Telegram failure must not tell the user it failed.
