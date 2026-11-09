@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## Unreleased
+## v2.3.0-rc.1 (2026-11-09)
 
 Config: `TIER_LIMITS_*_CARDS` is replaced by `TIER_LIMITS_*_CREDITS` (defaults 20, 80, 100, 1998); old `_CARDS` values in an env file are ignored, so remove them. No data migration: the new `credits_used` counter starts at 0, so on release day everyone gets a fresh day of credits.
 
