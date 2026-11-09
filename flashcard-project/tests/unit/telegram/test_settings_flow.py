@@ -175,13 +175,14 @@ class TestSettingsCredits:
         assert nav.message.edit_text.await_args.kwargs["text"].endswith(self._line(14, 20))
         assert select.message.edit_text.await_args.kwargs["text"].endswith(self._line(14, 20))
 
-    async def test_no_line_when_nothing_limits_the_user(self):
+    async def test_says_unlimited_when_nothing_limits_the_user(self):
         d = _deps(_user(tier="admin"), with_quota=True)
         message = _message()
 
         await user_settings.cmd_settings(message, settings_use_cases=d.settings_use_cases, i18n=i18n)
 
-        assert "⚡" not in message.answer.await_args_list[0].args[0]
+        assert message.answer.await_args_list[0].args[0].endswith(
+            i18n.get("commands.settings.menu.credits_unlimited", card_cost=2))
 
 
 class TestSettingsNavigation:

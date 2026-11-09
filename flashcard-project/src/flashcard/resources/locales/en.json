@@ -91,7 +91,8 @@
                 "target_level": "Target Level: <b>{target_level}</b>",
                 "review_interval": "Review Interval: <b>{review_interval_minutes} minutes</b>",
                 "review_mode": "Review Mode: <b>{review_mode}</b>",
-                "credits": "⚡ Credits today: <b>{left} of {limit}</b> left. A new card costs {card_cost}. They refill at 00:00 UTC."
+                "credits": "⚡ Credits today: <b>{left} of {limit}</b> left. A new card costs {card_cost}. They refill at 00:00 UTC.",
+                "credits_unlimited": "⚡ Credits today: <b>unlimited</b>. A new card costs {card_cost}."
             },
             "status_active": "Active ✅",
             "status_paused": "Paused ⏸",

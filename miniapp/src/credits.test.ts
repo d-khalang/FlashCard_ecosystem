@@ -5,7 +5,7 @@ const quota = (used: number, limit: number | null) => ({ used, limit, card_cost:
 
 describe('credits', () => {
   it('is null when nothing limits the user', () => {
-    expect(credits(quota(5, null))).toBeNull();
+    expect(credits(quota(5, null))).toMatchObject({ left: Infinity, limit: null, share: 1, level: 'ok' });
   });
   it('counts what is left and the new cards it pays for', () => {
     expect(credits(quota(6, 40))).toMatchObject({ left: 34, limit: 40, cards: 17, level: 'ok', share: 0.85 });

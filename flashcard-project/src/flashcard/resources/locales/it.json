@@ -91,7 +91,8 @@
                 "target_level": "Livello target: <b>{target_level}</b>",
                 "review_interval": "Intervallo di revisione: <b>{review_interval_minutes} minuti</b>",
                 "review_mode": "Modalità di ripasso: <b>{review_mode}</b>",
-                "credits": "⚡ Crediti di oggi: ne restano <b>{left} su {limit}</b>. Una nuova carta costa {card_cost}. Si ricaricano alle 00:00 UTC."
+                "credits": "⚡ Crediti di oggi: ne restano <b>{left} su {limit}</b>. Una nuova carta costa {card_cost}. Si ricaricano alle 00:00 UTC.",
+                "credits_unlimited": "⚡ Crediti di oggi: <b>illimitati</b>. Una nuova carta costa {card_cost}."
             },
             "status_active": "Attivo ✅",
             "status_paused": "In pausa ⏸",

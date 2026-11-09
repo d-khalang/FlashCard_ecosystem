@@ -14,7 +14,7 @@ import type { ScreenProps } from '../navigation';
 /** The credit line under the hero is shown only when it matters: few credits left, or none for a new card. */
 export function quotaLine(quota: Me['quota'], now: Date = new Date()): { key: TranslationKey; params: Params } | null {
   const c = credits(quota);
-  if (!c || c.level === 'ok') return null;
+  if (c.level === 'ok') return null;
   if (c.level === 'low') return { key: 'today.quota.low', params: { n: c.left } };
   return { key: 'today.quota.out', params: refillIn(now) };
 }

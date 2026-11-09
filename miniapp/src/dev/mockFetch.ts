@@ -1,7 +1,7 @@
 // Development-only fake API. Loaded by main.tsx behind `import.meta.env.DEV` and `?mock`,
 // so it is not part of the production build.
 //
-// Query options: scenario=empty|caught|low|quota (low: few credits left), long=1 (long word), reverse=1 (reverse cards),
+// Query options: scenario=empty|caught|low|quota|unlimited (low: few credits left; unlimited: admin or own key), long=1 (long word), reverse=1 (reverse cards),
 // fail=grade|refresh|undo|audio (make that route fail), audio=limit (daily audio limit used up), slow=1 (add latency), n=3 (cards in the queue),
 // stored=1 (cards come from storage), pending=1 (a card is waiting), noremind=1 (reminders unavailable).
 
@@ -45,7 +45,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
   const quotaResult = { status: 'quota', tier: 'normal', limit: LIMIT };
   /** Spends `cost` credits if they fit; false when they do not. */
   const spend = (cost: number) => {
-    if (used + cost > LIMIT) return false;
+    if (scenario !== 'unlimited' && used + cost > LIMIT) return false;
     used += cost;
     return true;
   };
@@ -64,7 +64,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
   const me = (): Me => ({
     language: { code: 'it', name: 'Italiano', country: 'it' },
     settings: settings,
-    quota: { used, limit: LIMIT, card_cost: 2, section_cost: 1 },
+    quota: { used, limit: scenario === 'unlimited' ? null : LIMIT, card_cost: 2, section_cost: 1 },
     words: { total: scenario === 'empty' ? 0 : 40, ready: queue.length, pending: pendingFlag || current !== null },
     reminders_available: !params.has('noremind'),
     options: {

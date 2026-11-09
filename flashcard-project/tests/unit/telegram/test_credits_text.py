@@ -15,8 +15,11 @@ class TestCreditsLine:
     def test_never_shows_a_negative_count(self):
         assert "<b>0 of 20</b>" in credits_line(i18n, Usage(used=21, limit=20))
 
-    def test_is_hidden_when_nothing_limits_the_user(self):
-        assert credits_line(i18n, Usage(used=5, limit=None)) is None
+    def test_says_unlimited_when_nothing_limits_the_user(self):
+        assert credits_line(i18n, Usage(used=5, limit=None)) == i18n.get(
+            "commands.settings.menu.credits_unlimited", card_cost=2)
+
+    def test_is_hidden_without_usage(self):
         assert credits_line(i18n, None) is None
 
 

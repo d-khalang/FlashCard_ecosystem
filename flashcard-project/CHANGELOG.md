@@ -13,6 +13,15 @@ Config: `TIER_LIMITS_*_CARDS` is replaced by `TIER_LIMITS_*_CREDITS` (defaults 2
 - Card quota is paid in daily credits: a new card costs 2 and a refreshed card part 1, with limits doubled, so full cards per day stay the same and a part refresh costs half.
 - Mini App: a credit chip in the Today top bar; tap it for the costs and the time to the refill.
 - Bot: `/settings` shows today's credits, and the limit message names the daily credits and the card cost.
+- Users without a daily limit (admin, own key) see the same chip, sheet and `/settings` line, with `∞` or "unlimited" in place of the count.
+
+## v2.2.2 (2026-11-09)
+
+No config change or data migration.
+
+### Fix
+
+- The webhook path no longer appears in the bot's access log; webhook requests are logged as `<webhook>`. Log lines written before this release keep the path.
 
 ## v2.2.1 (2026-11-09)
 

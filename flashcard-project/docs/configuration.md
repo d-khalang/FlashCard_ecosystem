@@ -28,6 +28,8 @@ All variables are loaded by [`settings.py`](../src/flashcard/settings.py) using 
 > [!TIP]
 > Webhook variables are required only when `TELEGRAM_DELIVERY_MODE=webhook`.
 
+Requests are authenticated by `WEBHOOK_SECRET`, which Telegram sends in the `X-Telegram-Bot-Api-Secret-Token` header. `WEBHOOK_PATH` only makes the endpoint hard to find; the access log shows it as `<webhook>`.
+
 ### MongoDB
 
 | `MONGO_URI` | ✅ | MongoDB connection string | Docker: `mongodb://secure_user:secure_password@mongo:27017/flashcard_db?authSource=admin`; local host: `mongodb://localhost:27017` |

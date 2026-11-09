@@ -6,8 +6,10 @@ export const LOW_AT_CARDS = 2;
 export type CreditLevel = 'ok' | 'low' | 'out';
 
 export interface Credits {
+  /** Infinity when nothing limits the user. */
   left: number;
-  limit: number;
+  /** null when nothing limits the user (own key, admin). */
+  limit: number | null;
   /** Share of today's credits still left, 0 to 1. */
   share: number;
   /** New cards the credits left still pay for. */
@@ -18,9 +20,19 @@ export interface Credits {
   sectionCost: number;
 }
 
-/** Today's credits for display, or null when nothing limits the user (own key, admin). */
-export function credits(quota: Me['quota']): Credits | null {
-  if (quota.limit === null) return null;
+/** Today's credits for display. With no limit, always a full meter at its normal look. */
+export function credits(quota: Me['quota']): Credits {
+  if (quota.limit === null) {
+    return {
+      left: Infinity,
+      limit: null,
+      share: 1,
+      cards: Infinity,
+      level: 'ok',
+      cardCost: quota.card_cost,
+      sectionCost: quota.section_cost,
+    };
+  }
   const limit = quota.limit;
   const left = Math.max(limit - quota.used, 0);
   const cardCost = Math.max(quota.card_cost, 1);

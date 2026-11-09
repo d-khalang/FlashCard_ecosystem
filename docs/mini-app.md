@@ -116,8 +116,9 @@ card does not. Stories and audio keep their own daily counts. Own-key and admin 
 
 - Mini App: a chip in the Today top bar shows the credits left with a small meter, and turns to its low look
   when fewer than two new cards are left. Tapping it opens a sheet with the costs and the time to the refill.
-  Hidden when `quota.limit` is null. The refresh buttons show no cost.
-- Bot: `/settings` shows a credits line; the limit message names the daily credits and the card cost.
+  When `quota.limit` is null it shows `∞` with a full meter and the same sheet. The refresh buttons show no cost.
+- Bot: `/settings` shows a credits line ("unlimited" when there is no limit); the limit message names the daily
+  credits and the card cost.
 
 ## Unintelligible words and LLM allowance
 

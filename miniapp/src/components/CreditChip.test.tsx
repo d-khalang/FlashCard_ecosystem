@@ -35,8 +35,19 @@ describe('CreditChip', () => {
     expect(screen.getByRole('button').className).toContain('credit-chip-low');
   });
 
-  it('is hidden when nothing limits the user', () => {
+  it('shows infinity and the same details when nothing limits the user', () => {
     show(5, null);
-    expect(screen.queryByRole('button')).toBeNull();
+    const chip = screen.getByRole('button', { name: 'No daily credit limit. Show details' });
+    expect(chip.textContent).toContain('∞');
+    expect(chip.className).toContain('credit-chip-ok');
+
+    fireEvent.click(chip);
+
+    const sheet = screen.getByRole('dialog', { name: "Today's credits" });
+    expect(sheet.textContent).toContain('∞ no daily limit');
+    expect(sheet.textContent).toContain('New card2');
+    expect(sheet.textContent).toContain('Refresh one part1');
+    expect(sheet.textContent).toContain('Refills in');
+    expect(sheet.textContent).toContain('Failed generations are free.');
   });
 });

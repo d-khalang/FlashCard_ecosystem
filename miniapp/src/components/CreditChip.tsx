@@ -14,13 +14,23 @@ function Meter({ c, large = false }: { c: Credits; large?: boolean }) {
   );
 }
 
+const UNLIMITED_MARK = '∞';
+
 function CreditSheet({ c, onClose }: { c: Credits; onClose: () => void }) {
   const { t } = useI18n();
   const refill = refillIn();
   return (
     <Sheet title={t('credits.title')} onClose={onClose}>
       <p className="credit-total">
-        <strong>{c.left}</strong> {t('credits.left', { limit: c.limit })}
+        {c.limit === null ? (
+          <>
+            <strong>{UNLIMITED_MARK}</strong> {t('credits.noLimit')}
+          </>
+        ) : (
+          <>
+            <strong>{c.left}</strong> {t('credits.left', { limit: c.limit })}
+          </>
+        )}
       </p>
       <Meter c={c} large />
       <dl className="credit-costs">
@@ -46,12 +56,11 @@ function CreditSheet({ c, onClose }: { c: Credits; onClose: () => void }) {
   );
 }
 
-/** Today's credits in the top bar; tapping it opens the details. Hidden when nothing limits the user. */
+/** Today's credits in the top bar; tapping it opens the details. */
 export function CreditChip({ quota }: { quota: Me['quota'] }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const c = credits(quota);
-  if (!c) return null;
   return (
     <>
       <button
@@ -61,10 +70,10 @@ export function CreditChip({ quota }: { quota: Me['quota'] }) {
           haptic('select');
           setOpen(true);
         }}
-        aria-label={t('credits.chip', { n: c.left })}
+        aria-label={c.limit === null ? t('credits.chipNoLimit') : t('credits.chip', { n: c.left })}
       >
         <Zap size={14} strokeWidth={2.8} aria-hidden="true" />
-        <span>{c.left}</span>
+        <span>{c.limit === null ? UNLIMITED_MARK : c.left}</span>
         <Meter c={c} />
       </button>
       {open ? <CreditSheet c={c} onClose={() => setOpen(false)} /> : null}

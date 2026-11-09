@@ -11,8 +11,10 @@ def credits_exceeded_text(i18n: I18nService, result: QuotaExceeded) -> str:
 
 
 def credits_line(i18n: I18nService, usage: Optional[Usage]) -> Optional[str]:
-    """Today's credits for the /settings menu; None when nothing limits the user."""
-    if usage is None or usage.limit is None:
+    """Today's credits for the /settings menu; None when the usage could not be read."""
+    if usage is None:
         return None
+    if usage.limit is None:
+        return i18n.get("commands.settings.menu.credits_unlimited", card_cost=CARD_CREDITS)
     left = max(usage.limit - usage.used, 0)
     return i18n.get("commands.settings.menu.credits", left=left, limit=usage.limit, card_cost=CARD_CREDITS)
