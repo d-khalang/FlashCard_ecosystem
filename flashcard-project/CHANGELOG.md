@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## v2.2.1-rc.1 (2026-11-09)
+
+No config change or data migration.
+
+### Fix
+
+- A grade that was saved no longer shows an error when Telegram drops the connection afterwards: the card edit retries once, and any remaining Telegram failure is only logged.
+
 ## v2.2.0 (2026-11-06)
 
 Run `python -m flashcard.migrations.ensure_indexes --apply` on each language database: it builds the expiry index of the new `audio_words` collection, which backups leave out. Requires edge-tts 7.3.1 or later (older versions are refused with 403).
