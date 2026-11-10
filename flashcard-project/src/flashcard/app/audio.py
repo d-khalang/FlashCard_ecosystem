@@ -1,38 +1,29 @@
 """
-Listening to a card, for the bot and the Mini App alike.
+Listening to cards, for the bot and the Mini App alike: the card source of flashcard.app.speech.
 
-A clip is asked for by card and part, never by text: what is spoken is always the user's stored
-card, so this cannot be used as a general text to speech service. It follows that a preview that was
-not saved has no audio. Words come from the cache; every other part is generated each time, and each
-client keeps its own replay (the app in memory, the bot's message in the chat). Only generated clips
-count against the daily limit.
+A saved card is asked for by card and part, and its text is read from the user's stored card. A
+preview (generated, not saved) has no id yet, so its parts are registered when it is shown and asked
+for by key. Either way the client never sends the text.
 """
-import asyncio
 import re
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional, Union, get_args
+from datetime import timedelta
+from typing import Literal, Optional, Union
 
-from flashcard.app.quota import QuotaExceeded, QuotaPolicy
+from flashcard.app.quota import QuotaExceeded
 from flashcard.app.review import CardNotFound, NotPending, Throttled
+from flashcard.app.speech import (
+    CARD_TEXT_LIFETIME, PREVIEW_LIFETIME, WORD_LIFETIME, Clip, GenerationGate, SpeechFailed, SpeechService,
+    Speakable, UnknownKey, speakable,
+)
 from flashcard.language import LanguageConfig
-from flashcard.schemas.expression import Expression, TranslationLine
+from flashcard.schemas.expression import ExpressionCard, TranslationLine
 from flashcard.schemas.languages import ALIAS_MAP, LANGUAGE_DATA
 from flashcard.schemas.user import UserId
-from flashcard.services.audio_cache import AudioWordCache, word_key
 from flashcard.services.expression import ExpressionService
-from flashcard.services.speech import VOICES, SpeechProvider, random_voice
-from flashcard.services.user import UserService
-from flashcard.utils.logger import get_logger
-
-logger = get_logger(__name__)
 
 CardPart = Literal["word", "definition", "example", "translation_0", "translation_1"]
 TRANSLATION_PARTS: tuple[CardPart, ...] = ("translation_0", "translation_1")
-
-# Well within Telegram's 30 s to answer a button.
-SPEECH_TIMEOUT_SECONDS = 15.0
-# Far above any card's text: a longer one is not worth a request.
-MAX_TEXT_CHARS = 600
 
 _LANGUAGE_BY_FLAG = {data["flag"]: code for code, data in LANGUAGE_DATA.items()}
 _FLAG = re.compile("[\U0001F1E6-\U0001F1FF]{2}")
@@ -52,21 +43,8 @@ def language_of_label(label: str) -> Optional[str]:
 
 
 @dataclass(frozen=True)
-class Clip:
-    audio: bytes
-    # For a word: lets the bot remember Telegram's id of the file (see `remember_telegram_file`).
-    word_key: Optional[str] = None
-    telegram_file_id: Optional[str] = None
-
-
-@dataclass(frozen=True)
 class PartMissing:
     """The card has no such part, or nothing can speak it."""
-
-
-@dataclass(frozen=True)
-class SpeechFailed:
-    pass
 
 
 @dataclass(frozen=True)
@@ -76,25 +54,20 @@ class ListenablePart:
     label: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class PreviewPart(ListenablePart):
+    # What the client sends to play this part.
+    key: str = ""
+
+
 ClipResult = Union[Clip, CardNotFound, PartMissing, QuotaExceeded, SpeechFailed, Throttled]
+KeyClipResult = Union[Clip, UnknownKey, QuotaExceeded, SpeechFailed, Throttled]
 PartsResult = Union[list[ListenablePart], CardNotFound, NotPending]
-GenerationGate = Callable[[], Optional[Throttled]]
 
 
 class AudioUseCases:
-    def __init__(
-        self,
-        expression_service: ExpressionService,
-        user_service: UserService,
-        quota: QuotaPolicy,
-        word_cache: AudioWordCache,
-        speech: SpeechProvider,
-        language: LanguageConfig,
-    ):
+    def __init__(self, expression_service: ExpressionService, speech: SpeechService, language: LanguageConfig):
         self.expressions = expression_service
-        self.users = user_service
-        self.quota = quota
-        self.word_cache = word_cache
         self.speech = speech
         self.language = language
 
@@ -105,92 +78,75 @@ class AudioUseCases:
             return CardNotFound()
         if expression.pending_message_id != message_id:
             return NotPending()
-        found: list[ListenablePart] = []
-        for part in get_args(CardPart):
-            if self._text_and_language(expression, part) is not None:
-                found.append(ListenablePart(part, _translation_label(expression, part)))
-        return found
+        card = expression.last_card.card if expression.last_card is not None else None
+        return [ListenablePart(part, _translation_label(card, part))
+                for part, _ in self._speakables(expression.value, card, WORD_LIFETIME, CARD_TEXT_LIFETIME)]
 
     async def clip(
         self, user_id: UserId, expression_id: str, part: CardPart,
         before_generation: Optional[GenerationGate] = None,
     ) -> ClipResult:
-        """One part of the user's card as MP3. `before_generation` is asked right before generating."""
+        """One part of the user's saved card as MP3. `before_generation` is asked right before generating."""
         expression = await self.expressions.get_expression(user_id, expression_id)
         if expression is None:
             return CardNotFound()
-        spoken = self._text_and_language(expression, part)
-        if spoken is None:
+        card = expression.last_card.card if expression.last_card is not None else None
+        found = dict(self._speakables(expression.value, card, WORD_LIFETIME, CARD_TEXT_LIFETIME)).get(part)
+        if found is None:
             return PartMissing()
-        text, language_code = spoken
+        return await self.speech.speak(user_id, found, before_generation)
 
-        key = word_key(language_code, text) if part == "word" else None
-        if key is not None:
-            cached = await self.word_cache.get(key)
-            if cached is not None:
-                return Clip(audio=cached.audio, word_key=key, telegram_file_id=cached.telegram_file_id)
+    async def preview_parts(self, card: ExpressionCard) -> list[PreviewPart]:
+        """Register what can be listened to on a generated card, for play by key until it expires."""
+        found = []
+        for part, spoken in self._speakables(card.norm, card, PREVIEW_LIFETIME, PREVIEW_LIFETIME):
+            key = await self.speech.register(spoken)
+            found.append(PreviewPart(part=part, label=_translation_label(card, part), key=key))
+        return found
 
-        quota = self.quota.check_audio(await self.users.get_user(user_id))
-        if isinstance(quota, QuotaExceeded):
-            return quota
-        if before_generation is not None:
-            refused = before_generation()
-            if refused is not None:
-                return refused
+    async def preview_clip(
+        self, user_id: UserId, key: str, before_generation: Optional[GenerationGate] = None,
+    ) -> KeyClipResult:
+        """A part of a preview, by the key `preview_parts` gave it."""
+        return await self.speech.speak_key(user_id, key, PREVIEW_LIFETIME, before_generation)
 
-        voice = random_voice(language_code)
-        try:
-            audio = await asyncio.wait_for(self.speech.synthesize(text, voice), SPEECH_TIMEOUT_SECONDS)
-        except Exception as error:
-            # The failure rate is what says when to move to a paid provider. The text stays out of logs.
-            logger.warning("Speech failed: voice=%s part=%s error=%s", voice, part, type(error).__name__)
-            return SpeechFailed()
-
-        logger.info("Speech generated: voice=%s part=%s chars=%d", voice, part, len(text))
-        if key is not None:
-            await self.word_cache.put(key, audio, voice)
-        await self.quota.record_audio(user_id)
-        return Clip(audio=audio, word_key=key)
+    async def keep_saved_word(self, word: str) -> None:
+        """
+        A saved word's clip (heard in its preview) now lives as long as a word. Only the word: a saved
+        card's other parts are written anew at review, so the preview's clips of them are not its card's.
+        """
+        found = speakable(word, self.language.code, WORD_LIFETIME, word=True)
+        if found is not None:
+            await self.speech.keep(found)
 
     async def remember_telegram_file(self, key: str, file_id: str) -> None:
-        """The bot's id of a word's file, so the next send of that word uploads nothing."""
-        await self.word_cache.set_telegram_file_id(key, file_id)
+        await self.speech.remember_telegram_file(key, file_id)
 
-    def _text_and_language(self, expression: Expression, part: str) -> Optional[tuple[str, str]]:
-        """What this part says and in which language, or None when there is nothing to say."""
+    def _speakables(
+        self, word: str, card: Optional[ExpressionCard], word_lifetime: timedelta, text_lifetime: timedelta,
+    ) -> list[tuple[CardPart, Speakable]]:
+        """Each part that can be spoken, in order."""
         learning = self.language.code
-        if part == "word":
-            return _spoken(expression.value, learning)
-        card = expression.last_card.card if expression.last_card is not None else None
-        if card is None:
-            return None
-        if part == "definition":
-            return _spoken(card.learning_definition, learning)
-        if part == "example":
-            return _spoken(card.learning_example, learning)
-        line = _translation_line(expression, part)
-        if line is None:
-            return None
-        language_code = language_of_label(line.label)
-        return _spoken(line.text, language_code) if language_code is not None else None
+        candidates: list[tuple[CardPart, Optional[Speakable]]] = [
+            ("word", speakable(word, learning, word_lifetime, word=True))]
+        if card is not None:
+            candidates.append(("definition", speakable(card.learning_definition, learning, text_lifetime)))
+            candidates.append(("example", speakable(card.learning_example, learning, text_lifetime)))
+            for part in TRANSLATION_PARTS:
+                line = _translation_line(card, part)
+                if line is not None:
+                    candidates.append((part, speakable(line.text, language_of_label(line.label), text_lifetime)))
+        return [(part, found) for part, found in candidates if found is not None]
 
 
-def _spoken(text: Optional[str], language_code: str) -> Optional[tuple[str, str]]:
-    """The one rule for what can be spoken, so the bot never offers a button that cannot work."""
-    text = (text or "").strip()
-    if not text or len(text) > MAX_TEXT_CHARS or language_code not in VOICES:
+def _translation_line(card: Optional[ExpressionCard], part: str) -> Optional[TranslationLine]:
+    if part not in TRANSLATION_PARTS or card is None:
         return None
-    return text, language_code
-
-
-def _translation_line(expression: Expression, part: str) -> Optional[TranslationLine]:
-    if part not in TRANSLATION_PARTS or expression.last_card is None:
-        return None
-    lines = expression.last_card.card.translations
     index = TRANSLATION_PARTS.index(part)
-    return lines[index] if index < len(lines) else None
+    return card.translations[index] if index < len(card.translations) else None
 
 
-def _translation_label(expression: Expression, part: str) -> Optional[str]:
-    line = _translation_line(expression, part)
+def _translation_label(card: Optional[ExpressionCard], part: str) -> Optional[str]:
+    line = _translation_line(card, part)
     return line.label if line is not None else None
+

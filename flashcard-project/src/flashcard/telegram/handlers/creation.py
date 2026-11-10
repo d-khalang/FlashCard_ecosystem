@@ -1,8 +1,9 @@
 from aiogram import Router, F, flags
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
 from aiogram.enums import ChatAction
-from typing import Optional
+from typing import Optional, Sequence
 
+from flashcard.app.audio import AudioUseCases, PreviewPart
 from flashcard.app.creation import CardReady, CreationUseCases, GenerateResult, InvalidInput, Saved
 from flashcard.app.quota import QuotaExceeded
 from flashcard.telegram.helpers.credits import credits_exceeded_text
@@ -11,13 +12,35 @@ from flashcard.language import LanguageConfig
 from flashcard.telegram.ui.expression import render_expression_card
 from flashcard.telegram.keyboards import expression_action_kb
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
+from flashcard.telegram.ui.factories.audio_callback import SpeechKeyCallback
 from flashcard.utils.logger import get_logger
 
 logger = get_logger(__name__)
 router = Router()
 
 
-def _present(i18n: I18nService, result: GenerateResult, language: LanguageConfig) -> tuple[str, Optional[InlineKeyboardMarkup]]:
+async def _listenable(audio_use_cases: AudioUseCases, result: GenerateResult) -> Sequence[PreviewPart]:
+    """A generated card's parts to listen to. Without them the card still arrives, just silent."""
+    if not isinstance(result, CardReady):
+        return ()
+    try:
+        return await audio_use_cases.preview_parts(result.card)
+    except Exception:
+        logger.warning("Could not register the preview's audio", exc_info=True)
+        return ()
+
+
+def _listen_rows(markup: Optional[InlineKeyboardMarkup]) -> Optional[InlineKeyboardMarkup]:
+    """The Listen rows of a generated card's buttons, kept once the card is saved."""
+    say = f"{SpeechKeyCallback.__prefix__}{SpeechKeyCallback.__separator__}"
+    rows = [row for row in (markup.inline_keyboard if markup else [])
+            if row and all((button.callback_data or "").startswith(say) for button in row)]
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
+
+def _present(
+    i18n: I18nService, result: GenerateResult, language: LanguageConfig, audio_parts: Sequence[PreviewPart] = (),
+) -> tuple[str, Optional[InlineKeyboardMarkup]]:
     """Message text and buttons for a generation result."""
     if isinstance(result, InvalidInput):
         text = i18n.get(
@@ -31,13 +54,16 @@ def _present(i18n: I18nService, result: GenerateResult, language: LanguageConfig
         return credits_exceeded_text(i18n, result), None
     content = render_expression_card(result.card, learning_flag=language.flag)["content"]
     if isinstance(result, CardReady):
-        return content, expression_action_kb(i18n, result.card.norm)
+        return content, expression_action_kb(i18n, result.card.norm, audio_parts)
     return content, None
 
 
 @router.message(F.text & ~F.via_bot & ~F.from_user.is_bot)
 @flags.chat_action(ChatAction.TYPING)
-async def handle_text_message(message: Message, creation_use_cases: CreationUseCases, language: LanguageConfig, i18n: I18nService):
+async def handle_text_message(
+    message: Message, creation_use_cases: CreationUseCases, audio_use_cases: AudioUseCases,
+    language: LanguageConfig, i18n: I18nService,
+):
     if len(message.text) > 150:
         await message.answer(i18n.get("messages.errors.input_too_long"))
         return
@@ -52,7 +78,7 @@ async def handle_text_message(message: Message, creation_use_cases: CreationUseC
         message.text,
         on_fallback=notify_fallback,
     )
-    text, kb = _present(i18n, result, language)
+    text, kb = _present(i18n, result, language, await _listenable(audio_use_cases, result))
 
     await status_msg.edit_text(
         text=text,
@@ -61,20 +87,27 @@ async def handle_text_message(message: Message, creation_use_cases: CreationUseC
 
 
 @router.callback_query(F.data.startswith("save:"))
-async def handle_save(callback: CallbackQuery, creation_use_cases: CreationUseCases, i18n: I18nService):
+async def handle_save(
+    callback: CallbackQuery, creation_use_cases: CreationUseCases, audio_use_cases: AudioUseCases, i18n: I18nService,
+):
     # Format: save:{norm}
     norm = callback.data.split(":", 1)[1]
     user_id = callback.from_user.id
-    
+
     result = await creation_use_cases.save(user_id, norm)
 
     if isinstance(result, Saved):
         logger.info(f"Saved to collection received for user {user_id}!")
+        try:
+            await audio_use_cases.keep_saved_word(norm)
+        except Exception:
+            logger.warning("Could not keep the saved word's audio", exc_info=True)
         await safe_answer_callback(callback, i18n.get("callbacks.save.success_message"), show_alert=True)
         # Edit message to show saved status
         # Just extra check, could be omitted
         original_text = callback.message.text or callback.message.caption or ""
-        await callback.message.edit_text(f"{original_text}{i18n.get('callbacks.save.success_tag', norm=norm)}")
+        await callback.message.edit_text(f"{original_text}{i18n.get('callbacks.save.success_tag', norm=norm)}",
+                                         reply_markup=_listen_rows(callback.message.reply_markup))
         
         # Onboarding tip: after first save, nudge about /settings
         if await creation_use_cases.claim_first_save_tip(user_id):
@@ -105,7 +138,10 @@ async def handle_save(callback: CallbackQuery, creation_use_cases: CreationUseCa
 
 @router.callback_query(F.data.startswith("regen:"))
 @flags.chat_action(ChatAction.TYPING)
-async def handle_regen(callback: CallbackQuery, creation_use_cases: CreationUseCases, language: LanguageConfig, i18n: I18nService):
+async def handle_regen(
+    callback: CallbackQuery, creation_use_cases: CreationUseCases, audio_use_cases: AudioUseCases,
+    language: LanguageConfig, i18n: I18nService,
+):
     # Kept to restore the card if regenerating fails.
     original_text = callback.message.html_text
     callback_markup = callback.message.reply_markup
@@ -131,8 +167,9 @@ async def handle_regen(callback: CallbackQuery, creation_use_cases: CreationUseC
         raise
 
     if isinstance(result, CardReady):
-        text, _ = _present(i18n, result, language)
-        await callback.message.edit_text(text=text, reply_markup=callback_markup)
+        # New text, so new Listen buttons.
+        text, kb = _present(i18n, result, language, await _listenable(audio_use_cases, result))
+        await callback.message.edit_text(text=text, reply_markup=kb)
         return
 
     # Failed: put the card and its buttons back, so the user can still save it or retry.

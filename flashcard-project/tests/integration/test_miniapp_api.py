@@ -60,7 +60,7 @@ class TestAudio:
     @pytest.fixture
     def speech(self, study_core):
         synthesize = AsyncMock(return_value=b"mp3-bytes")
-        study_core.audio_use_cases.speech = SimpleNamespace(synthesize=synthesize)
+        study_core.audio_use_cases.speech.provider = SimpleNamespace(synthesize=synthesize)
         return synthesize
 
     async def test_a_word_is_generated_once_and_kept(self, api, mongo_cols, ready_user, speech):
@@ -106,6 +106,33 @@ class TestAudio:
 
     async def test_needs_sign_in(self, api, ready_user):
         assert (await api.get(f"{BASE}/audio/{ready_user}/word")).status_code == 401
+
+    async def test_a_preview_part_plays_by_its_key(self, api, mongo_cols, speech):
+        await add_user(mongo_cols, USER)
+        preview = (await api.post(f"{BASE}/cards/preview", headers=_as(), json={"text": "andare"})).json()
+
+        response = await api.get(f"{BASE}/audio/{preview['audio']['word']}", headers=_as())
+
+        assert response.status_code == 200 and response.content == b"mp3-bytes"
+        assert speech.await_args.args[0] == "andare"
+
+    async def test_the_preview_word_is_the_saved_cards_word(self, api, mongo_cols, ready_user, speech):
+        preview = (await api.post(f"{BASE}/cards/preview", headers=_as(), json={"text": "andare"})).json()
+        await api.get(f"{BASE}/audio/{preview['audio']['word']}", headers=_as())
+
+        assert (await api.get(f"{BASE}/audio/{ready_user}/word", headers=_as())).status_code == 200
+        speech.assert_awaited_once()
+
+    async def test_an_unknown_key_is_not_found(self, api, mongo_cols, speech):
+        await add_user(mongo_cols, USER)
+
+        assert _error(await api.get(f"{BASE}/audio/{'0' * 64}", headers=_as())) == (404, "not_found")
+        speech.assert_not_awaited()
+
+    async def test_a_key_must_look_like_one(self, api, mongo_cols):
+        await add_user(mongo_cols, USER)
+
+        assert _error(await api.get(f"{BASE}/audio/not-a-key", headers=_as()))[0] == 422
 
 
 class TestMe:
@@ -396,6 +423,8 @@ class TestPreview:
         body = response.json()
         assert body["status"] == "ready" and body["norm"] == "andare"
         assert set(body["content"]) == {"definition", "translations", "example", "note"}
+        assert set(body["audio"]) >= {"word", "definition", "example"}
+        assert all(len(key) == 64 for key in body["audio"].values())
 
     async def test_failures_and_limits(self, api, mongo_cols, study_llm):
         await add_user(mongo_cols, USER)

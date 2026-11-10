@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from flashcard.app.audio import AudioUseCases
+from flashcard.app.speech import SpeechService
 from flashcard.app.collection import CollectionUseCases
 from flashcard.app.creation import CreationUseCases
 from flashcard.app.quota import QuotaPolicy
@@ -20,7 +21,7 @@ from flashcard.app.study import StudyUseCases
 from flashcard.app.verb import VerbUseCases
 from flashcard.db.mongo import close_mongo_on_client, init_and_get_mongo
 from flashcard.language import LanguageConfig
-from flashcard.services.audio_cache import AudioWordCache
+from flashcard.services.speech_cache import SpeechCache
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.i18n import I18nService
@@ -169,10 +170,12 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
         ),
         audio_use_cases=AudioUseCases(
             expression_service=expression_service,
-            user_service=user_service,
-            quota=quota,
-            word_cache=AudioWordCache(words=cols["audio_words"]),
-            speech=EdgeSpeechProvider(),
+            speech=SpeechService(
+                cache=SpeechCache(entries=cols["audio_words"]),
+                provider=EdgeSpeechProvider(),
+                quota=quota,
+                user_service=user_service,
+            ),
             language=language,
         ),
         study_use_cases=StudyUseCases(

@@ -5,7 +5,7 @@ import pytest
 from pymongo.errors import DuplicateKeyError
 
 from flashcard.migrations.ensure_indexes import ensure_indexes
-from flashcard.services.audio_cache import AudioWordCache
+from flashcard.services.speech_cache import SpeechCache
 from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
 from tests.helpers import TEST_LANGUAGE
@@ -26,7 +26,7 @@ async def _run(cols, *, apply=True):
         cols,
         UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults),
         ExpressionService(expressions=cols["expression"]),
-        AudioWordCache(words=cols["audio_words"]),
+        SpeechCache(entries=cols["audio_words"]),
         apply=apply,
     )
 
@@ -39,7 +39,7 @@ async def test_builds_every_index_on_a_new_database():
     assert report.indexes_built
     assert cols["users"].indexes == USER_INDEXES
     assert cols["expression"].indexes == CARD_INDEXES
-    assert cols["audio_words"].indexes == {(("last_used_at",), False, False)}
+    assert cols["audio_words"].indexes == {(("expires_at",), False, False)}
 
 
 async def test_dry_run_builds_nothing():

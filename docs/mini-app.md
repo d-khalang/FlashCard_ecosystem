@@ -186,13 +186,14 @@ QuotaResult  {status: "quota", tier: str, limit: int}   (limit: today's credits)
 | `POST /study/grade` | `{delivery_id, expression_id, direction, grade: 0..5}` | `{status: "graded", undo_available: true}` or `{status: "not_pending"}`; 404 if the card is gone |
 | `POST /study/undo` | | `{status: "undone", card: StudyCard}` or `{status: "nothing_to_undo"}` |
 | `POST /study/refresh` * | `{delivery_id, section}` | `{status: "ready", card}` or `{status: "not_pending"}` or `QuotaResult` |
-| `POST /cards/preview` * | `{text}` (max 200) | `{status: "ready", norm, content: Content}` or `{status: "unclear", note, suggestions}` or `{status: "invalid", suggestions}` or `QuotaResult` |
+| `POST /cards/preview` * | `{text}` (max 200) | `{status: "ready", norm, content: Content, audio}` (`audio`: card part -> key for `GET /audio/{key}`, only the parts that can be spoken) or `{status: "unclear", note, suggestions}` or `{status: "invalid", suggestions}` or `QuotaResult` |
 | `GET /collection` | `limit` (max 50), `cursor`, `q` | `{items: [{id, value, reps, lapses, created_at}], next_cursor: str\|null}`. Newest first. `q` of 2+ characters searches, without paging. A shorter `q` is 422 |
 | `POST /collection` | `{value}` (max 200) | `201 {status: "saved"\|"already_saved"}`, or `200 {status: "invalid", suggestions}` (the instance's language validator refused it; the built-in validators make no LLM call), or `200 {status: "too_many", limit}` |
 | `GET /collection/{id}` | | `{id, value, reps, lapses, created_at, content: Content\|null, generated_at}` |
 | `DELETE /collection/{id}` | | 204 or 404 |
 | `POST /collection/import` * | `{text}` (max 1000) | `{status: "imported", items}` or `{status: "all_duplicates"\|"parse_failed"\|"nothing_found"\|"invalid_language"}` or `{status: "too_long", limit}` or `{status: "too_many", limit}` or `QuotaResult`. `items` is `str[]`: the values newly saved. The body schema allows up to 5000 characters so that `too_long` (over 1000) can be answered |
 | `PATCH /settings` | any `Settings` fields | `Settings`. Bad values are 422 (`SettingsUseCases` raises `ValueError`) |
+| `GET /audio/{key}` | key: 64 lowercase hex characters, from a preview's `audio` | `audio/mpeg` of that part of an unsaved preview. 404 when the key is unknown or expired (a preview's keys last about a day from their last use); other errors as below |
 | `GET /audio/{expression_id}/{part}` | part: `word`, `definition`, `example`, `translation_0`, `translation_1` | `audio/mpeg` of that part of the user's stored card. 404 if the card or part is gone, 429 `audio_limit` (no `Retry-After`) when the daily audio limit is used up, 429 `rate_limited` above 30 generated clips a minute, 503 `generation_failed` when the speech service fails |
 
 `words.pending` is true when a delivered card is waiting for a grade, by the same rule as resuming it (the review

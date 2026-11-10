@@ -136,6 +136,8 @@ class PreviewReady(BaseModel):
     status: Literal["ready"] = "ready"
     norm: str
     content: Content
+    # Card part -> key for GET /audio/{key}; only the parts that can be spoken.
+    audio: dict[str, str] = Field(default_factory=dict)
 
 
 class PreviewUnclear(BaseModel):

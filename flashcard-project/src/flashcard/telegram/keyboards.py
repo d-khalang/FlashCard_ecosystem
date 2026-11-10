@@ -1,10 +1,10 @@
 # src/flashcard/telegram/keyboards.py
-from typing import Optional
+from typing import Optional, Sequence
 
 from aiogram.types import (InlineKeyboardMarkup, ReplyKeyboardMarkup)
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
-from flashcard.app.audio import ListenablePart
-from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback
+from flashcard.app.audio import ListenablePart, PreviewPart
+from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback, SpeechKeyCallback
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
@@ -12,10 +12,14 @@ from flashcard.schemas.conjugations import ConjugationResponse
 from flashcard.services.i18n import I18nService
 from flashcard.schemas.languages import get_language_flag, get_language_name
 
-def expression_action_kb(i18n: I18nService, norm: str) -> InlineKeyboardMarkup:
+def expression_action_kb(i18n: I18nService, norm: str, audio_parts: Sequence[PreviewPart] = ()) -> InlineKeyboardMarkup:
+    """Save and Regenerate, then a Listen button per part of the generated card."""
     builder = InlineKeyboardBuilder()
     builder.button(text=i18n.get("messages.buttons.save"), callback_data=f"save:{norm}")
     builder.button(text=i18n.get("messages.buttons.regenerate"), callback_data=f"regen:{norm}")
+    for part in audio_parts:
+        builder.button(text=_audio_part_text(i18n, part), callback_data=SpeechKeyCallback.for_key(part.key))
+    builder.adjust(2, 3, 2)
     return builder.as_markup()
 
 

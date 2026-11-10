@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from flashcard.app.audio import PreviewPart
 from flashcard.app.creation import CreationUseCases
 from flashcard.schemas.expression import ExpressionCard, TranslationLine
 from flashcard.schemas.user import UserAPIConfig, UserDB, UserTier
@@ -73,6 +74,14 @@ def _use_cases(d) -> CreationUseCases:
                             language_validator=d.validator)
 
 
+# What the audio use case registers for a generated card: two parts, to keep the keyboards short.
+PARTS = [PreviewPart(part="word", key="a" * 64), PreviewPart(part="translation_0", label="🇬🇧 EN", key="b" * 64)]
+
+
+def _audio(parts=PARTS):
+    return SimpleNamespace(preview_parts=AsyncMock(return_value=parts))
+
+
 QUOTA_TEXT = lambda: i18n.get("messages.errors.credits_exceeded", limit=10, card_cost=2)
 
 
@@ -86,7 +95,7 @@ async def _run_text(d, text="andare"):
     message.text = text
     message.from_user.id = USER_ID
     message.answer = AsyncMock(return_value=status)
-    await creation.handle_text_message(message, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
+    await creation.handle_text_message(message, creation_use_cases=_use_cases(d), audio_use_cases=_audio(), language=TEST_LANGUAGE, i18n=i18n)
     return message, status
 
 
@@ -98,7 +107,8 @@ class TestTextMessage:
 
         message.answer.assert_awaited_once_with(i18n.get("messages.working"))
         status.edit_text.assert_awaited_once_with(
-            text=render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"], reply_markup=expression_action_kb(i18n, "andare"))
+            text=render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"],
+            reply_markup=expression_action_kb(i18n, "andare", PARTS))
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=False, credits=2)
 
@@ -198,7 +208,7 @@ def _callback(data, markup=None, text="CARD TEXT"):
 
 async def _run_regen(d, data="regen:andare"):
     callback = _callback(data, markup=expression_action_kb(i18n, "andare"))
-    await creation.handle_regen(callback, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
+    await creation.handle_regen(callback, creation_use_cases=_use_cases(d), audio_use_cases=_audio(), language=TEST_LANGUAGE, i18n=i18n)
     return callback
 
 
@@ -210,7 +220,8 @@ class TestRegenerate:
 
         assert callback.message.edit_text.await_args_list[0].args == (i18n.get("callbacks.regen.working"),)
         assert callback.message.edit_text.await_args_list[-1].kwargs == {
-            "text": render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"], "reply_markup": expression_action_kb(i18n, "andare")}
+            "text": render_expression_card(_card(), learning_flag=TEST_LANGUAGE.flag)["content"],
+            "reply_markup": expression_action_kb(i18n, "andare", PARTS)}
         assert d.llm_service.generate_expression_card.await_args.kwargs["raw"] == "andare"
         d.consumption_service.increment.assert_awaited_once_with(
             USER_ID, "cards_generated", uses_own_key=False, credits=2)
@@ -243,7 +254,7 @@ class TestRegenerate:
         callback = _callback("regen:andare", markup=expression_action_kb(i18n, "andare"))
 
         with pytest.raises(RuntimeError, match="provider down"):
-            await creation.handle_regen(callback, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
+            await creation.handle_regen(callback, creation_use_cases=_use_cases(d), audio_use_cases=_audio(), language=TEST_LANGUAGE, i18n=i18n)
         assert callback.message.edit_text.await_args_list[-1].kwargs == {
             "text": "CARD TEXT", "reply_markup": expression_action_kb(i18n, "andare")}
 
@@ -254,7 +265,7 @@ class TestRegenerate:
         callback.message.edit_text.side_effect = [None, RuntimeError("message gone")]
 
         with pytest.raises(RuntimeError, match="provider down"):
-            await creation.handle_regen(callback, creation_use_cases=_use_cases(d), language=TEST_LANGUAGE, i18n=i18n)
+            await creation.handle_regen(callback, creation_use_cases=_use_cases(d), audio_use_cases=_audio(), language=TEST_LANGUAGE, i18n=i18n)
 
     async def test_expression_with_colon_is_kept_whole(self):
         d = _deps()
@@ -266,13 +277,26 @@ class TestRegenerate:
 # ===================================================================
 # Save
 # ===================================================================
-async def _run_save(d, data="save:andare", markup=None):
+async def _run_save(d, data="save:andare", markup=None, audio=None):
     callback = _callback(data, markup=markup)
-    await creation.handle_save(callback, creation_use_cases=_use_cases(d), i18n=i18n)
+    audio = audio or SimpleNamespace(keep_saved_word=AsyncMock())
+    await creation.handle_save(callback, creation_use_cases=_use_cases(d), audio_use_cases=audio, i18n=i18n)
     return callback
 
 
 class TestSave:
+
+    async def test_a_saved_word_keeps_its_clip_like_a_word(self):
+        audio = SimpleNamespace(keep_saved_word=AsyncMock())
+        await _run_save(_deps(user=_user(onboarding_step=2)), audio=audio)
+
+        audio.keep_saved_word.assert_awaited_once_with("andare")
+
+    async def test_a_failure_to_keep_the_clip_does_not_undo_the_save(self):
+        audio = SimpleNamespace(keep_saved_word=AsyncMock(side_effect=RuntimeError("mongo down")))
+        callback = await _run_save(_deps(user=_user(onboarding_step=2)), audio=audio)
+
+        callback.answer.assert_awaited_once_with(i18n.get("callbacks.save.success_message"), show_alert=True)
 
     async def test_saved_confirms_and_tags_message(self):
         d = _deps(user=_user(onboarding_step=2))
@@ -281,7 +305,7 @@ class TestSave:
         d.expression_service.add_expression.assert_awaited_once_with(USER_ID, "andare")
         callback.answer.assert_awaited_once_with(i18n.get("callbacks.save.success_message"), show_alert=True)
         callback.message.edit_text.assert_awaited_once_with(
-            "CARD TEXT" + i18n.get("callbacks.save.success_tag", norm="andare"))
+            "CARD TEXT" + i18n.get("callbacks.save.success_tag", norm="andare"), reply_markup=None)
         callback.message.answer.assert_not_awaited()
         d.user_service.advance_onboarding.assert_not_awaited()
 
@@ -318,3 +342,36 @@ class TestSave:
         await _run_save(d, data="save:a:b")
 
         d.expression_service.add_expression.assert_awaited_once_with(USER_ID, "a:b")
+
+
+# ===================================================================
+# Listening to a generated card
+# ===================================================================
+class TestListenButtons:
+
+    async def test_a_generated_card_gets_a_button_per_part(self):
+        _, status = await _run_text(_deps())
+
+        markup = status.edit_text.await_args.kwargs["reply_markup"]
+        assert [b.text for b in markup.inline_keyboard[1]] == [i18n.get("messages.buttons.listen_word"), "🇬🇧 EN"]
+        assert all(b.callback_data.startswith("say:") and len(b.callback_data.encode()) <= 64
+                   for b in markup.inline_keyboard[1])
+
+    async def test_the_card_still_arrives_when_its_audio_cannot_be_registered(self):
+        d = _deps()
+        status = MagicMock(edit_text=AsyncMock())
+        message = MagicMock(text="andare", answer=AsyncMock(return_value=status))
+        message.from_user.id = USER_ID
+        audio = SimpleNamespace(preview_parts=AsyncMock(side_effect=RuntimeError("mongo down")))
+
+        await creation.handle_text_message(message, creation_use_cases=_use_cases(d), audio_use_cases=audio,
+                                           language=TEST_LANGUAGE, i18n=i18n)
+
+        assert status.edit_text.await_args.kwargs["reply_markup"] == expression_action_kb(i18n, "andare")
+
+    async def test_saving_keeps_only_the_listen_buttons(self):
+        d = _deps(user=_user(onboarding_step=2))
+        callback = await _run_save(d, markup=expression_action_kb(i18n, "andare", PARTS))
+
+        kept = callback.message.edit_text.await_args.kwargs["reply_markup"]
+        assert kept.inline_keyboard == expression_action_kb(i18n, "andare", PARTS).inline_keyboard[1:]

@@ -7,7 +7,7 @@ import type { TranslationKey } from '../i18n/en';
 import type { RefreshStatus } from '../study/reducer';
 import { Flag } from './Flag';
 import { flagUrl } from './flags';
-import { ListenButton } from './ListenButton';
+import { ListenButton, type ListenSource } from './ListenButton';
 
 const REFRESH_LABEL: Record<Section, TranslationKey> = {
   definition: 'study.refresh.meaning',
@@ -78,24 +78,35 @@ interface CardSectionsProps {
   content: Content;
   refresh?: Record<Section, RefreshStatus>;
   onRefresh?: (section: Section) => void;
-  /** The stored card these sections show. Without it (an unsaved preview) there is nothing to listen to. */
+  /** The stored card these sections show: its parts can be listened to. */
   expressionId?: string;
+  /** An unsaved preview's keys by part (POST /cards/preview `audio`): only those parts can be listened to. */
+  speechKeys?: Partial<Record<AudioPart, string>>;
 }
 
 const TRANSLATION_PARTS: AudioPart[] = ['translation_0', 'translation_1'];
 
+function listenSource(part: AudioPart | undefined, expressionId?: string, speechKeys?: Partial<Record<AudioPart, string>>): ListenSource | null {
+  if (!part) return null;
+  if (speechKeys) {
+    const speechKey = speechKeys[part];
+    return speechKey ? { speechKey } : null;
+  }
+  return expressionId ? { expressionId, part } : null;
+}
+
 /**
  * Definition, translations, example and note. Refresh buttons appear only when `onRefresh` is given,
- * listen buttons only when `expressionId` is.
+ * listen buttons only when `expressionId` or `speechKeys` is.
  */
-export function CardSections({ content, refresh, onRefresh, expressionId }: CardSectionsProps) {
+export function CardSections({ content, refresh, onRefresh, expressionId, speechKeys }: CardSectionsProps) {
   const { t } = useI18n();
   const status = (s: Section): RefreshStatus => refresh?.[s] ?? 'idle';
   // Not while the section is being rewritten: its text is about to change.
-  const listen = (section: Section, part: AudioPart | undefined, text: string, small = false) =>
-    expressionId && part ? (
-      <ListenButton expressionId={expressionId} part={part} text={text} small={small} disabled={status(section) === 'loading'} />
-    ) : null;
+  const listen = (section: Section, part: AudioPart | undefined, text: string, small = false) => {
+    const source = listenSource(part, expressionId, speechKeys);
+    return source ? <ListenButton source={source} text={text} small={small} disabled={status(section) === 'loading'} /> : null;
+  };
   return (
     <>
       {content.definition ? (

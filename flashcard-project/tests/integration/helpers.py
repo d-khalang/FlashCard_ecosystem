@@ -20,7 +20,7 @@ from aiogram.methods import (
 )
 from aiogram.types import CallbackQuery, Chat, InlineQuery, Message, Update, User
 from bson import ObjectId
-from pymongo.errors import BulkWriteError, DuplicateKeyError
+from pymongo.errors import BulkWriteError, DuplicateKeyError, OperationFailure
 
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.import_model import ImportResponse
@@ -208,6 +208,18 @@ class InMemoryCollection:
         self.indexes.add((fields, unique, case_insensitive))
         return name or "_".join(fields)
 
+    async def index_information(self) -> dict[str, Any]:
+        """By MongoDB's default names (ascending keys only)."""
+        return {"_".join(f"{field}_1" for field in fields): {"key": [(f, 1) for f in fields]}
+                for fields, _, _ in self.indexes}
+
+    async def drop_index(self, name: str) -> None:
+        for index in list(self.indexes):
+            if "_".join(f"{field}_1" for field in index[0]) == name:
+                self.indexes.discard(index)
+                return
+        raise OperationFailure(f"index not found with name [{name}]")
+
     @staticmethod
     def _index_key(doc: dict[str, Any], index: tuple[tuple[str, ...], bool]) -> tuple:
         fields, case_insensitive = index
@@ -304,6 +316,11 @@ class InMemoryCollection:
                             _inc_nested(doc, field, value)
                     elif key == "$setOnInsert":
                         continue
+                    elif key == "$max":
+                        for field, value in values.items():
+                            current = _get_nested(doc, field)
+                            if current is None or value > current:
+                                _set_nested(doc, field, value)
                     elif key == "$unset":
                         for field in values:
                             _unset_nested(doc, field)
@@ -313,6 +330,9 @@ class InMemoryCollection:
 
         if not upsert:
             return SimpleNamespace(modified_count=0, upserted_id=None, deleted_count=0)
+        if "_id" in query and any(doc.get("_id") == query["_id"] for doc in self.docs):
+            # The filter missed an existing document: MongoDB's upsert then collides on _id.
+            raise DuplicateKeyError("E11000 duplicate key error collection: _id")
 
         new_doc = {}
         for key, value in query.items():
@@ -326,7 +346,7 @@ class InMemoryCollection:
             elif key == "$inc":
                 for field, value in values.items():
                     _set_nested(new_doc, field, value)
-            elif key == "$setOnInsert":
+            elif key in ("$setOnInsert", "$max"):
                 for field, value in values.items():
                     if _get_nested(new_doc, field) is None:
                         _set_nested(new_doc, field, value)

@@ -26,7 +26,7 @@ async def test_handle_text_message_too_long():
 
     # Call handler
     use_cases = CreationUseCases(MagicMock(), user_service, quota, llm_service, review_state=AsyncMock())
-    await handle_text_message(message, creation_use_cases=use_cases, language=TEST_LANGUAGE, i18n=i18n)
+    await handle_text_message(message, creation_use_cases=use_cases, audio_use_cases=MagicMock(), language=TEST_LANGUAGE, i18n=i18n)
 
     # Assertions
     # 1. It should answer with an error message
@@ -62,7 +62,7 @@ async def test_handle_text_message_invalid_language_skips_generation():
 
     use_cases = CreationUseCases(MagicMock(), user_service, quota, llm_service, review_state=AsyncMock(),
                                  language_validator=language_validator)
-    await handle_text_message(message, creation_use_cases=use_cases, language=TEST_LANGUAGE, i18n=TEST_I18N)
+    await handle_text_message(message, creation_use_cases=use_cases, audio_use_cases=MagicMock(), language=TEST_LANGUAGE, i18n=TEST_I18N)
 
     llm_service.generate_expression_card.assert_not_called()
     quota.record.assert_not_called()

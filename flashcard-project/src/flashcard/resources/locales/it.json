@@ -24,7 +24,8 @@
         "audio": {
             "already_sent": "È qui sopra nella chat. 🔊",
             "limit": "Hai usato i {limit} audio di oggi. Altri domani! 🔊",
-            "unavailable": "Audio non disponibile al momento. Riprova tra poco."
+            "unavailable": "Audio non disponibile al momento. Riprova tra poco.",
+            "expired": "Questa carta è troppo vecchia per l'audio. Rimanda la parola per averne una nuova."
         },
         "inline_remove": {
             "result_description": "Condividi questa carta inline, poi usa il pulsante sotto se vuoi che Kartino la metta via.",

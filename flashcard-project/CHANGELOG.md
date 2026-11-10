@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## Unreleased
+
+Data migration: run `python -m flashcard.migrations.ensure_indexes --apply` on each language database with this release. It gives every stored clip an expiry date (its last use + 60 days), builds the expiry index on `expires_at` and drops the old one on `last_used_at`. Until it runs, new clips never expire. Deploy the bot and the Mini App of a language together: both write the new fields.
+
+Open item, not in this release: `audio_words` is still in the backups (mongodump has no per-collection exclusion). Short lifetimes keep it small; a supported exclusion is to be investigated separately.
+
+### New
+
+- Listen to a generated card before saving it: on the bot, a Listen button per part under the new card (kept after Save); in the Mini App, on the preview. Same daily audio limit as review cards.
+
+### Change
+
+- One speech service for every feature. Clients ask by card and part, or by a key the server gave them; they never send text. Clips are stored by what is said, so a word heard in a preview and later on the saved card is one clip.
+- Every part's clip is stored now, not only words, each for its source's lifetime: words 60 days, other card parts 2 days, previews 1 day. A play moves the date forward, never back. Saving a word gives its preview clip a word's 60 days.
+- Two requests for the same new clip generate (and charge) it once.
+
 ## v2.3.1 (2026-11-09)
 
 No config change or data migration. The Mini App now calls the Telegram Bot API (`api.telegram.org`) with its existing bot token, so its container needs outbound access there.

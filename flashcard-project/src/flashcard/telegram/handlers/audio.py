@@ -1,24 +1,27 @@
 """
-Listening to a review card: 🔊 opens a row of the card's parts, and a part arrives as a voice message
-replying to the card. The message stays in the chat, so replaying it costs nothing here.
+Listening to cards. A part arrives as a voice message replying to the card; the message stays in the
+chat, so replaying it costs nothing here.
 
-Grading a card removes its keyboard, so a card can be listened to only until it is graded.
+Review card: 🔊 opens a row of the card's parts. Grading removes the keyboard, so a card can be
+listened to only until it is graded.
+Generated card (preview): its parts' buttons are there from the start and play by speech key.
 """
 import time
-from typing import Optional, get_args
+from typing import Awaitable, Callable, Optional, get_args
 
 from aiogram import Bot, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import BufferedInputFile, CallbackQuery, Message, ReplyParameters
 
 from flashcard.app.audio import AudioUseCases, CardPart, Clip
+from flashcard.app.speech import UnknownKey
 from flashcard.app.quota import QuotaExceeded
 from flashcard.app.review import CardNotFound, NotPending
 from flashcard.schemas.user import UserId
 from flashcard.services.i18n import I18nService
 from flashcard.telegram.helpers.callback_utils import clear_buttons, safe_answer_callback
 from flashcard.telegram.keyboards import get_review_keyboard
-from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback
+from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback, SpeechKeyCallback
 from flashcard.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -99,21 +102,45 @@ async def _open_parts(
 async def _send_part(
     callback: CallbackQuery, data: AudioCallback, audio_use_cases: AudioUseCases, bot: Bot, i18n: I18nService,
 ) -> None:
+    await _send(callback, data.expression_id, data.part, audio_use_cases, bot, i18n,
+                lambda: audio_use_cases.clip(callback.from_user.id, data.expression_id, data.part))
+
+
+@router.callback_query(SpeechKeyCallback.filter())
+async def handle_speech_key(
+    callback: CallbackQuery, callback_data: SpeechKeyCallback, audio_use_cases: AudioUseCases, bot: Bot,
+    i18n: I18nService,
+):
+    """A part of a generated card, by the key its button carries."""
+    key = callback_data.key
+    if not key:
+        await safe_answer_callback(callback, i18n.get("callbacks.audio.unavailable"), show_alert=True)
+        return
+    await _send(callback, key, "", audio_use_cases, bot, i18n,
+                lambda: audio_use_cases.preview_clip(callback.from_user.id, key))
+
+
+async def _send(
+    callback: CallbackQuery, source: str, part: str, audio_use_cases: AudioUseCases, bot: Bot, i18n: I18nService,
+    fetch: Callable[[], Awaitable],
+) -> None:
     user_id: UserId = callback.from_user.id
-    tap = (user_id, data.expression_id, data.part)
+    tap = (user_id, source, part)
     if not _recent.claim(tap):
         await safe_answer_callback(callback, i18n.get("callbacks.audio.already_sent"))
         return
 
     problem: Optional[str] = None
     try:
-        result = await audio_use_cases.clip(user_id, data.expression_id, data.part)
+        result = await fetch()
         if isinstance(result, Clip):
             await _deliver(callback.message, result, audio_use_cases, bot)
         elif isinstance(result, QuotaExceeded):
             problem = i18n.get("callbacks.audio.limit", limit=result.limit)
         elif isinstance(result, CardNotFound):
             problem = i18n.get("callbacks.grade.error_missing")
+        elif isinstance(result, UnknownKey):
+            problem = i18n.get("callbacks.audio.expired")
         else:
             problem = i18n.get("callbacks.audio.unavailable")
     except Exception:
@@ -141,8 +168,8 @@ async def _deliver(card_message: Message, clip: Clip, audio_use_cases: AudioUseC
             raise
         await bot.send_audio(audio=upload, **target)
         return
-    if clip.word_key is not None and sent.voice is not None and sent.voice.file_id != clip.telegram_file_id:
-        await audio_use_cases.remember_telegram_file(clip.word_key, sent.voice.file_id)
+    if sent.voice is not None and sent.voice.file_id != clip.telegram_file_id:
+        await audio_use_cases.remember_telegram_file(clip.key, sent.voice.file_id)
 
 
 async def _send_voice(bot: Bot, clip: Clip, upload: BufferedInputFile, target: dict) -> Message:

@@ -38,7 +38,7 @@ function QuestionBody({ card }: { card: StudyCard }) {
         <h1 className={`q-word ${fitClass(card.value)}`} dir="auto">
           {card.value}
         </h1>
-        <ListenButton expressionId={card.expression_id} part="word" text={card.value} />
+        <ListenButton source={{ expressionId: card.expression_id, part: 'word' }} text={card.value} />
         <p className="q-prompt">{t('study.prompt.forward')}</p>
       </>
     );
@@ -104,7 +104,7 @@ export function StudyCardView({ card, revealed, onReveal, refresh, onRefresh }: 
             <h1 ref={answerHeading} tabIndex={-1} className={`a-word ${fitClass(card.value)}`} dir="auto">
               {card.value}
             </h1>
-            <ListenButton expressionId={card.expression_id} part="word" text={card.value} small />
+            <ListenButton source={{ expressionId: card.expression_id, part: 'word' }} text={card.value} small />
             <Badges card={card} />
           </header>
           <div className="answer-body">

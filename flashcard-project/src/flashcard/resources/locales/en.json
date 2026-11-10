@@ -24,7 +24,8 @@
         "audio": {
             "already_sent": "It's right above in the chat. 🔊",
             "limit": "You've used today's {limit} audio clips. More tomorrow! 🔊",
-            "unavailable": "Couldn't get the audio right now. Try again in a moment."
+            "unavailable": "Couldn't get the audio right now. Try again in a moment.",
+            "expired": "This card is too old to listen to now. Send the word again for a fresh one."
         },
         "inline_remove": {
             "result_description": "Pick this card to remove it.",

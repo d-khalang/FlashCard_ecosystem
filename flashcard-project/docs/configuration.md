@@ -40,7 +40,7 @@ Requests are authenticated by `WEBHOOK_SECRET`, which Telegram sends in the `X-T
 | `COLLECTION_USERS` | ✅ | Users collection name | `users` |
 | `COLLECTION_EXPRESSION` | ✅ | Expressions collection name | `expressions` |
 | `COLLECTION_CONJUGATION` | ✅ | Conjugations collection name | `conjugations` |
-| `COLLECTION_AUDIO_WORDS` | | Stored word audio. Keep the default: kartino-deploy's backup excludes it by this name | `audio_words` |
+| `COLLECTION_AUDIO_WORDS` | | Stored speech (all sources, each with its own expiry; see `services/speech_cache.py`). Backups still include it: mongodump cannot leave one collection out, and a supported exclusion is an open item | `audio_words` |
 | `TIER_LIMITS_{NORMAL,DIGI,PLUS,ADMIN}_CREDITS` | | Card credits per day: a new card (or `/import`) costs 2, a refreshed card part 1. Replaces `TIER_LIMITS_*_CARDS` | `20`, `80`, `100`, `1998` |
 | `TIER_LIMITS_{NORMAL,DIGI,PLUS,ADMIN}_STORIES` | | Stories per day | `2`, `3`, `10`, `99` |
 | `TIER_LIMITS_{NORMAL,DIGI,PLUS,ADMIN}_AUDIO` | | Generated audio clips per day | `30`, `100`, `150`, `9999` |
