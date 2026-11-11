@@ -57,6 +57,15 @@ class TestSignIn:
 
         assert _error(response) == (401, "auth_required")
 
+    async def test_the_init_data_age_limit_is_a_setting(self):
+        app = _app(MINIAPP_INIT_DATA_MAX_AGE_SECONDS=3600)
+
+        two_hours = await _get(app, "/api/v1/study/current", headers=auth_header(42, auth_age_seconds=7200))
+        fresh = await _get(app, "/api/v1/study/current", headers=auth_header(42, auth_age_seconds=60))
+
+        assert _error(two_hours) == (401, "auth_required")
+        assert fresh.status_code == 200
+
     async def test_a_signed_user_is_let_in_and_recorded_as_seen(self):
         app = _app()
 

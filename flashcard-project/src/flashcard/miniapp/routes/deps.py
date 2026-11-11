@@ -36,7 +36,8 @@ async def verified_identity(request: Request) -> TelegramIdentity:
         raise auth_required()
     settings = request.app.state.settings
     try:
-        identity = validate_init_data(token.strip(), bot_token=settings.BOT_TOKEN, now=now_utc())
+        identity = validate_init_data(token.strip(), bot_token=settings.BOT_TOKEN, now=now_utc(),
+                                      max_age_seconds=settings.MINIAPP_INIT_DATA_MAX_AGE_SECONDS)
     except InitDataError:
         raise auth_required() from None
     allowed = settings.miniapp_allowed_user_ids
