@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     MINIAPP_ALLOWED_USER_IDS: Optional[str] = None
     # Directory with the built frontend, served next to the API when set.
     MINIAPP_STATIC_DIR: Optional[str] = None
+    # How old Telegram init data may be (seconds). The dev tunnel lowers it to 1 hour.
+    MINIAPP_INIT_DATA_MAX_AGE_SECONDS: int = 24 * 3600
     # Per-user LLM attempts per UTC day (admins exempt). The largest non-admin daily credit limit is
     # 100 and every LLM call costs at least 1 credit, so 300 is three times that: heavy use passes,
     # a loop that costs no quota does not.
