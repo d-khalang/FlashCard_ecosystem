@@ -178,3 +178,43 @@ async def study_core(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm):
     await core.expression_service.ensure_indexes()
     await core.user_service.ensure_indexes()
     return core
+
+
+# ---- Bot and Mini App together ---------------------------------------------------------------------
+import httpx  # noqa: E402
+from httpx import ASGITransport  # noqa: E402
+
+from flashcard.miniapp.api import create_app  # noqa: E402
+from flashcard.miniapp.bot_buttons import BotCardButtons  # noqa: E402
+
+from .harness import FakeSpeech, Harness  # noqa: E402
+
+ROUTER_MODULES = [user_settings, feedback, reply_commands, start, review, verb, story, collection,
+                  inline_remove, unknown, creation, errors]
+
+
+@pytest.fixture
+async def harness(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm, fake_http_client, trace_logger):
+    """The real bot dispatcher and the real Mini App API sharing one database and one fake Telegram."""
+    for module in ROUTER_MODULES:
+        module.router._parent_router = None  # the routers are module-global
+    speech = FakeSpeech()
+    monkeypatch.setattr(composition, "LLMService", lambda **_: study_llm)
+    monkeypatch.setattr(composition, "get_language_validator", lambda language: BaseLanguageValidityChecker())
+    monkeypatch.setattr(composition, "EdgeSpeechProvider", lambda: speech)
+    settings = get_setting()
+    core = composition.build_core(mongo_cols, fake_http_client, settings, TEST_LANGUAGE)
+    await core.expression_service.ensure_indexes()
+    await core.user_service.ensure_indexes()
+
+    bot, session = make_bot()
+    _, dp = build_bot_dispatcher("123456:test-token", TEST_LANGUAGE)
+    logger_bot, _ = make_bot()
+    app = create_app(settings)
+    app.state.core = core
+    app.state.bot_buttons = BotCardButtons(bot)  # the app edits bot messages through the same fake
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield Harness(bot=bot, session=session, dp=dp, handler_data=core.handler_data(logger_bot, admin_id=0),
+                      app=app, api=client, cols=mongo_cols, llm=study_llm, speech=speech)
+    await app.state.prepared.close()
+    await app.state.bot_buttons.close()
