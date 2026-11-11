@@ -17,7 +17,9 @@ concurrency:
 
 jobs:
   unit-tests:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest (26.04) runs Linux 6.19+, where mongo:8.0 (production's version) refuses to
+    # start (SERVER-121912). Move on once a MongoDB 8 release starts on it.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: flashcard-project
