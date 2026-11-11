@@ -17,9 +17,7 @@ concurrency:
 
 jobs:
   unit-tests:
-    # Pinned: ubuntu-latest (26.04) runs Linux 6.19+, where mongo:8.0 (production's version) refuses to
-    # start (SERVER-121912). Move on once a MongoDB 8 release starts on it.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: flashcard-project
@@ -49,7 +47,9 @@ jobs:
       KARTINO_REQUIRE_MONGO: "1"
     services:
       mongo:
-        image: mongo:8.0
+        # Not 8.0 (production's version): GitHub runners run Linux 6.19+, where MongoDB 8 refuses to
+        # start (SERVER-121912). Return to 8.x once a release starts on these runners.
+        image: mongo:7.0
         ports:
           - 27017:27017
     steps:
