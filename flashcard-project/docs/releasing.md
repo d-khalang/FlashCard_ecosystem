@@ -13,7 +13,8 @@ they should not build application source locally.
 4. Publish a GitHub Release from that tag.
 5. Wait for the `Publish Release Images` workflow to pass.
 
-The release workflow reruns the complete test suite before publishing. It then
+The release workflow reruns all CI checks (`ci.yml`) on the tagged commit before
+publishing. It then
 publishes these images using the release version and full commit SHA tags:
 
 - `ghcr.io/d-khalang/flashcard-bot`

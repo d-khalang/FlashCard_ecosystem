@@ -22,6 +22,10 @@ Checks:
   - `flashcard-project/Dockerfile`
   - `it-conjugator-api/Dockerfile`
 
+Integration tests need MongoDB. CI sets `KARTINO_REQUIRE_MONGO=1`, so a missing
+database fails the run instead of skipping those tests. Locally they still skip
+when no database is reachable.
+
 CI injects test-safe values directly in the workflow. It does not use
 production secrets. Third-party actions are pinned to immutable commit SHAs.
 
@@ -30,7 +34,9 @@ production secrets. Third-party actions are pinned to immutable commit SHAs.
 Publishing a GitHub Release triggers `release.yml`. The workflow:
 
 - Verifies the tag matches `flashcard-project/pyproject.toml`.
-- Runs the complete Python test suite.
+- Calls `ci.yml` on the tagged commit, so a release passes exactly the same
+  checks as CI: Python tests with MongoDB, Mini App tests and build, and image
+  builds.
 - Publishes version and full commit-SHA tags to GHCR.
 - Publishes no mutable `latest` tag.
 - Generates an SBOM and signed build provenance.
