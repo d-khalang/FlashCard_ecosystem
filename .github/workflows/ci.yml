@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  # The release workflow calls this one, so a release passes exactly the same checks as CI.
+  workflow_call:
 
 permissions:
   contents: read
@@ -41,9 +43,13 @@ jobs:
       SCHEDULER_CHECK_INTERVAL_SECONDS: "600"
       LLM_API_KEY: test-llm-key
       KARTINO_TEST_MONGO_URI: mongodb://localhost:27017
+      # Fail, never skip, when the Mongo service is missing.
+      KARTINO_REQUIRE_MONGO: "1"
     services:
       mongo:
-        image: mongo:8.0
+        # Not 8.0 (production's version): GitHub runners run Linux 6.19+, where MongoDB 8 refuses to
+        # start (SERVER-121912). Return to 8.x once a release starts on these runners.
+        image: mongo:7.0
         ports:
           - 27017:27017
     steps:

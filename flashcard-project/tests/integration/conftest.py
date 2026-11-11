@@ -149,7 +149,10 @@ async def mongo_cols():
         await client.admin.command("ping")
     except Exception:
         await client.close()
-        pytest.skip(f"no MongoDB at {TEST_MONGO_URI} (set KARTINO_TEST_MONGO_URI)")
+        message = f"no MongoDB at {TEST_MONGO_URI} (set KARTINO_TEST_MONGO_URI)"
+        if os.environ.get("KARTINO_REQUIRE_MONGO") == "1":
+            pytest.fail(message)  # CI and releases: a missing database must not pass as a skip
+        pytest.skip(message)
     name = f"kartino_test_{uuid.uuid4().hex}"
     db = client[name]
     cols = {"users": db["users"], "expression": db["expression"], "conjugation": db["conjugation"],

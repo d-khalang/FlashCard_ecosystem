@@ -56,7 +56,10 @@ def test_release_workflow_verifies_and_publishes_immutable_images():
     )
 
     assert "types:" in release and "published" in release
-    assert "pytest tests" in release
+    # A release runs exactly the CI checks, which must fail (not skip) without MongoDB.
+    assert "uses: ./.github/workflows/ci.yml" in release
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "workflow_call:" in ci and 'KARTINO_REQUIRE_MONGO: "1"' in ci
     assert "ghcr.io" in release
     assert "type=semver" in release
     assert "type=sha" in release
