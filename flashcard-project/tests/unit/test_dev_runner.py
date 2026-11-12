@@ -129,3 +129,48 @@ def test_a_file_removed_mid_rebuild_does_not_stop_the_scan(tmp_path, monkeypatch
     monkeypatch.setattr(runner.Path, "read_bytes", flaky_read)
 
     assert runner.scan_dist(["groq-secret-key-123"]) == []
+
+
+# --- Seed profiles ---------------------------------------------------------------------------------------
+
+def test_every_profile_writes_valid_words_for_the_dev_user():
+    from datetime import datetime, timezone
+    from flashcard.schemas.expression import ExpressionDB
+
+    now = datetime(2026, 1, 2, 12, tzinfo=timezone.utc)
+    for profile in runner.SEED_PROFILES:
+        _, documents = runner.profile_documents(profile, 5, ["a", "b", "c", "d", "e"], now)
+        assert all(ExpressionDB(**document).user_id == "5" for document in documents)
+        assert len(documents) == (0 if profile == "empty" else 5)
+
+
+def test_limit_uses_up_todays_credits_by_the_given_clock():
+    from datetime import datetime, timezone
+
+    fields, _ = runner.profile_documents("limit", 5, ["a"], datetime(2026, 1, 2, 23, tzinfo=timezone.utc))
+
+    assert fields["consumption.consumption_date"] == "2026-01-02"
+    assert fields["consumption.system_api.credits_used"] > 1998  # above the admin tier's limit
+
+
+def test_an_unknown_profile_is_refused():
+    from datetime import datetime, timezone
+
+    with pytest.raises(SystemExit):
+        runner.profile_documents("nope", 5, ["a"], datetime.now(timezone.utc))
+
+
+@pytest.mark.parametrize("argv, message", [
+    (["check", "--days-ahead", "1"], "--days-ahead is for"),
+    (["serve", "--profile", "limit"], "--profile is for seed only"),
+    (["serve", "--days-ahead", "-1"], "between 0 and"),
+    (["serve", "--days-ahead", "nan"], "between 0 and"),
+    (["serve", "--days-ahead", "inf"], "between 0 and"),
+])
+def test_options_that_do_not_apply_or_are_out_of_range_are_refused(monkeypatch, argv, message):
+    monkeypatch.setattr(runner.sys, "argv", ["miniapp_dev.py", *argv])
+
+    with pytest.raises(SystemExit) as error:
+        runner.main()
+
+    assert message in str(error.value)

@@ -1,13 +1,13 @@
 import random
 from datetime import datetime
 from flashcard.schemas.expression import ExpressionStats
-from flashcard.utils.time import UTC
+from flashcard.utils.time import now_utc
 
 
 def hours_since(dt: datetime | None) -> float:
     if not dt:
         return 0.0
-    now = datetime.now(UTC)
+    now = now_utc()
     diff = (now - dt).total_seconds()
     return max(diff / 3600.0, 0.0)
 
