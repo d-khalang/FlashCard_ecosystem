@@ -181,6 +181,8 @@ async def study_core(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm):
 
 
 # ---- Bot and Mini App together ---------------------------------------------------------------------
+from contextlib import asynccontextmanager  # noqa: E402
+
 import httpx  # noqa: E402
 from httpx import ASGITransport  # noqa: E402
 
@@ -193,17 +195,22 @@ ROUTER_MODULES = [user_settings, feedback, reply_commands, start, review, verb, 
                   inline_remove, unknown, creation, errors]
 
 
-@pytest.fixture
-async def harness(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm, fake_http_client, trace_logger):
-    """The real bot dispatcher and the real Mini App API sharing one database and one fake Telegram."""
+@asynccontextmanager
+async def open_harness(monkeypatch: pytest.MonkeyPatch, cols, llm, http_client, *, static_dir: str | None = None):
+    """
+    The real bot dispatcher and the real Mini App API sharing one database and one fake Telegram.
+    With `static_dir`, the API also serves that frontend build, as in production.
+    """
     for module in ROUTER_MODULES:
         module.router._parent_router = None  # the routers are module-global
     speech = FakeSpeech()
-    monkeypatch.setattr(composition, "LLMService", lambda **_: study_llm)
+    monkeypatch.setattr(composition, "LLMService", lambda **_: llm)
     monkeypatch.setattr(composition, "get_language_validator", lambda language: BaseLanguageValidityChecker())
     monkeypatch.setattr(composition, "EdgeSpeechProvider", lambda: speech)
     settings = get_setting()
-    core = composition.build_core(mongo_cols, fake_http_client, settings, TEST_LANGUAGE)
+    if static_dir is not None:
+        settings = settings.model_copy(update={"MINIAPP_STATIC_DIR": static_dir})
+    core = composition.build_core(cols, http_client, settings, TEST_LANGUAGE)
     await core.expression_service.ensure_indexes()
     await core.user_service.ensure_indexes()
 
@@ -214,7 +221,15 @@ async def harness(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm, fake_h
     app.state.core = core
     app.state.bot_buttons = BotCardButtons(bot)  # the app edits bot messages through the same fake
     async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        yield Harness(bot=bot, session=session, dp=dp, handler_data=core.handler_data(logger_bot, admin_id=0),
-                      app=app, api=client, cols=mongo_cols, llm=study_llm, speech=speech)
-    await app.state.prepared.close()
-    await app.state.bot_buttons.close()
+        try:
+            yield Harness(bot=bot, session=session, dp=dp, handler_data=core.handler_data(logger_bot, admin_id=0),
+                          app=app, api=client, cols=cols, llm=llm, speech=speech)
+        finally:
+            await app.state.prepared.close()
+            await app.state.bot_buttons.close()
+
+
+@pytest.fixture
+async def harness(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm, fake_http_client, trace_logger):
+    async with open_harness(monkeypatch, mongo_cols, study_llm, fake_http_client) as opened:
+        yield opened

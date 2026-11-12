@@ -50,6 +50,14 @@ def test_ci_workflow_runs_unit_and_integration_layers():
     assert "pytest tests/integration tests/smoke" in ci
 
 
+def test_ci_workflow_runs_the_browser_tests_and_fails_when_they_cannot_run():
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "pytest tests/browser" in ci
+    assert 'KARTINO_REQUIRE_BROWSER: "1"' in ci
+    assert "playwright install --with-deps webkit chromium" in ci
+
+
 def test_release_workflow_verifies_and_publishes_immutable_images():
     release = (ROOT / ".github" / "workflows" / "release.yml").read_text(
         encoding="utf-8"
