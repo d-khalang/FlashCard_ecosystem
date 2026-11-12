@@ -1,7 +1,7 @@
 """Local dev runner for the Mini App backend. Dev bot and loopback Mongo only; never production.
 
     python dev/miniapp_dev.py serve    # sign init data, write miniapp/.env.local, run the API
-    python dev/miniapp_dev.py seed     # add 5 sample words for the dev user
+    python dev/miniapp_dev.py seed     # reset the dev user to a profile (default: ready; see --profile)
     python dev/miniapp_dev.py init-data  # only refresh VITE_DEV_INIT_DATA (valid 24 h)
     python dev/miniapp_dev.py check    # validate .env.dev, change nothing
     python dev/miniapp_dev.py tunnel   # try the Mini App from a phone through a temporary https tunnel
@@ -13,6 +13,15 @@ it runs.
 Run from flashcard-project/. The API listens on 127.0.0.1:8765. Values come from `.env.dev`
 (see `.env.dev.example`); it never reads `.env`. The dev bot's token signs real Telegram-format
 init data for the dev user, so the API's sign-in is the production code path.
+
+Seed profiles (`seed --profile NAME`) replace the dev user's words and daily usage in the dev database:
+    ready     5 words, never reviewed, all due
+    empty     the dev user with no words
+    reviewed  words with history: 2 due (one often missed), 2 resting (reviewed an hour ago), 1 new
+    limit     like ready, with today's card credits used up
+
+`--days-ahead N` runs the app's clock N days ahead (serve, tunnel, seed), e.g. to see resting words come
+due. Sign-in still uses the real time. It lives only in this process; production never shifts its clock.
 
 Nothing secret is printed: not tokens, not init data, not keys. Errors name variables, not values.
 """
@@ -225,29 +234,70 @@ def refresh_init_data(env: dict) -> None:
     print(f"Wrote {FRONTEND_VAR} to miniapp/.env.local (valid 24 hours; rerun to refresh)")
 
 
-async def seed(settings, env: dict) -> None:
-    """Indexes, the dev user (through record_seen, the one creator) and the sample words."""
-    from pymongo.errors import DuplicateKeyError
+SEED_PROFILES = ("ready", "empty", "reviewed", "limit")
+# The commands that run the app, so the only ones a shifted clock means anything to.
+CLOCK_COMMANDS = ("serve", "tunnel", "seed")
+MAX_DAYS_AHEAD = 3650
+# More than any tier's daily credit limit.
+USED_UP_CREDITS = 10_000
+
+
+def profile_documents(profile: str, user_id: int, words: list[str], now: datetime) -> tuple[dict, list[dict]]:
+    """The dev user's fields and word documents for `profile`, with every time counted from `now`."""
+    from flashcard.schemas.expression import ExpressionDB
+
+    if profile not in SEED_PROFILES:
+        raise SetupError(f"Unknown profile {profile!r}; choose from {', '.join(SEED_PROFILES)}")
+    user_fields: dict = {}
+    if profile == "limit":
+        user_fields = {"consumption.consumption_date": now.date().isoformat(),
+                       "consumption.system_api.credits_used": USED_UP_CREDITS}
+    if profile == "empty":
+        return user_fields, []
+    # Created 3 days ago: a word nobody has reviewed is ready once its cooldown (12 h) has passed.
+    created = now - timedelta(days=3)
+    documents = [ExpressionDB(user_id=str(user_id), value=word, created_at=created).model_dump() for word in words]
+    if profile == "reviewed":
+        history = [  # (hours since the last review, reps, lapses, streak, last grade)
+            (48, 3, 0, 3, 5), (48, 4, 3, 0, 1),  # due: one known, one often missed
+            (1, 2, 0, 2, 4), (1, 1, 1, 0, 2),    # resting: reviewed an hour ago
+        ]  # one entry fewer than words on purpose: zip leaves the last word as the new one
+        for document, (hours, reps, lapses, streak, grade) in zip(documents, history):
+            reviewed_at = now - timedelta(hours=hours)
+            document.update(reps=reps, lapses=lapses, success_streak=streak, last_grade=grade,
+                            ewma_grade=float(grade), last_sent_at=reviewed_at, last_interaction_at=reviewed_at,
+                            last_activity_at=reviewed_at)
+    return user_fields, documents
+
+
+async def apply_profile(cols: dict, user_service, user_id: int, words: list[str], profile: str,
+                        now: datetime) -> tuple[int, int]:
+    """Replace the user's words and record with `profile`'s: (words removed, words added)."""
+    user_fields, documents = profile_documents(profile, user_id, words, now)
+    stored_id = str(user_id)
+    removed = (await cols["expression"].delete_many({"user_id": stored_id})).deleted_count
+    await cols["users"].delete_one({"user_id": stored_id})
+    await user_service.record_seen(user_id, "dev")  # the one creator of users
+    if user_fields:
+        await cols["users"].update_one({"user_id": stored_id}, {"$set": user_fields})
+    if documents:
+        await cols["expression"].insert_many(documents)
+    return removed, len(documents)
+
+
+async def seed(settings, env: dict, profile: str = "ready") -> None:
+    """Indexes, then the dev user reset to `profile`."""
     from flashcard.composition import build_core, open_resources
     from flashcard.language import LanguageConfig
-    from flashcard.schemas.expression import ExpressionDB
+    from flashcard.utils.time import now_utc
 
     async with open_resources(settings) as resources:
         core = build_core(resources.cols, resources.http_client, settings, LanguageConfig.from_settings(settings))
         await core.expression_service.ensure_indexes()
         await core.user_service.ensure_indexes()
-        await core.user_service.record_seen(env["user_id"], "dev")
-        # Created 3 days ago: a word nobody has reviewed is ready once its cooldown (12 h) has passed.
-        created = datetime.now(timezone.utc) - timedelta(days=3)
-        added = 0
-        for word in SEED_WORDS[env["language"]]:
-            document = ExpressionDB(user_id=str(env["user_id"]), value=word, created_at=created).model_dump()
-            try:
-                await resources.cols["expression"].insert_one(document)
-                added += 1
-            except DuplicateKeyError:
-                pass
-        print(f"Dev user ready; added {added} of {len(SEED_WORDS[env['language']])} sample words "
+        removed, added = await apply_profile(resources.cols, core.user_service, env["user_id"],
+                                             SEED_WORDS[env["language"]], profile, now_utc())
+        print(f"Dev user reset to profile '{profile}': removed {removed} words, added {added} "
               f"(database {env['database']})")
 
 
@@ -531,11 +581,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command", nargs="?", default="serve", choices=("serve", "seed", "init-data", "check", "tunnel"))
     parser.add_argument("--env-file", default=str(PROJECT / ".env.dev"), help="default: flashcard-project/.env.dev")
+    parser.add_argument("--profile", choices=SEED_PROFILES, help="seed only: the dev user's state (default: ready)")
+    parser.add_argument("--days-ahead", type=float, default=0.0,
+                        help="run the app's clock this many days ahead (serve, tunnel, seed)")
     args = parser.parse_args()
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="replace")
 
+    if args.profile and args.command != "seed":
+        raise SetupError("--profile is for seed only")
+    if args.days_ahead and args.command not in CLOCK_COMMANDS:
+        raise SetupError(f"--days-ahead is for {', '.join(CLOCK_COMMANDS)} only")
+    if not 0 <= args.days_ahead <= MAX_DAYS_AHEAD:  # also refuses nan and inf
+        raise SetupError(f"--days-ahead must be between 0 and {MAX_DAYS_AHEAD}")
     env = load_env(Path(args.env_file), tunnel=args.command == "tunnel")
+    if args.days_ahead:
+        from flashcard.utils.time import shift_clock
+        shift_clock(timedelta(days=args.days_ahead))
+        print(f"The app's clock runs {args.days_ahead:g} day(s) ahead (sign-in uses the real time)")
     if args.command == "check":
         print(f"OK: language {env['language']}, database {env['database']} on loopback, dev user and keys present")
     elif args.command == "init-data":
@@ -550,7 +613,7 @@ def main() -> None:
         except KeyboardInterrupt:
             pass
     elif args.command == "seed":
-        with_settings(env, lambda settings: asyncio.run(seed(settings, env)))
+        with_settings(env, lambda settings: asyncio.run(seed(settings, env, args.profile or "ready")))
     else:
         try:
             serve(env)

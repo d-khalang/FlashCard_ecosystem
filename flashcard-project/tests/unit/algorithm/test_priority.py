@@ -33,19 +33,15 @@ class TestHoursSince:
     def test_none_returns_zero(self):
         assert hours_since(None) == 0.0
 
-    @patch("flashcard.services.algorithm.priority.datetime")
-    def test_one_hour_ago(self, mock_dt):
-        mock_dt.now.return_value = FIXED_NOW
-        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+    @patch("flashcard.services.algorithm.priority.now_utc", return_value=FIXED_NOW)
+    def test_one_hour_ago(self, _now):
 
         one_hour_ago = FIXED_NOW - timedelta(hours=1)
         result = hours_since(one_hour_ago)
         assert abs(result - 1.0) < 0.01
 
-    @patch("flashcard.services.algorithm.priority.datetime")
-    def test_negative_diff_clamped_to_zero(self, mock_dt):
-        mock_dt.now.return_value = FIXED_NOW
-        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+    @patch("flashcard.services.algorithm.priority.now_utc", return_value=FIXED_NOW)
+    def test_negative_diff_clamped_to_zero(self, _now):
 
         future = FIXED_NOW + timedelta(hours=1)
         result = hours_since(future)

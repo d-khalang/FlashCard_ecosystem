@@ -1,13 +1,32 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 from pydantic import BeforeValidator
 
 UTC = timezone.utc
 
+# How far the app's clock runs ahead of the real one. Always zero in production: only the dev
+# runner (dev/miniapp_dev.py, never in the image) calls shift_clock, and a test checks that no
+# code under src/ does.
+_clock_offset = timedelta(0)
+
+
 def now_utc() -> datetime:
-    """Returns current UTC datetime"""
+    """The app's current UTC time: what reviews, cooldowns and daily limits count from."""
+    return datetime.now(UTC) + _clock_offset
+
+
+def real_now_utc() -> datetime:
+    """The real UTC time, never shifted: for what others sign or stamp, such as Telegram's init data."""
     return datetime.now(UTC)
+
+
+def shift_clock(offset: timedelta) -> None:
+    """Dev only: run the app's clock `offset` ahead of the real one (timedelta(0) resets it)."""
+    global _clock_offset
+    if offset < timedelta(0):
+        raise ValueError("the clock can only run ahead")
+    _clock_offset = offset
 
 def iso_z(ts: datetime) -> str:
     """
