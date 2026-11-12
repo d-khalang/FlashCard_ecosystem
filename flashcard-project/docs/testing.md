@@ -34,6 +34,23 @@ pytest tests/integration tests/smoke -v --tb=short
 
 When adding new runtime tests, prefer the shared harness in `tests/integration/helpers.py` so dispatcher flows use the same fake Telegram session and in-memory Mongo behavior.
 
+## Bot and Mini App Together, and in Browsers
+
+These layers need a MongoDB (default `mongodb://127.0.0.1:27019`, override with `KARTINO_TEST_MONGO_URI`). Each test gets its own database, dropped afterwards.
+
+- `tests/integration/test_cross_surface.py` - the `harness` fixture (`tests/integration/harness.py`) runs the real bot dispatcher and the real Mini App API over one database and one recording fake Telegram. Use it for any flow that crosses both, e.g. a bot card graded in the app.
+- `tests/browser/` - the built Mini App in WebKit (iPhone 14) and Chromium (Pixel 7), against the same harness served on a random local port. Telegram's script is a stub with signed test init data; any request that leaves 127.0.0.1 fails the test. `test_past_bugs.py` holds bugs that reached users; each was checked to fail with its fix removed.
+
+```bash
+# once: the browser builds of the pinned Playwright version
+python -m playwright install webkit chromium
+# the build under test (rebuild after frontend changes)
+(cd ../miniapp && npm run build)
+pytest tests/browser -q
+```
+
+Locally, a missing database, build or browser skips these tests; CI sets `KARTINO_REQUIRE_MONGO=1` and `KARTINO_REQUIRE_BROWSER=1` so they fail instead. A failing browser test leaves a screenshot and a Playwright trace in `tests/browser/.artifacts/` (CI uploads them); open a trace with `python -m playwright show-trace <file>.zip`.
+
 ## Test Structure
 
 ```
@@ -85,16 +102,24 @@ tests/
 ├── integration/                    # Dispatcher & runtime wiring integration tests
 │   ├── conftest.py                 # Integration environment setup
 │   ├── helpers.py                  # Integration test harness & fake Telegram session
+│   ├── harness.py                  # Bot + Mini App API on one database and one fake Telegram
 │   ├── test_dispatcher_runtime.py  # Telegram message routing integration
-│   └── test_lifecycle_runtime.py   # Full app lifespan & service wiring integration
+│   ├── test_lifecycle_runtime.py   # Full app lifespan & service wiring integration
+│   ├── test_cross_surface.py       # A card crossing the bot and the Mini App
+│   └── test_dev_profiles.py        # Dev seed profiles and the shifted clock
+│
+├── browser/                        # Built Mini App in WebKit and Chromium (needs a build + browsers)
+│   ├── conftest.py                 # Live server, Telegram stub, outside-request block, failure artifacts
+│   ├── test_study_flow.py          # Everyday study flow and edge states
+│   └── test_past_bugs.py           # Bugs that reached users, each checked to fail without its fix
 │
 ├── smoke/                          # System-level ecosystem smoke checks
-│   └── test_ecosystem_wiring.py    # Compose, Caddy, static assets validation
+│   └── test_ecosystem_wiring.py    # Compose, Caddy, CI gates, static assets validation
 │
 └── manual/                         # Debug scripts (not in pytest)
 ```
 
-**Total: 413 tests** - combining unit, integration, and smoke layers.
+For the current count, run `pytest --collect-only -q | tail -1`.
 
 ## Resilience-Focused Tests
 

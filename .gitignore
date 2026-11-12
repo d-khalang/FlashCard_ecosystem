@@ -34,3 +34,6 @@ model_benchmark/
 .env.local
 .claude/launch.json
 tts_test_sandbox
+
+# Browser test failures (screenshots, traces)
+flashcard-project/tests/browser/.artifacts/

@@ -42,6 +42,8 @@ flashcard-miniapp = "flashcard.miniapp.api:main"
 dev = [
     "pytest>=9.0.0",
     "pytest-asyncio>=1.0.0",
+    # Browser tests (tests/browser). Pinned: CI installs the browser builds of exactly this version.
+    "playwright==1.62.0",
     "commitizen>=3.12.0",
 ]
 
