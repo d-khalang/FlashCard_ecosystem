@@ -1,0 +1,38 @@
+# One weekly pull request per ecosystem and directory (grouped), so updates stay few.
+# Python: Dependabot edits the hashed lock files requirements.txt and requirements-dev.txt; the
+# `audit` job checks they still match pyproject.toml.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /flashcard-project
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /miniapp
+    schedule:
+      interval: weekly
+    groups:
+      miniapp:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories:
+      - /flashcard-project
+      - /miniapp
+    schedule:
+      interval: weekly
+    groups:
+      docker:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
