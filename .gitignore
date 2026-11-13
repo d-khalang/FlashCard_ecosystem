@@ -20,9 +20,6 @@ generate_tree.py
 private-docs/
 */tests/manual/
 */tests/tutorial/
-.agent/*
-!.agent/skills/
-!.agent/workflows/
 .learnings/
 .vscode/
 logs/
@@ -32,7 +29,12 @@ flashcard-frontend-tutorial/
 model_benchmark/
 .env.dev
 .env.local
-.claude/launch.json
+# Claude Code: share skills and agents only; local settings, launch.json, worktrees and locks stay private
+.claude/*
+!.claude/skills/
+!.claude/agents/
+.claude/**/*.lock
+CLAUDE.local.md
 tts_test_sandbox
 
 # Browser test failures (screenshots, traces)
