@@ -7,6 +7,7 @@
 !miniapp/public
 !miniapp/src
 !flashcard-project/pyproject.toml
+!flashcard-project/requirements.txt
 !flashcard-project/src
 **/__pycache__
 **/*.egg-info
