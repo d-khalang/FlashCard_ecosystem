@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## Unreleased
+
+Data migration: after the new it-conjugator image is live, run `python -m flashcard.migrations.clear_conjugation_cache --apply` on the Italian database (dry run first, without `--apply`, to see the count). It empties the conjugation cache, which still holds the old dialect forms; the bot refills it from the API on the next lookup of each verb. Running it before the new image is live would let old forms be cached again.
+
+### Fix
+
+- Verb conjugations (`/verb`) show standard Italian forms: common irregular verbs gave dialect or archaic forms (andare: vò/và instead of vado/va, fare: fazzo/face, essere: sò/ene), and many others had mixed tables (credere: credemo, mettere: messi, scegliere: sceglio). Also: the right meaning of homonyms (partire: parto), the formal imperative (valuti), reverse lookup (vado finds andare), and compound tenses of verbs with pronouns (ci ho messo, ce l'ho fatta). Fixed in the it-conjugator-api submodule.
+
 ## v2.4.1 (2026-11-13)
 
 No config change or data migration.

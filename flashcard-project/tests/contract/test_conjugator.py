@@ -69,12 +69,11 @@ async def test_a_verb_comes_back_in_the_shape_the_bot_reads(conjugator):
     assert len(present) == 6 and all(form.strip() for form in present.values())
 
 
-# Known bug in the conjugator's data (2026-11-13, production included): common irregular verbs get
-# dialect or archaic forms (andare: vò/và, fare: fazzo/face, essere: sò/ene). strict: when the data is
-# fixed this starts passing and fails as XPASS, so the mark gets removed.
-@pytest.mark.xfail(strict=True, reason="conjugator data gives dialect forms for irregular verbs")
+# Regression: the conjugator's data used to give dialect or archaic forms for these (andare: vò/và,
+# fare: fazzo/face, essere: sò/ene), fixed in it-conjugator-api's build_db.py.
 @pytest.mark.parametrize("verb, io, lui", [("andare", "vado", "va"), ("fare", "faccio", "fa"),
-                                          ("essere", "sono", "è")])
+                                          ("essere", "sono", "è"), ("dare", "do", "dà"),
+                                          ("stare", "sto", "sta")])
 async def test_irregular_verbs_have_their_standard_forms(conjugator, verb, io, lui):
     present = (await _lookup(conjugator, verb)).conjugations["indicativo"]["presente"]
 

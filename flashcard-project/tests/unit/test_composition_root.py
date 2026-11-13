@@ -19,7 +19,8 @@ SRC = Path(flashcard.__file__).parent
 # Migrations open their own client and services (all but ensure_indexes removed after the rollout).
 MIGRATIONS = {"migrations/backfill_created_at.py", "migrations/backfill_current_review.py",
               "migrations/dedupe_expressions.py", "migrations/convert_dates.py",
-              "migrations/ensure_indexes.py", "migrations/check_documents.py"}
+              "migrations/ensure_indexes.py", "migrations/check_documents.py",
+              "migrations/clear_conjugation_cache.py"}
 BUILT_BY_THE_ROOT = {"ExpressionService", "UserService", "ConsumptionService", "ReviewStateStore",
                      "VerbService", "LLMService", "QuotaPolicy"}
 OPENERS = {"init_and_get_mongo", "init_and_get_http_client"}
