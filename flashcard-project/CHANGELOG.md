@@ -4,13 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## Unreleased
+## v2.4.1 (2026-11-13)
 
 No config change or data migration.
 
 ### Fix
 
 - Importing a list (bot `/import` and Mini App) no longer fails with "No /import command found" when Groq answers: the parser expected the command in front, which neither sends. A valid list also no longer fails Groq's strict JSON check for a missing `log`.
+
+### Test
+
+- Each release candidate now runs live contract tests against Groq, edge-tts and the it-conjugator API before its images are built (`tests/contract`, repository secret `CONTRACT_GROQ_API_KEY`).
 
 ## v2.4.0 (2026-11-13)
 
