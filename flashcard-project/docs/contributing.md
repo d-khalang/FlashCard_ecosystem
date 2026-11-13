@@ -116,6 +116,18 @@ class TestQuizCommand:
 
 Run with `pytest tests/unit/telegram/test_quiz.py -v --tb=short`.
 
+### 6. Run the static checks
+
+CI runs these as the `lint` and `types` jobs; run them before you push:
+
+```bash
+ruff check src tests dev
+mypy
+```
+
+`mypy` skips the modules listed under `[[tool.mypy.overrides]]` in `pyproject.toml` (a baseline of
+known errors). Fix a module and remove it from that list; never add one to get a change through.
+
 ---
 
 ## Adding a New Service
