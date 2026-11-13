@@ -29,9 +29,11 @@ Updates `flashcard-project/docs/` to match the code. Run commands from the repo 
 1. Find changes since the base branch (or the last week if on `main`):
 
    ```bash
-   git diff --name-only origin/main...HEAD -- flashcard-project/ docker-compose.yml .env.example
-   git diff --name-only HEAD -- flashcard-project/
-   git log --oneline --name-only --since="1 week ago" -- flashcard-project/src flashcard-project/tests
+   P="flashcard-project/ docker-compose.yml .env.example"
+   git diff --name-only origin/main...HEAD -- $P                  # committed on this branch
+   git diff --name-only HEAD -- $P                                # uncommitted
+   git ls-files --others --exclude-standard -- $P                 # new, untracked
+   git log --oneline --name-only --since="1 week ago" -- $P       # on main
    ```
 
 2. For each affected doc (see map): read the matching section and the changed code, then make

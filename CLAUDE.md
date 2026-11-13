@@ -24,7 +24,7 @@ pytest tests/integration tests/smoke -q --tb=short
 ```
 
 - Some layers need MongoDB at `mongodb://127.0.0.1:27019` (override `KARTINO_TEST_MONGO_URI`); locally they skip without it, CI fails.
-- Browser tests: build the Mini App first (`cd miniapp && npm run build`), then `pytest tests/browser -q`.
+- Browser tests: build the Mini App first (`(cd ../miniapp && npm run build)`), then `pytest tests/browser -q`.
 - Live contract tests (`tests/contract`) run only with `KARTINO_CONTRACT=1` and a Groq key.
 - Mini App (from `miniapp/`): `npm ci`, `npm test`, `npm run build`.
 - Details: `flashcard-project/docs/testing.md`. CI: `.github/workflows/ci.yml`.
