@@ -87,7 +87,8 @@ def test_a_final_release_reuses_the_verified_candidates_images():
     assert "imagetools create" in promote and "build-push-action" not in str(jobs["promote"])
     assert '[[ "$tagged" == "$digest" ]]' in promote  # the new tag must be the same image
     check = "\n".join(step.get("run", "") for step in jobs["version"]["steps"])
-    assert '"$sha" == "$GITHUB_SHA"' in check  # only a candidate on the tagged commit counts
+    assert '"$sha" == "$tag_sha"' in check  # only a candidate on the tagged commit counts
+    assert "workflow_dispatch" in check and "Only a final release can be promoted by hand" in check
 
 
 def test_public_repo_has_no_production_deploy_workflow():

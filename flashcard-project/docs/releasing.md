@@ -43,6 +43,10 @@ images, checks that the tag names the very same digest, and attaches the
 candidate's digest files to the final release. A final tag on a commit without a
 candidate fails, so a fix after the candidate always needs a new `-rc.N`.
 
+If a promotion fails after the release is published, run the workflow by hand
+(Actions, `Publish Release Images`, Run workflow) with the final tag; it runs the
+same promotion with the workflow from `main`.
+
 The digests in the final release are the candidate's, so the deployment pins do
 not change for the language that already runs the candidate.
 

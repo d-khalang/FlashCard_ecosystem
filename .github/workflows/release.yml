@@ -4,12 +4,19 @@ on:
   release:
     types:
       - published
+  # Promote an already published final release again (e.g. after a failed run), with this workflow
+  # from main. Final releases only: a candidate is built only when it is published.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Final release tag to promote (vX.Y.Z)
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event.release.tag_name }}
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: false
 
 env:
@@ -34,6 +41,7 @@ jobs:
       - name: Checkout release
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          ref: refs/tags/${{ github.event.release.tag_name || inputs.tag }}
           persist-credentials: false
 
       - name: Setup Python
@@ -47,11 +55,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
           PRERELEASE: ${{ github.event.release.prerelease }}
+          EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           fail() { echo "$1" >&2; exit 1; }
+          tag_sha="$(git rev-parse HEAD)"  # the checkout is the tag
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            PRERELEASE="$(gh release view "$TAG" -R "$REPO" --json isPrerelease --jq .isPrerelease)"
+            [[ "$TAG" != *-rc.* ]] || fail "Only a final release can be promoted by hand; publish a candidate to build it"
+          fi
           [[ "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-rc\.([0-9]+))?$ ]] || fail "Release tag $TAG is not vX.Y.Z or vX.Y.Z-rc.N"
           base="${BASH_REMATCH[1]}"
           rc_number="${BASH_REMATCH[3]}"
@@ -73,12 +87,12 @@ jobs:
               fi
               name="${ref#refs/tags/}"
               number="${name##*-rc.}"
-              if [[ "$sha" == "$GITHUB_SHA" && "$number" =~ ^[0-9]+$ ]] && (( number > best )); then
+              if [[ "$sha" == "$tag_sha" && "$number" =~ ^[0-9]+$ ]] && (( number > best )); then
                 best="$number"
                 rc_tag="$name"
               fi
             done < <(gh api "repos/$REPO/git/matching-refs/tags/v$base-rc." --jq '.[] | [.ref, .object.type, .object.sha] | @tsv')
-            [[ -n "$rc_tag" ]] || fail "No release candidate of v$base is on commit $GITHUB_SHA: tag the commit of the verified candidate"
+            [[ -n "$rc_tag" ]] || fail "No release candidate of v$base is on commit $tag_sha: tag the commit of the verified candidate"
             [[ "$(gh release view "$rc_tag" -R "$REPO" --json isPrerelease --jq .isPrerelease)" == "true" ]] ||
               fail "$rc_tag has no pre-release"
             echo "kind=final" >> "$GITHUB_OUTPUT"
@@ -220,7 +234,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           RC_TAG: ${{ needs.version.outputs.rc_tag }}
           BASE: ${{ needs.version.outputs.base }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
