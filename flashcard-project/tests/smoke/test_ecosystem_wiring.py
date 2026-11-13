@@ -89,6 +89,9 @@ def test_a_final_release_reuses_the_verified_candidates_images():
     check = "\n".join(step.get("run", "") for step in jobs["version"]["steps"])
     assert '"$sha" == "$tag_sha"' in check  # only a candidate on the tagged commit counts
     assert "workflow_dispatch" in check and "Only a final release can be promoted by hand" in check
+    # The candidate is built with the final version, so the promoted image is labelled right.
+    metadata = [step for step in jobs["publish"]["steps"] if step.get("id") == "metadata"][0]
+    assert "org.opencontainers.image.version=${{ needs.version.outputs.base }}" in metadata["with"]["labels"]
 
 
 def test_public_repo_has_no_production_deploy_workflow():

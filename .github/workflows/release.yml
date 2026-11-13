@@ -166,6 +166,9 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=sha,prefix=sha-,format=long
+          # The version inside the image is the final one: a verified candidate becomes the release as is.
+          labels: |
+            org.opencontainers.image.version=${{ needs.version.outputs.base }}
 
       - name: Build and publish image
         id: build
