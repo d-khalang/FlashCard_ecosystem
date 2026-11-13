@@ -20,7 +20,9 @@ async def preview(
         caller.user_id, body.text, before_generation=generation_gate(request, caller)))
     refuse(result)
     if isinstance(result, CardReady):
-        return PreviewReady(norm=result.card.norm, content=content_out(result.card))
+        parts = await core.audio_use_cases.preview_parts(result.card)
+        return PreviewReady(norm=result.card.norm, content=content_out(result.card),
+                            audio={part.part: part.key for part in parts})
     if isinstance(result, Unclear):
         return PreviewUnclear(note=result.card.note or None, suggestions=list(result.card.suggestions))
     if isinstance(result, InvalidInput):

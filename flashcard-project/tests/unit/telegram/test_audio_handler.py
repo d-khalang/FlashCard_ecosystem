@@ -7,10 +7,11 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import BufferedInputFile
 
 from flashcard.app.audio import Clip, ListenablePart, PartMissing, SpeechFailed
+from flashcard.app.speech import UnknownKey
 from flashcard.app.quota import QuotaExceeded
 from flashcard.app.review import CardNotFound, NotPending
 from flashcard.telegram.handlers import audio as handler
-from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback
+from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback, SpeechKeyCallback
 from tests.helpers import TEST_I18N
 
 EXPRESSION_ID = "0" * 24
@@ -39,7 +40,7 @@ def _bot(voice_file_id="voice-file"):
 
 def _uses(result=None, parts=None):
     return SimpleNamespace(
-        clip=AsyncMock(return_value=result or Clip(audio=b"mp3")),
+        clip=AsyncMock(return_value=result or Clip(audio=b"mp3", key="k")),
         parts=AsyncMock(return_value=parts),
         remember_telegram_file=AsyncMock(),
     )
@@ -126,14 +127,14 @@ class TestSending:
         bot.send_audio.assert_not_awaited()
 
     async def test_remembers_the_file_of_a_word_and_reuses_it(self):
-        bot, uses = _bot(), _uses(Clip(audio=b"mp3", word_key="k"))
+        bot, uses = _bot(), _uses(Clip(audio=b"mp3", key="k"))
 
         await _tap(_callback(), "word", uses, bot)
 
         uses.remember_telegram_file.assert_awaited_once_with("k", "voice-file")
 
         again = _bot()
-        await handler._deliver(_callback().message, Clip(audio=b"mp3", word_key="k", telegram_file_id="voice-file"),
+        await handler._deliver(_callback().message, Clip(audio=b"mp3", key="k", telegram_file_id="voice-file"),
                                uses, again)
         assert again.send_voice.await_args.kwargs["voice"] == "voice-file"
         uses.remember_telegram_file.assert_awaited_once()
@@ -145,7 +146,7 @@ class TestSending:
             SimpleNamespace(voice=SimpleNamespace(file_id="new-file")),
         ]
 
-        await handler._deliver(_callback().message, Clip(audio=b"mp3", word_key="k", telegram_file_id="old-file"),
+        await handler._deliver(_callback().message, Clip(audio=b"mp3", key="k", telegram_file_id="old-file"),
                                uses, bot)
 
         first, second = bot.send_voice.await_args_list
@@ -156,19 +157,20 @@ class TestSending:
         bot, uses = _bot(), _uses()
         bot.send_voice.side_effect = TelegramBadRequest(method=MagicMock(), message="Bad Request: VOICE_MESSAGES_FORBIDDEN")
 
-        await handler._deliver(_callback().message, Clip(audio=b"mp3", word_key="k", telegram_file_id="old-file"),
+        await handler._deliver(_callback().message, Clip(audio=b"mp3", key="k", telegram_file_id="old-file"),
                                uses, bot)
 
         bot.send_voice.assert_awaited_once()
         bot.send_audio.assert_awaited_once()
         uses.remember_telegram_file.assert_not_awaited()
 
-    async def test_only_a_word_is_remembered(self):
-        uses = _uses(Clip(audio=b"mp3"))
+    async def test_any_part_is_remembered(self):
+        """Every part is cached now, so every part's file is worth remembering."""
+        uses = _uses(Clip(audio=b"mp3", key="k"))
 
         await _tap(_callback(), "example", uses, _bot())
 
-        uses.remember_telegram_file.assert_not_awaited()
+        uses.remember_telegram_file.assert_awaited_once_with("k", "voice-file")
 
     async def test_falls_back_to_an_audio_file_when_voice_messages_are_refused(self):
         bot = _bot()
@@ -231,3 +233,48 @@ class TestProblems:
 
         uses.clip.assert_not_awaited()
         assert callback.answer.await_args.kwargs["show_alert"] is True
+
+
+class TestPreviewKeys:
+    KEY = "ab" * 32
+
+    def _uses(self, result):
+        return SimpleNamespace(preview_clip=AsyncMock(return_value=result), remember_telegram_file=AsyncMock())
+
+    async def _tap(self, callback, data, uses, bot):
+        await handler.handle_speech_key(callback, data, audio_use_cases=uses, bot=bot, i18n=TEST_I18N)
+
+    def test_the_key_fits_a_button_and_comes_back_whole(self):
+        data = SpeechKeyCallback.for_key(self.KEY)
+
+        assert len(data.pack().encode()) <= 64
+        assert SpeechKeyCallback.unpack(data.pack()).key == self.KEY
+
+    def test_data_that_is_not_a_key_gives_none(self):
+        assert SpeechKeyCallback(k="not-a-key!").key == ""
+        assert SpeechKeyCallback(k="YWJj").key == ""
+
+    async def test_plays_the_part_as_a_voice_reply(self):
+        callback, bot = _callback(), _bot()
+        uses = self._uses(Clip(audio=b"mp3", key=self.KEY))
+
+        await self._tap(callback, SpeechKeyCallback.for_key(self.KEY), uses, bot)
+
+        uses.preview_clip.assert_awaited_once_with(callback.from_user.id, self.KEY)
+        bot.send_voice.assert_awaited_once()
+        uses.remember_telegram_file.assert_awaited_once_with(self.KEY, "voice-file")
+
+    async def test_an_expired_key_says_so(self):
+        callback = _callback()
+
+        await self._tap(callback, SpeechKeyCallback.for_key("cd" * 32), self._uses(UnknownKey()), _bot())
+
+        callback.answer.assert_awaited_once_with(TEST_I18N.get("callbacks.audio.expired"), show_alert=True)
+
+    async def test_bad_data_asks_nothing(self):
+        callback, uses = _callback(), self._uses(UnknownKey())
+
+        await self._tap(callback, SpeechKeyCallback(k="bad"), uses, _bot())
+
+        uses.preview_clip.assert_not_awaited()
+        callback.answer.assert_awaited_once_with(TEST_I18N.get("callbacks.audio.unavailable"), show_alert=True)

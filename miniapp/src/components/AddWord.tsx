@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Plus } from 'lucide-react';
 import { asApiError, type ApiError } from '../api/errors';
 import { assertNever, MAX_WORD_CHARS, type PreviewResult } from '../api/types';
@@ -7,6 +7,7 @@ import { useI18n } from '../i18n';
 import { haptic } from '../telegram';
 import { CardSections } from './CardSections';
 import { ErrorState } from './ErrorState';
+import { ListenButton } from './ListenButton';
 import { Mascot } from './Mascot';
 import { Sheet } from './Sheet';
 
@@ -18,7 +19,7 @@ type SaveProblem =
 type Preview = { phase: 'loading' } | { phase: 'done'; result: PreviewResult } | { phase: 'error'; error: ApiError };
 
 export function AddWord() {
-  const { api, toast, reloadMe } = useApp();
+  const { api, player, toast, reloadMe } = useApp();
   const { t } = useI18n();
   const inputId = useId();
   const [text, setText] = useState('');
@@ -28,9 +29,13 @@ export function AddWord() {
   const [problem, setProblem] = useState<SaveProblem | null>(null);
   const run = useRef(0);
 
+  // A clip of the preview must not play over whatever comes after it.
+  useEffect(() => () => player.stop(), [player]);
+
   const start = async (word: string) => {
     const value = word.trim();
     if (!value) return;
+    player.stop();
     const id = ++run.current;
     setAttempt(value);
     setProblem(null);
@@ -46,6 +51,7 @@ export function AddWord() {
   };
 
   const close = () => {
+    player.stop();
     run.current++;
     setPreview(null);
     setSaving(false);
@@ -171,10 +177,13 @@ function PreviewBody({ preview, saving, problem, onSave, onRetry, onPick }: Prev
     case 'ready':
       return (
         <>
-          <h3 className="preview-word" dir="auto">
-            {r.norm}
-          </h3>
-          <CardSections content={r.content} />
+          <div className="preview-head">
+            <h3 className="preview-word" dir="auto">
+              {r.norm}
+            </h3>
+            {r.audio?.word ? <ListenButton source={{ speechKey: r.audio.word }} text={r.norm} /> : null}
+          </div>
+          <CardSections content={r.content} speechKeys={r.audio ?? {}} />
           {problem?.kind === 'error' ? <ErrorState error={problem.error} onRetry={() => onSave(r.norm)} compact /> : null}
           {problem?.kind === 'invalid' ? (
             <div role="alert">

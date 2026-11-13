@@ -1,5 +1,5 @@
 """
-Build every index the bot relies on. Idempotent; run it once on each new database, and
+Build every index the bot relies on, and give stored speech its expiry dates. Idempotent; run it once on each new database, and
 on existing ones after dedupe_expressions (the unique card index fails while duplicates exist).
 
 Names follow MongoDB's defaults, so indexes already built by hand with the same keys
@@ -15,7 +15,7 @@ import asyncio
 from collections import Counter
 from dataclasses import dataclass
 
-from flashcard.services.audio_cache import AudioWordCache
+from flashcard.services.speech_cache import SpeechCache
 from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
 
@@ -24,10 +24,12 @@ from flashcard.services.user import UserService
 class IndexReport:
     duplicate_user_ids: int = 0
     indexes_built: bool = False
+    # Stored speech from before expiry dates, given one (see SpeechCache.ensure_indexes).
+    speech_dates_added: int = 0
 
 
 async def ensure_indexes(
-    cols: dict, users: UserService, expressions: ExpressionService, audio_words: AudioWordCache, *, apply: bool,
+    cols: dict, users: UserService, expressions: ExpressionService, speech: SpeechCache, *, apply: bool,
 ) -> IndexReport:
     report = IndexReport()
     ids = Counter([doc.get("user_id") async for doc in cols["users"].find({}, {"user_id": 1})])
@@ -35,7 +37,7 @@ async def ensure_indexes(
     if apply and not report.duplicate_user_ids:
         await users.ensure_indexes()
         await expressions.ensure_indexes()
-        await audio_words.ensure_indexes()
+        report.speech_dates_added = await speech.ensure_indexes()
         report.indexes_built = True
     return report
 
@@ -52,7 +54,7 @@ async def _main(apply: bool) -> None:
             cols,
             UserService(users=cols["users"], defaults=LanguageConfig.from_settings(settings).user_defaults),
             ExpressionService(expressions=cols["expression"]),
-            AudioWordCache(words=cols["audio_words"]),
+            SpeechCache(entries=cols["audio_words"]),
             apply=apply,
         )
     finally:

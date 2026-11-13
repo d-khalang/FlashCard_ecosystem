@@ -91,6 +91,8 @@ export function createApi(http: HttpClient) {
       ]),
 
     audio: (expressionId: string, part: AudioPart) => http.blob(`/audio/${encodeURIComponent(expressionId)}/${part}`),
+    /** A part of an unsaved preview, by the key the preview gave it. */
+    speech: (key: string) => http.blob(`/audio/${encodeURIComponent(key)}`),
 
     updateSettings: (patch: Partial<Settings>) => http.request<Settings>('PATCH', '/settings', { body: patch }),
   };

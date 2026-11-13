@@ -9,12 +9,14 @@ from flashcard.app.collection import (
 from flashcard.app.creation import InvalidInput, Saved, TooMany
 from flashcard.app.quota import QuotaExceeded
 from flashcard.miniapp.errors import invalid_request, not_found
+from flashcard.utils.logger import get_logger
 from flashcard.miniapp.routes.deps import CoreDep, GeneralUser, LlmUser, generating, generation_gate, refuse
 from flashcard.miniapp.schemas import (
     CollectionDetail, CollectionPage, ImportIn, Imported, QuotaResult, SaveIn, SaveInvalid, StatusOnly,
     TooLong, TooManyWords, detail_out, quota_out, row_out,
 )
 
+logger = get_logger(__name__)
 router = APIRouter(prefix="/collection")
 
 
@@ -49,6 +51,12 @@ async def save(
     if isinstance(result, TooMany):
         response.status_code = 200
         return TooManyWords(limit=result.limit)
+    if isinstance(result, Saved):
+        try:
+            await core.audio_use_cases.keep_saved_word(body.value)
+        except Exception:
+            # The word is saved; its clip just keeps the preview's shorter life.
+            logger.warning("Could not keep the saved word's audio", exc_info=True)
     return StatusOnly(status="saved" if isinstance(result, Saved) else "already_saved")
 
 

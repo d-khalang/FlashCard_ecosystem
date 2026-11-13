@@ -223,6 +223,13 @@
   margin-top: 8px;
 }
 
+/* The previewed word and its Listen button, side by side. */
+.preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .preview-word {
   font-family: var(--font-display);
   font-weight: 800;

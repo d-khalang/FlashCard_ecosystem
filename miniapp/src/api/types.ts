@@ -81,7 +81,8 @@ export type UndoResult = { status: 'undone'; card: StudyCard } | { status: 'noth
 export type RefreshResult = { status: 'ready'; card: StudyCard } | { status: 'not_pending' } | QuotaResult;
 
 export type PreviewResult =
-  | { status: 'ready'; norm: string; content: Content }
+  /** `audio`: card part -> key for GET /audio/{key}, for the parts that can be spoken. */
+  | { status: 'ready'; norm: string; content: Content; audio?: Partial<Record<AudioPart, string>> }
   | { status: 'unclear'; note: string | null; suggestions: string[] }
   | { status: 'invalid'; suggestions: string[] }
   | QuotaResult;

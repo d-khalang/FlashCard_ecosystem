@@ -75,7 +75,7 @@ export function WordDetailSheet({ id, onClose, onRemoved }: Props) {
       {!error && !detail ? <p className="note-line" role="status">{t('common.loading')}</p> : null}
       {detail ? (
         <>
-          <ListenButton expressionId={detail.id} part="word" text={detail.value} />
+          <ListenButton source={{ expressionId: detail.id, part: 'word' }} text={detail.value} />
           <p className="meta-line">
             {t('collection.stats', { reps: detail.reps, lapses: detail.lapses })}
           </p>

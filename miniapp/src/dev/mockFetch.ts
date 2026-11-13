@@ -142,7 +142,8 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
       if (text === 'yy') return json(200, { status: 'unclear', note: 'Did you mean a different spelling?', suggestions: ['sedia', 'sedile'] });
       await sleep(600);
       if (!spend(2)) return json(200, quotaResult);
-      return json(200, { status: 'ready', norm: text, content: CONTENT });
+      const audio = { word: 'a'.repeat(64), definition: 'b'.repeat(64), example: 'c'.repeat(64), translation_0: 'd'.repeat(64) };
+      return json(200, { status: 'ready', norm: text, content: CONTENT, audio });
     }
     if (path === '/collection' && method === 'GET') {
       const q = url.searchParams.get('q');

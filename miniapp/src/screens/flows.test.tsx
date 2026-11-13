@@ -5,6 +5,7 @@ import { ApiError } from '../api/errors';
 import type { Api } from '../api/routes';
 import type { Me } from '../api/types';
 import { AppProvider } from '../app/context';
+import { ClipPlayer } from '../audio/player';
 import { AddWord } from '../components/AddWord';
 import { Stepper } from '../components/Controls';
 import { I18nProvider } from '../i18n';
@@ -95,6 +96,54 @@ describe('AddWord save', () => {
     expect(await screen.findByRole('button', { name: 'zaino' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText(/limit 500/)).toBeTruthy();
+  });
+});
+
+describe('AddWord listen', () => {
+  const withAudio = (norm: string) => async () => ({
+    ...(await readyPreview(norm)()),
+    audio: { word: 'a'.repeat(64), definition: 'b'.repeat(64) },
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('plays a preview part by the key the preview gave it, and offers only parts with a key', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const speech = vi.fn(async () => new Blob(['mp3']));
+    wrap({ me: async () => baseMe({}), preview: vi.fn(withAudio('mare')), speech } as Partial<Api>, <AddWord />);
+    fireEvent.change(screen.getByLabelText('Add a word'), { target: { value: 'mare' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await screen.findByRole('button', { name: 'Save' });
+
+    const listen = screen.getAllByRole('button', { name: 'Listen' });
+    expect(listen.length).toBe(2);
+    await act(async () => fireEvent.click(listen[0]!));
+    expect(speech).toHaveBeenCalledWith('a'.repeat(64));
+  });
+
+  it('stops the preview clip when the sheet closes or the preview is tried again', async () => {
+    const stop = vi.spyOn(ClipPlayer.prototype, 'stop');
+    wrap({ me: async () => baseMe({}), preview: vi.fn(withAudio('mare')) } as Partial<Api>, <AddWord />);
+    fireEvent.change(screen.getByLabelText('Add a word'), { target: { value: 'mare' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await screen.findByRole('button', { name: 'Save' });
+    stop.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(stop).toHaveBeenCalledTimes(1);
+    await screen.findByRole('button', { name: 'Save' });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(stop).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers no Listen without keys', async () => {
+    wrap({ me: async () => baseMe({}), preview: vi.fn(readyPreview('mare')) } as Partial<Api>, <AddWord />);
+    fireEvent.change(screen.getByLabelText('Add a word'), { target: { value: 'mare' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await screen.findByRole('button', { name: 'Save' });
+
+    expect(screen.queryByRole('button', { name: 'Listen' })).toBeNull();
   });
 });
 
