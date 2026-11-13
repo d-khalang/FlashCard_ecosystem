@@ -83,6 +83,10 @@ def test_a_final_release_reuses_the_verified_candidates_images():
 
     assert jobs["verify"]["if"] == jobs["publish"]["if"] == "needs.version.outputs.kind == 'rc'"
     assert jobs["promote"]["if"] == "needs.version.outputs.kind == 'final'"
+    # A candidate is built only after the live contract tests pass, and they may not skip.
+    assert "contract" in jobs["publish"]["needs"] and jobs["contract"]["if"] == jobs["publish"]["if"]
+    assert jobs["contract"]["env"]["KARTINO_REQUIRE_CONTRACT"] == "1"
+    assert "pytest tests/contract" in "\n".join(step.get("run", "") for step in jobs["contract"]["steps"])
     promote = "\n".join(step.get("run", "") for step in jobs["promote"]["steps"])
     assert "imagetools create" in promote and "build-push-action" not in str(jobs["promote"])
     assert '[[ "$tagged" == "$digest" ]]' in promote  # the new tag must be the same image

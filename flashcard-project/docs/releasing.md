@@ -16,8 +16,9 @@ candidate's images, so production runs the exact bytes that were checked.
 3. Wait for the `Publish Release Images` workflow to pass.
 
 For a candidate, the workflow reruns all CI checks (`ci.yml`, browser tests
-included) on the tagged commit, then builds and publishes these images with the
-version and full commit SHA tags:
+included) and the live contract tests (`tests/contract`: Groq, edge-tts and the
+conjugator API, through the bot's own clients) on the tagged commit, then builds
+and publishes these images with the version and full commit SHA tags:
 
 - `ghcr.io/d-khalang/flashcard-bot`
 - `ghcr.io/d-khalang/flashcard-miniapp`
@@ -49,6 +50,13 @@ same promotion with the workflow from `main`.
 
 The digests in the final release are the candidate's, so the deployment pins do
 not change for the language that already runs the candidate.
+
+## Contract Test Key
+
+The contract tests need the repository secret `CONTRACT_GROQ_API_KEY`: a Groq key
+used for nothing else, so it can be revoked on its own. Without it a candidate
+fails. On Groq's free tier the tests space their calls 10 seconds apart and take
+about three minutes.
 
 ## After Publishing
 

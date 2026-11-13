@@ -51,6 +51,16 @@ pytest tests/browser -q
 
 Locally, a missing database, build or browser skips these tests; CI sets `KARTINO_REQUIRE_MONGO=1` and `KARTINO_REQUIRE_BROWSER=1` so they fail instead. A failing browser test leaves a screenshot and a Playwright trace in `tests/browser/.artifacts/` (CI uploads them); open a trace with `python -m playwright show-trace <file>.zip`.
 
+## Live Contract Tests
+
+`tests/contract/` calls the real outside services through the bot's own clients: Groq (every LLM call the bot makes, with the production model), Microsoft edge-tts (every configured voice) and the it-conjugator API (started from the `it-conjugator-api` submodule). They run for each release candidate and only when asked locally:
+
+```bash
+KARTINO_CONTRACT=1 KARTINO_CONTRACT_GROQ_KEY=... pytest tests/contract -q
+```
+
+A missing key or submodule skips them locally; the release workflow sets `KARTINO_REQUIRE_CONTRACT=1` so they fail instead. Known bugs in outside data are marked `xfail(strict=True)`, so a fix shows up as a failure that asks to remove the mark.
+
 ## Test Structure
 
 ```
