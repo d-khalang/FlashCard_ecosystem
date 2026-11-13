@@ -1,4 +1,4 @@
-from aiogram import Router, F, types, Bot
+from aiogram import Router, types, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ForceReply

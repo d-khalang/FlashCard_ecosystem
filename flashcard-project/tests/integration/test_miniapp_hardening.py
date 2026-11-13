@@ -12,7 +12,7 @@ from bson import ObjectId
 from httpx import ASGITransport
 
 from flashcard.app.quota import QuotaExceeded
-from flashcard.app.review import CardGenerationFailed, GenerationHeld, NoCandidate, ReviewReady
+from flashcard.app.review import CardGenerationFailed, GenerationHeld, ReviewReady
 from flashcard.app.study import Delivered, GenerationFailed, Undone
 from flashcard.miniapp.api import create_app
 from flashcard.miniapp.rate_limit import DailyBudget, RateLimiter

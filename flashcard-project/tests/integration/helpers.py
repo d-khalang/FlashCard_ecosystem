@@ -19,7 +19,7 @@ from aiogram.methods import (
     SendMessage,
     SetWebhook,
 )
-from aiogram.types import CallbackQuery, Chat, InlineQuery, Message, Update, User
+from aiogram.types import Message, Update, User
 from bson import ObjectId
 from pymongo.errors import BulkWriteError, DuplicateKeyError, OperationFailure
 

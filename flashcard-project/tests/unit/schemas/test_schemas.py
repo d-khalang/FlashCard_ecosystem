@@ -12,13 +12,12 @@ from pydantic import ValidationError
 
 from flashcard.schemas.expression import ExpressionCard, ExpressionDB, ExpressionStats
 from flashcard.schemas.story import StoryParagraph
-from flashcard.schemas.user import UserDB, UserConsumption, LLMUsage
+from flashcard.schemas.user import UserDB, UserConsumption
 from tests.helpers import make_user
 from flashcard.schemas.languages import (
     normalize_language_input,
     get_language_flag,
     get_language_name,
-    LANGUAGE_DATA,
 )
 
 

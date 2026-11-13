@@ -8,7 +8,6 @@ Tests the review-candidate scoring algorithm:
 These are pure functions. We mock `random.random` and
 `datetime.now` for deterministic results.
 """
-import random
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 

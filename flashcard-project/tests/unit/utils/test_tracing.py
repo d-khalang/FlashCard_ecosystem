@@ -5,7 +5,6 @@ Tests the @observe decorator, TraceData lifecycle,
 and TraceLogger serialization.
 """
 import asyncio
-import os
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -18,7 +17,6 @@ from flashcard.utils.tracing import (
     finalize_trace,
 )
 from flashcard.utils.time import now_utc, iso_z
-from flashcard.services.trace_logger import get_trace_logger
 
 
 # ---------------------------------------------------------------------------
