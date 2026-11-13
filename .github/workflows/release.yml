@@ -139,10 +139,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-          cache-dependency-path: flashcard-project/pyproject.toml
+          cache-dependency-path: flashcard-project/requirements-dev.txt
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          pip install --require-hashes -r requirements-dev.txt
+          pip install --no-deps -e .
 
       - name: Run live contract tests
         run: pytest tests/contract -q --tb=short -rxX
