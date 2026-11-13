@@ -140,6 +140,7 @@
             "empty": "<b>📚 Collezione Flashcard</b>\n\nSembra che tu non abbia ancora nessuna flashcard! 😅\nScrivi una parola o espressione per aggiungerla.",
             "header": "<b>📚 La Tua Collezione Flashcard</b>\n<i>{count} elementi salvati</i>\n"
         },
+        "maintenance": "🛠 Kartino è in manutenzione in questo momento. Riprova tra poco: le tue parole e i tuoi progressi sono al sicuro.",
         "errors": {
             "service_unavailable": "😔 Oops! Al momento stiamo riscontrando dei problemi tecnici.\nRiprova più tardi.",
             "llm_unavailable": "Il servizio AI è un po' sovraccarico in questo momento 🧠💤 Riprova tra un momento!",
