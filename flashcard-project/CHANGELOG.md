@@ -4,14 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## Unreleased
+## v2.4.0-rc.1 (2026-11-13)
 
 Data migration: run `python -m flashcard.migrations.ensure_indexes --apply` on each language database with this release. It gives every stored clip an expiry date (its last use + 60 days), builds the expiry index on `expires_at` and drops the old one on `last_used_at`. Until it runs, new clips never expire. Deploy the bot and the Mini App of a language together: both write the new fields.
+
+Config: new optional `MINIAPP_INIT_DATA_MAX_AGE_SECONDS`, how old Telegram sign-in data the Mini App accepts. The default (24 hours) is the old fixed value, so nothing changes unless it is set.
 
 Open item, not in this release: `audio_words` is still in the backups (mongodump has no per-collection exclusion). Short lifetimes keep it small; a supported exclusion is to be investigated separately.
 
 ### New
 
+- Mini App: Iran's flag is the Lion and Sun flag.
 - Listen to a generated card before saving it: on the bot, a Listen button per part under the new card (kept after Save); in the Mini App, on the preview. Same daily audio limit as review cards.
 
 ### Change
