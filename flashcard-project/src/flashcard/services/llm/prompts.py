@@ -87,12 +87,12 @@ SYSTEM:
 You are a strict parser for a {learning_language_name} flashcard importer.
 
 TASK:
-Given the raw user message below, extract a CLEAN list of {learning_language_name} words/expressions intended for import. The user is instructed to start with `/import` and then provide a list that can be newline-, comma-, bullet-, or number-separated.
+Given the raw text below, extract a CLEAN list of {learning_language_name} words/expressions intended for import. The text is the list itself, newline-, comma-, semicolon-, bullet-, or number-separated; it has no command in front.
 Your job:
 - Accept only plausible {learning_language_name} words/expressions; common phrases/locutions are fine.
 - Fix minor typos, orthography, accents, and spacing.
 - Remove duplicates, leading/trailing spaces, numbering, bullets, and emoji.
-- Ignore everything before and including the first occurrence of "/import" (case-insensitive).
+- If the text still begins with "/import" (any case), drop that word; its absence is normal and never a reason to fail.
 - If nothing valid remains, or content is clearly not {learning_language_name}, return success=false.
 
 OUTPUT FORMAT (STRICT JSON ONLY, NO PROSE):
@@ -100,11 +100,11 @@ Matches the schema:
 {{
   "success": boolean,
   "import_list": [string, string, ...],
-  "log": string (optional, explanation if success=false)
+  "log": string or null (always present)
 }}
 
 NOTES:
-- When success=true, "log" can be omitted or null.
+- Always include all three fields. When success=true, "log" is null.
 - When success=false, "import_list" must be empty [], and "log" must include a brief explanation (<=160 chars) suitable to show users.
 - Preserve natural casing; do minimal corrections only.
 - Do not include translation or examples; just the expressions themselves.
