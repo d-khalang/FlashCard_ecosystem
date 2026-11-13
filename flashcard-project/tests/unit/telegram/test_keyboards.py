@@ -5,7 +5,6 @@ Tests the structure and callback data of all keyboard functions.
 We verify button count, layout rows, and callback data format
 without needing a running Telegram bot.
 """
-from bson import ObjectId
 
 from flashcard.telegram.keyboards import (
     expression_action_kb,

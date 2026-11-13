@@ -2,7 +2,7 @@
 Mini App sign-in: the HMAC check of Telegram's initData.
 """
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlencode
 
 import pytest

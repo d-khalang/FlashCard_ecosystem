@@ -98,7 +98,6 @@ def observe(name: Optional[str] = None, include_output: bool = True) -> Callable
             )
 
             # Add it to the trace immediately to preserve order
-            span_idx = len(trace.spans)
             trace.spans.append(span)
 
             # 2. Execute Function

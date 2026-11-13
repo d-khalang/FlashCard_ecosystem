@@ -155,8 +155,6 @@ class TestLLMServiceMocked:
 
         assert len(result.translations) == 2
         # Verify the prompt included both languages
-        call_args = mock_client.models.generate_content.call_args
-        prompt = call_args[1]["contents"] if "contents" in call_args[1] else call_args[0][0]
         # prompt is passed as keyword or positional - check call was made
         mock_client.models.generate_content.assert_called_once()
 

@@ -148,8 +148,8 @@ async def _main(apply: bool) -> None:
     finally:
         await close_mongo_on_client(client)
     print(f"{'APPLIED' if apply else 'DRY RUN (nothing written)'} on database '{settings.MONGO_DB}'")
-    for field, value in vars(report).items():
-        print(f"  {field}: {value}")
+    for name, value in vars(report).items():
+        print(f"  {name}: {value}")
 
 
 if __name__ == "__main__":

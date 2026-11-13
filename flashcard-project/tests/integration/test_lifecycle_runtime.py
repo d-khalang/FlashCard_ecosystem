@@ -16,8 +16,6 @@ from tests.helpers import TEST_I18N, TEST_LANGUAGE
 
 from .helpers import (
     DummyTraceLogger,
-    FakeHTTPClient,
-    FakeHTTPResponse,
     InMemoryMongoClient,
     make_bot,
     make_cols,

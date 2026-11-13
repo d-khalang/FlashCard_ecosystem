@@ -141,7 +141,7 @@ async def notify_admin_with_trace(bot, text: str, trace_id: str | None = None, *
                 resolved_trace_id = trace.trace_id
         if resolved_trace_id:
             trace_id_str = f"\n\n[Trace ID: {resolved_trace_id}]"
-    except Exception as e:
+    except Exception:
         pass # Failsafe so the alert itself never crashes
         
     final_text = f"{text}{trace_id_str}"
