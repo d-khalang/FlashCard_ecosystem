@@ -75,6 +75,21 @@ def test_release_workflow_verifies_and_publishes_immutable_images():
     assert "gh release upload" in release
 
 
+def test_a_final_release_reuses_the_verified_candidates_images():
+    """A final tag builds nothing: it re-tags the images of the release candidate on its commit."""
+    import yaml
+
+    jobs = yaml.safe_load((ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8"))["jobs"]
+
+    assert jobs["verify"]["if"] == jobs["publish"]["if"] == "needs.version.outputs.kind == 'rc'"
+    assert jobs["promote"]["if"] == "needs.version.outputs.kind == 'final'"
+    promote = "\n".join(step.get("run", "") for step in jobs["promote"]["steps"])
+    assert "imagetools create" in promote and "build-push-action" not in str(jobs["promote"])
+    assert '[[ "$tagged" == "$digest" ]]' in promote  # the new tag must be the same image
+    check = "\n".join(step.get("run", "") for step in jobs["version"]["steps"])
+    assert '"$sha" == "$GITHUB_SHA"' in check  # only a candidate on the tagged commit counts
+
+
 def test_public_repo_has_no_production_deploy_workflow():
     assert not (ROOT / ".github" / "workflows" / "deploy.yml").exists()
 
