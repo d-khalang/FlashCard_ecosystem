@@ -5,6 +5,8 @@ from collections import deque
 from datetime import datetime, time as day_time, timedelta, timezone
 from typing import Callable, Hashable
 
+from flashcard.utils.time import now_utc
+
 
 class RateLimiter:
     def __init__(self, limit: int, window_seconds: float = 60.0, clock: Callable[[], float] = time.monotonic):
@@ -43,7 +45,7 @@ class DailyBudget:
     Memory is bounded: only today's users are kept, everything is dropped when the day changes.
     """
 
-    def __init__(self, limit: int, clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
+    def __init__(self, limit: int, clock: Callable[[], datetime] = now_utc):
         self.limit = limit
         self._clock = clock
         self._day = None

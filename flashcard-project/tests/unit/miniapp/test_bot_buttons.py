@@ -103,3 +103,23 @@ class TestBotCardButtons:
 
         assert not buttons._tasks and not buttons._last
         bot.session.close.assert_awaited_once()
+
+    async def test_wait_idle_returns_once_every_call_is_done_without_closing(self):
+        buttons, bot = _buttons()
+        release = asyncio.Event()
+
+        async def edit(**kwargs):
+            await release.wait()
+
+        bot.edit_message_reply_markup.side_effect = edit
+        buttons.remove(USER, MESSAGE_ID)
+        buttons.restore(USER, _card(), _i18n())
+        waiting = asyncio.create_task(buttons.wait_idle())
+        await asyncio.sleep(0)
+        assert not waiting.done()
+
+        release.set()
+        await asyncio.wait_for(waiting, timeout=1)
+
+        assert bot.edit_message_reply_markup.await_count == 2
+        bot.session.close.assert_not_awaited()

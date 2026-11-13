@@ -45,6 +45,11 @@ class BotCardButtons:
             keyboard = get_review_keyboard(i18n, card.expression_id, direction=card.direction)
             self._start(user_id, lambda: self._set_markup(user_id, card.delivery_id, keyboard))
 
+    async def wait_idle(self) -> None:
+        """Wait until every call asked for so far has finished (tests use it instead of sleeping)."""
+        while self._tasks:
+            await asyncio.wait(list(self._tasks))
+
     async def close(self) -> None:
         """Give calls in flight a moment to finish, cancel the rest and close the session."""
         tasks = list(self._tasks)

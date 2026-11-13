@@ -50,13 +50,24 @@ def test_ci_workflow_runs_unit_and_integration_layers():
     assert "pytest tests/integration tests/smoke" in ci
 
 
+def test_ci_workflow_runs_the_browser_tests_and_fails_when_they_cannot_run():
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "pytest tests/browser" in ci
+    assert 'KARTINO_REQUIRE_BROWSER: "1"' in ci
+    assert "playwright install --with-deps webkit chromium" in ci
+
+
 def test_release_workflow_verifies_and_publishes_immutable_images():
     release = (ROOT / ".github" / "workflows" / "release.yml").read_text(
         encoding="utf-8"
     )
 
     assert "types:" in release and "published" in release
-    assert "pytest tests" in release
+    # A release runs exactly the CI checks, which must fail (not skip) without MongoDB.
+    assert "uses: ./.github/workflows/ci.yml" in release
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "workflow_call:" in ci and 'KARTINO_REQUIRE_MONGO: "1"' in ci
     assert "ghcr.io" in release
     assert "type=semver" in release
     assert "type=sha" in release

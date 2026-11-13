@@ -149,7 +149,10 @@ async def mongo_cols():
         await client.admin.command("ping")
     except Exception:
         await client.close()
-        pytest.skip(f"no MongoDB at {TEST_MONGO_URI} (set KARTINO_TEST_MONGO_URI)")
+        message = f"no MongoDB at {TEST_MONGO_URI} (set KARTINO_TEST_MONGO_URI)"
+        if os.environ.get("KARTINO_REQUIRE_MONGO") == "1":
+            pytest.fail(message)  # CI and releases: a missing database must not pass as a skip
+        pytest.skip(message)
     name = f"kartino_test_{uuid.uuid4().hex}"
     db = client[name]
     cols = {"users": db["users"], "expression": db["expression"], "conjugation": db["conjugation"],
@@ -175,3 +178,58 @@ async def study_core(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm):
     await core.expression_service.ensure_indexes()
     await core.user_service.ensure_indexes()
     return core
+
+
+# ---- Bot and Mini App together ---------------------------------------------------------------------
+from contextlib import asynccontextmanager  # noqa: E402
+
+import httpx  # noqa: E402
+from httpx import ASGITransport  # noqa: E402
+
+from flashcard.miniapp.api import create_app  # noqa: E402
+from flashcard.miniapp.bot_buttons import BotCardButtons  # noqa: E402
+
+from .harness import FakeSpeech, Harness  # noqa: E402
+
+ROUTER_MODULES = [user_settings, feedback, reply_commands, start, review, verb, story, collection,
+                  inline_remove, unknown, creation, errors]
+
+
+@asynccontextmanager
+async def open_harness(monkeypatch: pytest.MonkeyPatch, cols, llm, http_client, *, static_dir: str | None = None):
+    """
+    The real bot dispatcher and the real Mini App API sharing one database and one fake Telegram.
+    With `static_dir`, the API also serves that frontend build, as in production.
+    """
+    for module in ROUTER_MODULES:
+        module.router._parent_router = None  # the routers are module-global
+    speech = FakeSpeech()
+    monkeypatch.setattr(composition, "LLMService", lambda **_: llm)
+    monkeypatch.setattr(composition, "get_language_validator", lambda language: BaseLanguageValidityChecker())
+    monkeypatch.setattr(composition, "EdgeSpeechProvider", lambda: speech)
+    settings = get_setting()
+    if static_dir is not None:
+        settings = settings.model_copy(update={"MINIAPP_STATIC_DIR": static_dir})
+    core = composition.build_core(cols, http_client, settings, TEST_LANGUAGE)
+    await core.expression_service.ensure_indexes()
+    await core.user_service.ensure_indexes()
+
+    bot, session = make_bot()
+    _, dp = build_bot_dispatcher("123456:test-token", TEST_LANGUAGE)
+    logger_bot, _ = make_bot()
+    app = create_app(settings)
+    app.state.core = core
+    app.state.bot_buttons = BotCardButtons(bot)  # the app edits bot messages through the same fake
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        try:
+            yield Harness(bot=bot, session=session, dp=dp, handler_data=core.handler_data(logger_bot, admin_id=0),
+                          app=app, api=client, cols=cols, llm=llm, speech=speech)
+        finally:
+            await app.state.prepared.close()
+            await app.state.bot_buttons.close()
+
+
+@pytest.fixture
+async def harness(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm, fake_http_client, trace_logger):
+    async with open_harness(monkeypatch, mongo_cols, study_llm, fake_http_client) as opened:
+        yield opened

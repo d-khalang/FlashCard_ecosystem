@@ -8,7 +8,8 @@ import fr from 'flag-icons/flags/4x3/fr.svg';
 import gb from 'flag-icons/flags/4x3/gb.svg';
 import id from 'flag-icons/flags/4x3/id.svg';
 import ind from 'flag-icons/flags/4x3/in.svg';
-import ir from 'flag-icons/flags/4x3/ir.svg';
+// Iran: our own Lion and Sun flag, which represents the people rather than the Islamic Republic.
+import ir from '../assets/flags/ir.svg';
 import it from 'flag-icons/flags/4x3/it.svg';
 import jp from 'flag-icons/flags/4x3/jp.svg';
 import kr from 'flag-icons/flags/4x3/kr.svg';

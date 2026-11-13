@@ -12,7 +12,7 @@ from flashcard.miniapp.auth import InitDataError, TelegramIdentity, validate_ini
 from flashcard.miniapp.errors import auth_required, generation_failed, not_allowed, rate_limited
 from flashcard.schemas.user import UserId, UserTier
 from flashcard.utils.logger import get_logger
-from flashcard.utils.time import now_utc
+from flashcard.utils.time import real_now_utc
 
 logger = get_logger(__name__)
 
@@ -36,7 +36,9 @@ async def verified_identity(request: Request) -> TelegramIdentity:
         raise auth_required()
     settings = request.app.state.settings
     try:
-        identity = validate_init_data(token.strip(), bot_token=settings.BOT_TOKEN, now=now_utc())
+        # Telegram signs init data with the real time, so its age never counts from a shifted clock.
+        identity = validate_init_data(token.strip(), bot_token=settings.BOT_TOKEN, now=real_now_utc(),
+                                      max_age_seconds=settings.MINIAPP_INIT_DATA_MAX_AGE_SECONDS)
     except InitDataError:
         raise auth_required() from None
     allowed = settings.miniapp_allowed_user_ids
