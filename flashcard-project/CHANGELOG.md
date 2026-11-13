@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## Unreleased
+
+No config change or data migration.
+
+### New
+
+- `flashcard-maintenance`: a stand-in bot for long server work. Run with a bot's own token and settings, it answers every message, button and inline search with one "under maintenance" note and needs no database. A webhook bot sets the same webhook as the real one. What users send meanwhile is answered, not kept.
+
 ## v2.4.1 (2026-11-13)
 
 No config change or data migration.

@@ -140,6 +140,7 @@
             "empty": "<b>📇 Your Deck</b>\n\nIt's quiet in here... Send me a word to get started! ✨",
             "header": "<b>📇 Your Deck</b>\n<i>{count} words growing strong 🌱</i>\n"
         },
+        "maintenance": "🛠 Kartino is under maintenance right now. Please try again a bit later: your words and progress are safe.",
         "errors": {
             "service_unavailable": "Uh oh, my circuits are a bit tangled right now! 🤖 Please try again later.",
             "llm_unavailable": "The AI service is a bit overloaded right now 🧠💤 Please try again in a moment!",
