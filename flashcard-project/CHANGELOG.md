@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## v2.4.0-rc.1 (2026-11-13)
+## v2.4.0 (2026-11-14)
 
 Data migration: run `python -m flashcard.migrations.ensure_indexes --apply` on each language database with this release. It gives every stored clip an expiry date (its last use + 60 days), builds the expiry index on `expires_at` and drops the old one on `last_used_at`. Until it runs, new clips never expire. Deploy the bot and the Mini App of a language together: both write the new fields.
 
