@@ -248,7 +248,7 @@ jobs:
           gh release upload "$RELEASE_TAG" "$digest_file" --clobber
 
   promote:
-    name: Promote ${{ needs.version.outputs.rc_tag }}
+    name: Promote release candidate
     needs: version
     if: needs.version.outputs.kind == 'final'
     runs-on: ubuntu-latest
