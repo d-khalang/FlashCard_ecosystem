@@ -1,16 +1,11 @@
-# One weekly pull request per ecosystem and directory (grouped), so updates stay few.
-# Python: Dependabot edits the hashed lock files requirements.txt and requirements-dev.txt; the
-# `audit` job checks they still match pyproject.toml.
+# One weekly pull request per ecosystem (grouped), so updates stay few.
+#
+# Python packages are not here on purpose: the hashed lock files are written by `uv pip compile`,
+# and the `audit` job fails when they differ from what that command produces. Dependabot rewrites
+# them (and pyproject.toml) with its own tool, so its pull requests can never pass. Upgrade Python
+# packages with the commands in docs/cicd.md ("Lock files").
 version: 2
 updates:
-  - package-ecosystem: pip
-    directory: /flashcard-project
-    schedule:
-      interval: weekly
-    groups:
-      python:
-        patterns: ["*"]
-
   - package-ecosystem: npm
     directory: /miniapp
     schedule:
@@ -19,12 +14,19 @@ updates:
       miniapp:
         patterns: ["*"]
 
+  # Base images: new digests and patch releases of the pinned tag only. A new Python or Node
+  # version is a decision (packages must support it), never an automatic bump.
   - package-ecosystem: docker
     directories:
       - /flashcard-project
       - /miniapp
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: node
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       docker:
         patterns: ["*"]

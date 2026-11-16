@@ -26,7 +26,9 @@ owns the production Compose topology.
 | `docker-build-check` | Builds the bot, conjugator and Mini App images |
 
 Required checks on `main`: `unit-tests`, `miniapp`, `browser-tests`,
-`docker-build-check`, plus `lint`, `types` and `audit` once added to the ruleset.
+`docker-build-check`, `lint`, `types` and `claude-review` (from `review.yml`).
+`audit` runs on every pull request and release candidate but is not required, so a
+newly published vulnerability does not block unrelated pull requests.
 
 Details:
 
@@ -78,7 +80,7 @@ The Mini App uses `miniapp/package-lock.json` (`npm ci`).
 
 Docker base images in `flashcard-project/Dockerfile`, `miniapp/Dockerfile` and the
 CI MongoDB service are pinned by digest (`image:tag@sha256:...`), with the tag in a
-comment. Dependabot proposes digest bumps. The conjugator image comes from the
+comment. Dependabot proposes digest bumps within the same tag. The conjugator image comes from the
 `it-conjugator-api` submodule and is not pinned here.
 
 ## Dependency audit
@@ -94,9 +96,16 @@ Fix by upgrading the package. Do not remove the check to get green.
 
 ## Dependabot
 
-`.github/dependabot.yml`: weekly, one grouped pull request per ecosystem: pip
-(`flashcard-project`), npm (`miniapp`), docker (`flashcard-project`, `miniapp`) and
-github-actions. Merge them like any other pull request; CI decides.
+`.github/dependabot.yml`: weekly, one grouped pull request per ecosystem: npm
+(`miniapp`), docker (`flashcard-project`, `miniapp`) and github-actions. Merge them
+like any other pull request; CI decides.
+
+- **Base images**: only new digests and patch releases of the pinned tag. A new
+  Python or Node version is changed by hand, after checking the packages support it.
+- **Python packages** are not updated by Dependabot: it rewrites the lock files with
+  its own tool, and the `audit` job then fails because they differ from the output
+  of `uv pip compile`. Upgrade them with the `--upgrade` commands under "Lock files".
+  Dependabot alerts for Python packages still appear in the repository's Security tab.
 
 ## Container Releases
 
