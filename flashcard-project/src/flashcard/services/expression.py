@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Literal, Optional, get_args
 
 from flashcard.utils.time import iso_z, now_utc

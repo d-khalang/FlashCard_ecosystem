@@ -182,7 +182,7 @@ class TestResume:
 
     async def test_from_storage_when_the_stored_card_is_much_older_than_its_delivery(self, setup):
         core, cols, expression_id = setup
-        card = await _delivered(core)
+        await _delivered(core)
         sent_at = (await _user(cols))["current_review"]["sent_at"]
         await cols["expression"].update_one({"_id": ObjectId(expression_id)},
                                             {"$set": {"last_card.generated_at": sent_at - timedelta(minutes=5)}})

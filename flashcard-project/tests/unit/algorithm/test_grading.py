@@ -4,7 +4,6 @@ Unit tests for flashcard.services.algorithm.grading.calculate_new_stats
 Tests the SRS grading engine that updates expression stats after a user
 rates a flashcard. This is a pure function — no I/O, no mocking needed.
 """
-import pytest
 from unittest.mock import patch
 
 from flashcard.schemas.expression import ExpressionStats

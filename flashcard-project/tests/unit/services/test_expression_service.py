@@ -12,7 +12,7 @@ Covers all ExpressionService methods:
 from datetime import datetime, timezone
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 from bson import ObjectId
 
 from flashcard.schemas.expression import ExpressionStats

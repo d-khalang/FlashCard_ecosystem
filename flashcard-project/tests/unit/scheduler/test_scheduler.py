@@ -5,14 +5,12 @@ Tests:
   - find_users_due_for_review: filtering logic (active, pending, interval)
   - send_admin_metrics: report formatting, message splitting
 """
-import asyncio
 import json
 from datetime import timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
 
-from flashcard.schemas.user import UserDB
 from flashcard.services.user import UserService
 from flashcard.utils.time import now_utc, iso_z
 from tests.helpers import AsyncCursorMock as _AsyncCursor

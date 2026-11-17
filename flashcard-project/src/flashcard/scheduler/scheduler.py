@@ -190,7 +190,7 @@ async def send_admin_metrics(
     messages = []
 
     # Header message
-    header = f"📊 <b>Scheduler Cycle Report</b>\n\n"
+    header = "📊 <b>Scheduler Cycle Report</b>\n\n"
     header += f"⏱ Execution Time: {total_time:.2f}s\n"
     header += f"👥 Total Users Processed: {total}\n"
     header += f"✅ Successful: {len(successful_ids)}\n"
@@ -200,7 +200,7 @@ async def send_admin_metrics(
 
     # Add successful users
     if successful_ids:
-        success_text = f"<b>Successful Users:</b>\n" + ", ".join(str(user_id) for user_id in successful_ids) + "\n\n"
+        success_text = "<b>Successful Users:</b>\n" + ", ".join(str(user_id) for user_id in successful_ids) + "\n\n"
         if len(current_msg + success_text) > 4000:  # Leave margin for safety
             messages.append(current_msg)
             current_msg = success_text
@@ -209,7 +209,7 @@ async def send_admin_metrics(
 
     # Add failed users
     if failed_details:
-        current_msg += f"<b>Failed Users:</b>\n"
+        current_msg += "<b>Failed Users:</b>\n"
         for failure in failed_details:
             user_id = failure['user_id']
             error = failure['error']
@@ -220,7 +220,7 @@ async def send_admin_metrics(
             # Split message if too long
             if len(current_msg + failure_line) > 3700:
                 messages.append(current_msg)
-                current_msg = f"<b>Failed Users (continued):</b>\n" + failure_line
+                current_msg = "<b>Failed Users (continued):</b>\n" + failure_line
             else:
                 current_msg += failure_line
 
