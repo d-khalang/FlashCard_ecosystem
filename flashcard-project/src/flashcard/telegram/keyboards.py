@@ -10,7 +10,7 @@ from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from flashcard.schemas.conjugations import ConjugationResponse
 from flashcard.services.i18n import I18nService
-from flashcard.schemas.languages import get_language_flag, get_language_name
+from flashcard.schemas.languages import get_language_flag
 
 def expression_action_kb(i18n: I18nService, norm: str, audio_parts: Sequence[PreviewPart] = ()) -> InlineKeyboardMarkup:
     """Save and Regenerate, then a Listen button per part of the generated card."""

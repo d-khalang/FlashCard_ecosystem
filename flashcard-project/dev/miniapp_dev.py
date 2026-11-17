@@ -40,7 +40,7 @@ import sys
 import threading
 import tempfile
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
 

@@ -4,7 +4,7 @@ results and carry exactly the fields the contract lists; stored documents never 
 """
 import re
 from datetime import datetime
-from typing import Literal, Optional, Union
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator
 

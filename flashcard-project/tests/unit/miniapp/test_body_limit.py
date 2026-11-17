@@ -7,7 +7,6 @@ import pytest
 
 from flashcard.miniapp.api import MAX_BODY_BYTES, create_app
 from flashcard.settings import get_setting
-from tests.integration.study_helpers import auth_header
 
 
 async def _call(app, *, headers, chunks, path="/api/v1/study/grade", method="POST"):

@@ -1,5 +1,4 @@
 import uvicorn
-import argparse
 import sys
 import warnings
 from flashcard.settings import get_setting

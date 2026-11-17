@@ -6,7 +6,7 @@ The pure method is_valid_verb needs no mocking.
 get_verb_data orchestration uses mocked DB + HTTP.
 """
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 from flashcard.services.verb import ScraperConfig, VerbService
 

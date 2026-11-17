@@ -2,7 +2,7 @@
 Regenerating one section of a card: the prompt, and the validation before anything is merged.
 No provider is called.
 """
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 

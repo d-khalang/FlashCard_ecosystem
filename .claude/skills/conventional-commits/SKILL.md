@@ -54,27 +54,21 @@ type(scope): short description
 | `build` | Build system or external dependency changes |
 | `revert` | Reverting a previous commit |
 
-## Project Scopes
+## Scopes
 
-Use these scopes matching the FlashCard architecture:
+The scope names the area changed, in one short word. Common ones in this repo:
 
 | Scope | Covers |
 |-------|--------|
-| `bot` | Telegram bot setup, dispatcher, main bot.py |
-| `handlers` | Telegram command/callback/message handlers |
-| `services` | Business logic layer (expression, user, verb, LLM) |
-| `schemas` | Pydantic models, data validation |
-| `algorithm` | Spaced repetition, grading, priority |
-| `api` | FastAPI layer, routes, lifecycle |
-| `db` | MongoDB connection and queries |
-| `scheduler` | Background scheduler loop |
-| `ui` | Telegram message formatters, keyboards |
-| `middleware` | aiogram middlewares, tracing |
-| `i18n` | Internationalization, locale files |
-| `config` | Settings, environment, .env |
-| `docker` | Dockerfile, docker-compose |
-| `deps` | Dependencies, pyproject.toml |
-| `scraper` | WR Scraper module |
+| `handlers`, `telegram` | Telegram handlers, bot setup, keyboards, UI |
+| `miniapp` | Mini App frontend and its API routes |
+| `review`, `quota`, `users`, `llm`, `services` | Use cases (`app/`) and services |
+| `schemas`, `settings`, `config` | Models, settings, env |
+| `i18n`, `locales` | Translations |
+| `scheduler`, `scraper`, `api` | Background loop, verb scraper, FastAPI |
+| `docker`, `caddy`, `deps` | Containers, proxy, dependencies |
+| `release`, `ci`, `smoke`, `contract` | Releases, workflows, test layers |
+| `web` | `web` submodule bumps |
 
 ## Examples
 
