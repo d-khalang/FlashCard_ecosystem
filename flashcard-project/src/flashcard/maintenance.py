@@ -18,6 +18,8 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from aiogram import Bot, Dispatcher, Router
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from aiogram.types import CallbackQuery, InlineQuery, InlineQueryResultsButton, Message, Update
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -27,7 +29,7 @@ from flashcard.language import LanguageConfig
 from flashcard.services.i18n import I18nService
 from flashcard.settings import Settings, get_setting
 from flashcard.telegram.session import build_ipv4_session
-from flashcard.utils.logger import configure_log_level, get_logger
+from flashcard.utils.logger import configure_log_level, get_logger, mask_access_log_path
 
 logger = get_logger(__name__)
 
@@ -63,9 +65,13 @@ def build_maintenance_dispatcher(note: str, button: str) -> Dispatcher:
 def create_app(settings: Settings | None = None, bot: Bot | None = None) -> FastAPI:
     settings = settings or get_setting()
     configure_log_level(settings.LOG_LEVEL)
+    # The webhook path is a secret: access logs show <webhook> instead, as for the real bot.
+    mask_access_log_path(settings.WEBHOOK_PATH)
     i18n = I18nService.for_language(LanguageConfig.from_settings(settings))
     dispatcher = build_maintenance_dispatcher(i18n.get(NOTE_KEY), i18n.get(BUTTON_KEY))
-    bot = bot or Bot(token=settings.BOT_TOKEN, session=build_ipv4_session())
+    # HTML like the real bot, so a styled note (<b>, <i>) shows as styling, not as tags.
+    bot = bot or Bot(token=settings.BOT_TOKEN, session=build_ipv4_session(),
+                     default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     mode = settings.TELEGRAM_DELIVERY_MODE
     allowed_updates = dispatcher.resolve_used_update_types()
     # The polling task, if any: the health check reports it, so a stand-in whose polling died
@@ -75,17 +81,18 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         polling = None
-        if mode == "webhook":
-            await bot.set_webhook(url=settings.webhook_url, secret_token=settings.WEBHOOK_SECRET,
-                                  allowed_updates=allowed_updates)
-        else:
-            await bot.delete_webhook(drop_pending_updates=False)
-            polling = asyncio.create_task(
-                dispatcher.start_polling(bot, allowed_updates=allowed_updates, handle_signals=False))
-            polling.add_done_callback(_log_polling_end)
-            polling_task.append(polling)
-        logger.info("Maintenance bot running (%s): every update gets the maintenance note", mode)
+        # The startup calls sit inside try: if Telegram is unreachable, the session still closes.
         try:
+            if mode == "webhook":
+                await bot.set_webhook(url=settings.webhook_url, secret_token=settings.WEBHOOK_SECRET,
+                                      allowed_updates=allowed_updates)
+            else:
+                await bot.delete_webhook(drop_pending_updates=False)
+                polling = asyncio.create_task(
+                    dispatcher.start_polling(bot, allowed_updates=allowed_updates, handle_signals=False))
+                polling.add_done_callback(_log_polling_end)
+                polling_task.append(polling)
+            logger.info("Maintenance bot running (%s): every update gets the maintenance note", mode)
             yield
         finally:
             if polling:

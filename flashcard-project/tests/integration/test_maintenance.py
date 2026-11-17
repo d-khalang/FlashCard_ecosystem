@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from contextlib import asynccontextmanager
 
+import pytest
 from fastapi.testclient import TestClient
 
 from flashcard.maintenance import BUTTON_KEY, NOTE_KEY, create_app
@@ -91,6 +93,33 @@ def test_polling_that_dies_at_start_makes_the_stand_in_unhealthy():
             time.sleep(0.05)
         assert client.get("/health/ready").status_code == 503
         assert client.get("/health").status_code == 503
+
+
+def test_the_session_closes_when_telegram_is_unreachable_at_start():
+    bot, session = make_bot()
+    closed = []
+
+    async def unreachable(bot, method, timeout=None):
+        raise ConnectionError("Telegram unreachable")
+
+    async def close():
+        closed.append(True)
+
+    session.make_request = unreachable
+    session.close = close
+    with pytest.raises(ConnectionError):
+        with TestClient(create_app(_settings("webhook"), bot=bot)):
+            pass
+    assert closed == [True]
+
+
+def test_the_webhook_path_stays_out_of_the_access_log():
+    create_app(_settings("webhook"), bot=make_bot()[0])
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
+                               ("1.2.3.4", "POST", "/webhook/telegram/path", "1.1", 200), None)
+    for log_filter in logging.getLogger("uvicorn.access").filters:
+        log_filter.filter(record)
+    assert "/webhook/telegram/path" not in record.getMessage()
 
 
 @asynccontextmanager
