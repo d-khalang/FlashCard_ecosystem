@@ -21,6 +21,7 @@ ENTRY_POINTS = {
     "migrations/convert_dates.py",
     "migrations/ensure_indexes.py",
     "migrations/check_documents.py",
+    "migrations/clear_conjugation_cache.py",
 }
 
 

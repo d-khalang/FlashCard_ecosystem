@@ -23,7 +23,8 @@ SRC = Path(flashcard.__file__).parent
 MAY_INDEX_COLS = {"composition.py", "db/mongo.py",
                   "migrations/backfill_created_at.py", "migrations/backfill_current_review.py",
                   "migrations/dedupe_expressions.py", "migrations/convert_dates.py",
-                  "migrations/ensure_indexes.py", "migrations/check_documents.py"}
+                  "migrations/ensure_indexes.py", "migrations/check_documents.py",
+                  "migrations/clear_conjugation_cache.py"}
 
 
 def _modules():
