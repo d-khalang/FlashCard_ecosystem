@@ -18,8 +18,9 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import CallbackQuery, InlineQuery, Message, Update
+from aiogram.types import CallbackQuery, InlineQuery, InlineQueryResultsButton, Message, Update
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from flashcard.api.routes.webhook import _secret_matches
 from flashcard.language import LanguageConfig
@@ -31,10 +32,11 @@ from flashcard.utils.logger import configure_log_level, get_logger
 logger = get_logger(__name__)
 
 NOTE_KEY = "messages.maintenance"
+BUTTON_KEY = "messages.maintenance_button"
 
 
-def build_maintenance_dispatcher(note: str) -> Dispatcher:
-    """Every message, button and inline search gets `note`; nothing else happens."""
+def build_maintenance_dispatcher(note: str, button: str) -> Dispatcher:
+    """Every message and button gets `note`, every inline search `button`; nothing else happens."""
     router = Router()
 
     @router.message()
@@ -48,7 +50,10 @@ def build_maintenance_dispatcher(note: str) -> Dispatcher:
 
     @router.inline_query()
     async def on_inline(inline_query: InlineQuery) -> None:
-        await inline_query.answer([], cache_time=60, is_personal=True)
+        # No results, but a line above them that says why; tapping it opens the chat, which
+        # answers with the note. Short cache: the real bot's results come back soon after.
+        await inline_query.answer([], cache_time=10, is_personal=True,
+                                  button=InlineQueryResultsButton(text=button, start_parameter="maintenance"))
 
     dispatcher = Dispatcher()
     dispatcher.include_router(router)
@@ -58,11 +63,14 @@ def build_maintenance_dispatcher(note: str) -> Dispatcher:
 def create_app(settings: Settings | None = None, bot: Bot | None = None) -> FastAPI:
     settings = settings or get_setting()
     configure_log_level(settings.LOG_LEVEL)
-    note = I18nService.for_language(LanguageConfig.from_settings(settings)).get(NOTE_KEY)
-    dispatcher = build_maintenance_dispatcher(note)
+    i18n = I18nService.for_language(LanguageConfig.from_settings(settings))
+    dispatcher = build_maintenance_dispatcher(i18n.get(NOTE_KEY), i18n.get(BUTTON_KEY))
     bot = bot or Bot(token=settings.BOT_TOKEN, session=build_ipv4_session())
     mode = settings.TELEGRAM_DELIVERY_MODE
     allowed_updates = dispatcher.resolve_used_update_types()
+    # The polling task, if any: the health check reports it, so a stand-in whose polling died
+    # (aiogram does not retry its first getMe) is unhealthy and maintenance.sh brings the real bot back.
+    polling_task: list[asyncio.Task] = []
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -74,13 +82,16 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
             await bot.delete_webhook(drop_pending_updates=False)
             polling = asyncio.create_task(
                 dispatcher.start_polling(bot, allowed_updates=allowed_updates, handle_signals=False))
+            polling.add_done_callback(_log_polling_end)
+            polling_task.append(polling)
         logger.info("Maintenance bot running (%s): every update gets the maintenance note", mode)
         try:
             yield
         finally:
             if polling:
                 polling.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
+                # A polling failure was logged when it happened; it must not stop the shutdown.
+                with contextlib.suppress(asyncio.CancelledError, Exception):
                     await polling
             # The webhook stays: the real bot replaces it when it starts again.
             await bot.session.close()
@@ -90,7 +101,9 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
     # Both paths answer, so the bot's own Docker health check works unchanged.
     @app.get("/health")
     @app.get("/health/ready")
-    async def health() -> dict:
+    async def health():
+        if polling_task and polling_task[0].done():
+            return JSONResponse({"status": "polling stopped", "mode": "maintenance"}, status_code=503)
         return {"status": "ok", "mode": "maintenance"}
 
     @app.post(settings.WEBHOOK_PATH)
@@ -109,6 +122,11 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
         return {"ok": True}
 
     return app
+
+
+def _log_polling_end(task: asyncio.Task) -> None:
+    if not task.cancelled() and task.exception() is not None:
+        logger.error("Maintenance bot polling stopped", exc_info=task.exception())
 
 
 def main() -> None:

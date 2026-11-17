@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import time
 from contextlib import asynccontextmanager
 
 from fastapi.testclient import TestClient
 
-from flashcard.maintenance import NOTE_KEY, create_app
+from flashcard.maintenance import BUTTON_KEY, NOTE_KEY, create_app
 from flashcard.services.i18n import I18nService
 from flashcard.settings import Settings
 from tests.integration.helpers import (
@@ -56,7 +57,11 @@ def test_every_update_gets_the_maintenance_note_and_the_webhook_stays():
     assert ("SendMessage", note) in [(m, p.get("text")) for m, p in calls]
     alert = next(p for m, p in calls if m == "AnswerCallbackQuery")
     assert alert["text"] == note[:200] and alert["show_alert"] is True
-    assert next(p for m, p in calls if m == "AnswerInlineQuery")["results"] == []
+    inline = next(p for m, p in calls if m == "AnswerInlineQuery")
+    button = I18nService(locale="en", language_name="Italian").get(BUTTON_KEY)
+    assert button != BUTTON_KEY
+    assert inline["results"] == [] and inline["button"]["text"] == button
+    assert inline["button"]["start_parameter"] == "maintenance"
 
 
 def test_a_wrong_secret_is_refused():
@@ -74,6 +79,18 @@ def test_a_polling_bot_takes_no_webhook_updates():
     with TestClient(app) as client:
         assert _post(client, make_message_update(text="hi")).status_code == 403
 
+
+def test_polling_that_dies_at_start_makes_the_stand_in_unhealthy():
+    # Forget the fake's known bot user: polling then asks getMe, which the fake Telegram does not
+    # answer, as if Telegram were unreachable just then. Docker must see that, not a healthy container.
+    bot, _ = make_bot()
+    bot._me = None
+    with TestClient(create_app(_settings("polling"), bot=bot)) as client:
+        deadline = time.monotonic() + 5
+        while client.get("/health/ready").status_code == 200 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert client.get("/health/ready").status_code == 503
+        assert client.get("/health").status_code == 503
 
 
 @asynccontextmanager
