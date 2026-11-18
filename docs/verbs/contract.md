@@ -29,7 +29,7 @@ No spaces, dots or `$` in any id (they are used as Mongo keys and in source refs
   "infinitive": "andare",
   "pronominal": null,            // null, or the clitic suffix: "si", "ne", "sene", "ci", "cela", ...
   "auxiliaries": [{"verb": "essere", "primary": true, "note": null}],   // list: some verbs take both
-  "principal_forms": {"gerund": "andando", "past_participle": "andato", "present_participle": "andante"},
+  "principal_forms": {"gerund": "andando", "past_participle": "andato", "present_participle": "andante"},  // each may be null (essere has no present participle)
   "irregular": true,             // any form differs from the regular paradigm
   "data_version": "2026-11-13",  // build date of the conjugator data; informative
   "tenses": [Tense]              // canonical order; a tense with no forms at all is omitted
@@ -52,11 +52,15 @@ A slot with `forms: []` means the form doesn't exist (defective verb); the clien
 }
 ```
 
-- **SimpleParts**: `{"kind": "simple", "clitic": null|"mi"|"me ne"…, "stem", "ending", "irregular_stem": bool, "irregular_ending": bool}`.
-  `clitic + " " + stem + ending == text` (without the space when clitic is null; `l'` joins without a space).
+- **SimpleParts**: `{"kind": "simple", "clitic": null|"mi"|"me ne"…, "stem", "ending", "enclitic": null|"ti"|"ttene"…, "irregular_stem": bool, "irregular_ending": bool}`.
+  `clitic + " " + stem + ending + enclitic == text` (without the space when clitic is null; `l'` joins without a space).
+  `enclitic` holds pronouns attached after the verb, mostly in imperatives: `svegli|a|ti`, `v|a|ttene` (doubled consonant
+  included), `andiam|o|cene`. Stem, ending and the irregular flags are worked out on the base form (sveglia, va).
 - **CompoundParts**: `{"kind": "compound", "clitic", "auxiliary_verb": "essere"|"avere", "auxiliary": "sono", "participle": "andato", "irregular_participle": bool}`.
   No stem/ending on compound forms. Gender: the masculine form is primary, the feminine one is a variant tagged `feminine`.
   Two auxiliaries → one variant per auxiliary.
+- **Curated variants**: until the data carries them, the conjugator adds the short tu imperatives `va'`, `da'`, `fa'`, `sta'`, `di'`
+  as untagged, non-primary variants of the tu imperative (vai, dai, fai, stai stay primary; for dire, add `di'` only if the data lacks it).
 
 ### Stem and ending (deterministic; reference: `make_fixtures.py`)
 
@@ -84,7 +88,7 @@ Queries may hold spaces: compound forms (`sono andato`), clitic forms (`mi alzo`
 | Route | Answer |
 |-------|--------|
 | `GET /v2/conjugate?q=` | 200 `{"match", "verb"}` · 404 `{"error": {"code": "verb_not_found", "message"}, "suggestions": [infinitive]}` |
-| `GET /v2/suggest?q=&limit=8` | 200 `{"items": [infinitive]}`: prefix match on infinitives, most common first; `q` shorter than 2 → `[]` |
+| `GET /v2/suggest?q=&limit=8` | 200 `{"items": [infinitive]}`: prefix match on infinitives, most common first, pronominal verbs right after their base; `q` shorter than 2 → `[]`. Suggest fixtures show the shape, not the exact list |
 | `POST /v2/infinitives` `{"words": [...]}` (≤ 500) | 200 `{"infinitives": {word: infinitive or null}}`: **infinitives only** (andare, svegliarsi, andarsene), never inflected forms (letto, porta, sale → null), multi-word → null |
 
 v1 `/conjugate` stays until the bot moves to v2. Fixtures: `fixtures/conjugator/`.
