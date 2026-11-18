@@ -19,6 +19,7 @@ import type {
   UndoResult,
   Direction,
 } from './types';
+import type { Drill, ExamplesResult, LookupResult, PracticeRequest, TenseId, VerbHome, VerbSuggest } from '../verbs/types';
 
 /** Check the discriminator of a union response. Unknown shapes become a bad_response error. */
 export function expectStatus<T extends { status: string }>(raw: unknown, allowed: readonly T['status'][]): T {
@@ -95,6 +96,26 @@ export function createApi(http: HttpClient) {
     speech: (key: string) => http.blob(`/audio/${encodeURIComponent(key)}`),
 
     updateSettings: (patch: Partial<Settings>) => http.request<Settings>('PATCH', '/settings', { body: patch }),
+
+    /** Verbs page, docs/verbs/contract.md §4. Only when `me.features.verbs`. */
+    verbs: {
+      home: () => get<VerbHome>('/verbs/home'),
+      suggest: (q: string) => get<VerbSuggest>('/verbs/suggest', { q }),
+      lookup: async (q: string): Promise<LookupResult> =>
+        expectStatus<LookupResult>(await get('/verbs/lookup', { q }), ['found', 'not_found', 'invalid']),
+      drill: (infinitive: string, tenseId: TenseId) =>
+        get<Drill>(`/verbs/${encodeURIComponent(infinitive)}/drill/${encodeURIComponent(tenseId)}`),
+      practice: async (body: PracticeRequest): Promise<void> => {
+        await post<void>('/verbs/practice', body);
+      },
+      /** Phase 3. */
+      examples: async (infinitive: string, lang: string): Promise<ExamplesResult> =>
+        expectStatus<ExamplesResult>(await get(`/verbs/${encodeURIComponent(infinitive)}/examples`, { lang }), [
+          'ready',
+          'pending',
+          'unavailable',
+        ]),
+    },
   };
 }
 
