@@ -116,7 +116,7 @@ v1 `/conjugate` stays until the bot moves to v2. Fixtures: `fixtures/conjugator/
 {"infinitive": "andare", "tense_id": "indicativo-futuro_semplice",
  "strip_prefixes": ["che io", "...", "io", "tu", "lui", "lei", "noi", "voi", "loro", "che"],   // longest first
  "items": [{"person": "1s", "primary": "andrò",
-            "accepted": [{"text": "andrò", "note": null}],          // note: null | "feminine" | "variant"
+            "accepted": [{"text": "andrò", "note": null}],          // note: null (primary) | "feminine" | "variant" (any other non-primary, tagged or not)
             "accepted_plain": ["andro"],                             // accepted, accents removed
             "hint": {"kind": "irregular_stem", "stem": "andr"} }]}   // or {"kind": "irregular_form"} or null
 ```
