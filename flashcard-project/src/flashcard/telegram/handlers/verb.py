@@ -9,6 +9,7 @@ from flashcard.app.verb import Conjugated, Found, InvalidVerb, NoVerb, VerbUseCa
 from flashcard.telegram.ui.verb import format_verb_conjugation, format_verb_message
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.services.i18n import I18nService
+from flashcard.services.verb import ConjugatorError
 from flashcard.telegram.keyboards import get_verb_keyboard
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
@@ -67,7 +68,13 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
     """
     Handle verb conjugation navigation callbacks.
     """
-    result = await verb_use_cases.conjugation(callback_data.verb)
+    try:
+        result = await verb_use_cases.conjugation(callback_data.verb)
+    except ConjugatorError as e:
+        # Every tap is a live conjugator call: say so and stop the spinner instead of failing the update.
+        logger.warning(f"Conjugator failed for the tense button of '{callback_data.verb}': {e}")
+        await safe_answer_callback(callback, i18n.get("commands.verb.api_error"), show_alert=True)
+        return
     if not isinstance(result, Conjugated):
         await safe_answer_callback(callback, i18n.get("callbacks.verb.not_found"), show_alert=True)
         return

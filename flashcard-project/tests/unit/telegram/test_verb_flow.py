@@ -195,6 +195,13 @@ class TestConjugationButtons:
 
         assert callback.message.edit_text.await_args.kwargs["text"] == format_verb_conjugation(VERB, *shown)
 
+    async def test_a_conjugator_failure_answers_the_tap_with_the_error(self):
+        d = _deps(broken=True)
+        callback = await _press(d)
+
+        callback.message.edit_text.assert_not_awaited()
+        callback.answer.assert_awaited_once_with(i18n.get("commands.verb.api_error"), show_alert=True)
+
     async def test_missing_verb_alerts(self):
         d = _deps()
         callback = MagicMock(answer=AsyncMock())
