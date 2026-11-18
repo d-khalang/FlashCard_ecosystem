@@ -83,11 +83,14 @@ A slot with `forms: []` means the form doesn't exist (defective verb); the clien
 
 Queries may hold spaces: compound forms (`sono andato`), clitic forms (`mi alzo`, `me ne vado`). Max 60 chars, at most 4 words.
 
+**Valid query** (both sides use exactly this): normalize first (NFC, lowercase, trim, single spaces, `’`/`‘` → `'`), then it must
+match `^[a-zàáèéìíòóùú']+( [a-zàáèéìíòóùú']+){0,3}$` and be at most 60 chars. Anything else (ñ, ö, digits) is invalid.
+
 ## 3. Conjugator v2 (service to service, header `X-API-Key`)
 
 | Route | Answer |
 |-------|--------|
-| `GET /v2/conjugate?q=` | 200 `{"match", "verb"}` · 404 `{"error": {"code": "verb_not_found", "message"}, "suggestions": [infinitive]}` |
+| `GET /v2/conjugate?q=` | 200 `{"match", "verb"}` · 404 `{"error": {"code": "verb_not_found", "message"}, "suggestions": [infinitive]}` · 400 `{"error": {"code": "invalid_query", "message"}}` for a query that isn't valid (§2). The app checks first with the same rule; if it still gets 400, it answers `status: "invalid"`, never 503 |
 | `GET /v2/suggest?q=&limit=8` | 200 `{"items": [infinitive]}`: prefix match on infinitives, most common first, pronominal verbs right after their base; `q` shorter than 2 → `[]`. Suggest fixtures show the shape, not the exact list |
 | `POST /v2/infinitives` `{"words": [...]}` (≤ 500) | 200 `{"infinitives": {word: infinitive or null}}`: **infinitives only** (andare, svegliarsi, andarsene), never inflected forms (letto, porta, sale → null), multi-word → null |
 
