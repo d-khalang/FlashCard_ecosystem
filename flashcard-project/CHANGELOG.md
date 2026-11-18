@@ -8,6 +8,10 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 Data migration: after the new it-conjugator image is live, run `python -m flashcard.migrations.clear_conjugation_cache --apply` on the Italian database (dry run first, without `--apply`, to see the count). It empties the conjugation cache, which still holds the old dialect forms; the bot refills it from the API on the next lookup of each verb. Running it before the new image is live would let old forms be cached again.
 
+### New
+
+- `flashcard-maintenance`: a stand-in bot for long server work. Run with a bot's own token and settings, it answers every message and button with one "under maintenance" note, shows an "under maintenance" line above empty inline search results, and needs no database. A webhook bot sets the same webhook as the real one. What users send meanwhile is answered, not kept.
+
 ### Fix
 
 - Verb conjugations (`/verb`) show standard Italian forms: common irregular verbs gave dialect or archaic forms (andare: vò/và instead of vado/va, fare: fazzo/face, essere: sò/ene), and many others had mixed tables (credere: credemo, mettere: messi, scegliere: sceglio). Also: the right meaning of homonyms (partire: parto), the formal imperative (valuti), reverse lookup (vado finds andare), and compound tenses of verbs with pronouns (ci ho messo, ce l'ho fatta). Fixed in the it-conjugator-api submodule.

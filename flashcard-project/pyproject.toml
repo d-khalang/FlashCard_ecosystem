@@ -37,6 +37,7 @@ flashcard-bot-dev = "flashcard.__main__:dev"
 flashcard-bot-poll = "flashcard.__main__:main_poll"
 flashcard-bot-dev-poll = "flashcard.__main__:dev_poll"
 flashcard-miniapp = "flashcard.miniapp.api:main"
+flashcard-maintenance = "flashcard.maintenance:main"
 
 [project.optional-dependencies]
 dev = [

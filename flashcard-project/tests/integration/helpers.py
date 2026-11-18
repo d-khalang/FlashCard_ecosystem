@@ -12,6 +12,7 @@ from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.methods import (
     AnswerCallbackQuery,
+    AnswerInlineQuery,
     DeleteWebhook,
     EditMessageReplyMarkup,
     EditMessageText,
@@ -512,7 +513,7 @@ class FakeTelegramSession(BaseSession):
                 reply_markup=payload.get("reply_markup"),
                 message_id=method.message_id,
             )
-        if isinstance(method, (EditMessageReplyMarkup, AnswerCallbackQuery, SendChatAction, SetWebhook, DeleteWebhook)):
+        if isinstance(method, (EditMessageReplyMarkup, AnswerCallbackQuery, AnswerInlineQuery, SendChatAction, SetWebhook, DeleteWebhook)):
             return True
         raise NotImplementedError(f"FakeTelegramSession does not support {method.__class__.__name__}")
 
