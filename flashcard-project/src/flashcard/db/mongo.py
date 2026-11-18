@@ -12,7 +12,7 @@ def _collection_name_map(settings):
     return {
         "users": settings.COLLECTION_USERS,
         "expression": settings.COLLECTION_EXPRESSION,
-        "conjugation": settings.COLLECTION_CONJUGATION,
+        "verb_practice": settings.COLLECTION_VERB_PRACTICE,
         "audio_words": settings.COLLECTION_AUDIO_WORDS,
     }
 
@@ -177,7 +177,7 @@ async def init_and_get_mongo(settings):
     db = client[settings.MONGO_DB]
     
     # One dict with all collections instead of many attributes
-    # { "users": AsyncCollection, "expression": AsyncCollection, "conjugation": AsyncCollection }
+    # { "users": AsyncCollection, "expression": AsyncCollection, ... }
     cols = {alias: db[name] for alias, name in _collection_name_map(settings).items()}
 
     return client, db, cols   

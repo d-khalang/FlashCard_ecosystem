@@ -8,6 +8,7 @@ from flashcard.migrations.ensure_indexes import ensure_indexes
 from flashcard.services.speech_cache import SpeechCache
 from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
+from flashcard.services.verb_practice import VerbPracticeService
 from tests.helpers import TEST_LANGUAGE
 from tests.integration.helpers import make_cols
 
@@ -27,6 +28,7 @@ async def _run(cols, *, apply=True):
         UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults),
         ExpressionService(expressions=cols["expression"]),
         SpeechCache(entries=cols["audio_words"]),
+        VerbPracticeService(practice=cols["verb_practice"]),
         apply=apply,
     )
 
@@ -40,6 +42,8 @@ async def test_builds_every_index_on_a_new_database():
     assert cols["users"].indexes == USER_INDEXES
     assert cols["expression"].indexes == CARD_INDEXES
     assert cols["audio_words"].indexes == {(("expires_at",), False, False)}
+    assert cols["verb_practice"].indexes == {(("user_id", "infinitive"), True, False),
+                                             (("user_id", "updated_at"), False, False)}
 
 
 async def test_dry_run_builds_nothing():

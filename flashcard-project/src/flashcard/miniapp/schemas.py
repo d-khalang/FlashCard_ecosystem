@@ -4,17 +4,20 @@ results and carry exactly the fields the contract lists; stored documents never 
 """
 import re
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator
 
 from flashcard.app.collection import CollectionItem, ItemDetail
 from flashcard.app.quota import CARD_CREDITS, SECTION_CREDITS, QuotaExceeded
 from flashcard.app.study import Overview, StudyCard
+from flashcard.app import verb as verb_app
+from flashcard.app.verb import Drill
 from flashcard.language import LanguageConfig
 from flashcard.schemas.expression import ExpressionCard
 from flashcard.schemas.languages import LANGUAGE_DATA, LanguageLevel
 from flashcard.schemas.user import MAX_INTERVAL_MINUTES, MIN_INTERVAL_MINUTES, UserDB
+from flashcard.schemas.verbs import Match, Person, TenseId, Verb
 
 from typing import get_args
 
@@ -97,6 +100,11 @@ class Options(BaseModel):
     max_interval: int
 
 
+class Features(BaseModel):
+    # The Verbs tab: true when this bot's language has conjugation.
+    verbs: bool
+
+
 class MeOut(BaseModel):
     # The bot can send reminders: false for a Mini App user who has not started the bot chat.
     reminders_available: bool
@@ -105,6 +113,7 @@ class MeOut(BaseModel):
     quota: QuotaUsage
     words: Words
     options: Options
+    features: Features
 
 
 class CurrentOut(BaseModel):
@@ -189,6 +198,71 @@ class TooLong(BaseModel):
     limit: int
 
 
+class VerbsHomeItem(BaseModel):
+    infinitive: str
+    expression_id: str
+    meaning: Optional[str]
+
+
+class VerbsHome(BaseModel):
+    recent: list[str]
+    collection: list[VerbsHomeItem]
+
+
+class VerbSuggestions(BaseModel):
+    items: list[str]
+
+
+class LookupFound(BaseModel):
+    status: Literal["found"] = "found"
+    match: Match
+    # The conjugator's verb object, unchanged (docs/verbs/contract.md section 2).
+    verb: Verb
+    level_tenses: list[str]
+    meaning: Optional[str]
+    in_collection: bool
+
+
+class LookupNotFound(BaseModel):
+    status: Literal["not_found"] = "not_found"
+    query: str
+    suggestions: list[str]
+
+
+class LookupInvalid(BaseModel):
+    status: Literal["invalid"] = "invalid"
+    query: str
+
+
+class AcceptedOut(BaseModel):
+    text: str
+    note: Optional[Literal["feminine", "variant"]]
+
+
+class StemHint(BaseModel):
+    kind: Literal["irregular_stem"] = "irregular_stem"
+    stem: str
+
+
+class FormHint(BaseModel):
+    kind: Literal["irregular_form"] = "irregular_form"
+
+
+class DrillItemOut(BaseModel):
+    person: Person
+    primary: str
+    accepted: list[AcceptedOut]
+    accepted_plain: list[str]
+    hint: Union[StemHint, FormHint, None]
+
+
+class DrillOut(BaseModel):
+    infinitive: str
+    tense_id: str
+    strip_prefixes: list[str]
+    items: list[DrillItemOut]
+
+
 # ---- requests ------------------------------------------------------------------------------------
 
 class _Request(BaseModel):
@@ -230,6 +304,14 @@ class SaveIn(_Request):
 class ImportIn(_Request):
     # The use case answers `too_long` above its own limit; this only bounds the request itself.
     text: StrictStr = Field(min_length=1, max_length=5000)
+
+
+class PracticeIn(_Request):
+    infinitive: StrictStr = Field(min_length=1, max_length=60)
+    tense_id: TenseId
+    score: StrictInt = Field(ge=0, le=6)
+    out_of: StrictInt = Field(ge=1, le=6)
+    missed: list[Person] = Field(max_length=6)
 
 
 class SettingsPatch(_Request):
@@ -307,6 +389,7 @@ def me_out(overview: Overview, language: LanguageConfig) -> MeOut:
             min_interval=MIN_INTERVAL_MINUTES,
             max_interval=MAX_INTERVAL_MINUTES,
         ),
+        features=Features(verbs=language.conjugation),
     )
 
 
@@ -321,3 +404,21 @@ def detail_out(detail: ItemDetail) -> CollectionDetail:
         content=content_out(detail.card) if detail.card is not None else None,
         generated_at=detail.generated_at,
     )
+
+
+def drill_out(drill: Drill) -> DrillOut:
+    return DrillOut(
+        infinitive=drill.infinitive, tense_id=drill.tense_id, strip_prefixes=drill.strip_prefixes,
+        items=[DrillItemOut(
+            person=item.person, primary=item.primary,
+            accepted=[AcceptedOut(text=a.text, note=a.note) for a in item.accepted],
+            accepted_plain=item.accepted_plain,
+            hint=_hint_out(item.hint),
+        ) for item in drill.items],
+    )
+
+
+def _hint_out(hint: Optional[verb_app.Hint]) -> Union[StemHint, FormHint, None]:
+    if isinstance(hint, verb_app.StemHint):
+        return StemHint(stem=hint.stem)
+    return FormHint() if isinstance(hint, verb_app.FormHint) else None

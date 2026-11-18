@@ -54,6 +54,14 @@ class ExpressionPage:
     next_cursor: Optional[str]
 
 
+@dataclass(frozen=True)
+class WordMeaning:
+    """A one-word card and the first translation of its stored card (None before one exists)."""
+    id: str
+    value: str
+    meaning: Optional[str]
+
+
 class InvalidCursor(ValueError):
     """A list cursor this service did not issue."""
 
@@ -226,6 +234,30 @@ class ExpressionService:
             if doc.get("value"):
                 values.setdefault(doc["value"], None)
         return list(values)
+
+    async def single_words(self, user_id: UserId) -> list[WordMeaning]:
+        """The user's active one-word cards, newest first, with their meaning (the Verbs page's collection)."""
+        cursor = self.expressions.find(
+            {"user_id": stored_user_id(user_id), "status": ACTIVE},
+            {"value": 1, "last_card.card.translations": 1},
+        ).sort("_id", -1)
+        words = []
+        async for doc in cursor:
+            value = doc.get("value")
+            if isinstance(value, str) and value.strip() and len(value.split()) == 1:
+                words.append(WordMeaning(id=str(doc["_id"]), value=value.strip(), meaning=_first_translation(doc)))
+        return words
+
+    async def find_word(self, user_id: UserId, value: str) -> Optional[WordMeaning]:
+        """The user's active card with this value (ignoring case), with its meaning; None if there is none."""
+        doc = await self.expressions.find_one(
+            {"user_id": stored_user_id(user_id), "status": ACTIVE,
+             "value": {"$regex": f"^{re.escape(value)}$", "$options": "i"}},
+            {"value": 1, "last_card.card.translations": 1},
+        )
+        if doc is None:
+            return None
+        return WordMeaning(id=str(doc["_id"]), value=doc["value"], meaning=_first_translation(doc))
 
     async def remove_expression(self, user_id: UserId, expression_id: str) -> bool:
         """
@@ -535,6 +567,15 @@ def _validate_grade(grade: int, direction: str) -> None:
         raise ValueError(f"grade must be an integer {MIN_GRADE}-{MAX_GRADE}, got {grade!r}")
     if direction not in get_args(Direction):
         raise ValueError(f"direction must be one of {get_args(Direction)}, got {direction!r}")
+
+
+def _first_translation(doc: dict) -> Optional[str]:
+    """The text of the stored card's first translation line (the primary language), if readable."""
+    try:
+        text = doc["last_card"]["card"]["translations"][0]["text"]
+    except (KeyError, IndexError, TypeError):
+        return None
+    return text.strip() or None if isinstance(text, str) else None
 
 
 def _read(doc: dict) -> Optional[Expression]:

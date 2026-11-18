@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     MONGO_DB: str
     COLLECTION_USERS: str
     COLLECTION_EXPRESSION: str
+    # The old conjugation cache; only migrations.drop_conjugation_cache still reads it.
     COLLECTION_CONJUGATION: str
+    # Verbs page drill results (docs/verbs/contract.md section 5).
+    COLLECTION_VERB_PRACTICE: str = "verb_practice"
     # Fixed name in every database: scripts/backup.sh in kartino-deploy excludes it by this name.
     COLLECTION_AUDIO_WORDS: str = "audio_words"
     PORT: int = 8000
