@@ -16,6 +16,10 @@ FIXTURES = Path(__file__).resolve().parents[2] / "docs" / "verbs" / "fixtures"
 KNOWN_INFINITIVES = {"andare", "andarsene", "prendere", "svegliarsi", "essere", "fare", "potere", "uscire"}
 
 
+# A query our rule accepts but the fake conjugator refuses with 400 (the two rules drifting apart).
+REFUSED_QUERY = "rifiutato"
+
+
 def load(name: str) -> Any:
     """A fixture by its path under docs/verbs/fixtures, e.g. "conjugator/conjugate-vado.json"."""
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
@@ -45,6 +49,8 @@ def fake_conjugator(*, broken: bool = False) -> FakeHTTPClient:
         return FakeHTTPClient(FakeHTTPResponse(500, {"detail": "boom"}))
 
     def conjugate(params: dict) -> FakeHTTPResponse:
+        if params.get("q") == REFUSED_QUERY:
+            return FakeHTTPResponse(400, {"error": {"code": "invalid_query", "message": "Invalid query"}})
         if params.get("q") in ("andare", "vado", "andre"):
             return FakeHTTPResponse(200, andare_answer(params["q"]))
         return FakeHTTPResponse(404, load("conjugator/conjugate-not-found.json"))

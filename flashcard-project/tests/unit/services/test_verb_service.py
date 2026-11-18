@@ -4,11 +4,11 @@ VerbService: the conjugator v2 client (docs/verbs/contract.md section 3), over t
 import pytest
 
 from flashcard.schemas.verbs import (
-    TENSE_IDS, Conjugation, Infinitives, InfinitivesRequest, Suggestions, VerbNotFound,
+    TENSE_IDS, Conjugation, Infinitives, InfinitivesRequest, InvalidQuery, Suggestions, VerbNotFound,
 )
 from flashcard.services.verb import ConjugatorError, ScraperConfig, VerbService
 from tests.integration.helpers import FakeHTTPClient, FakeHTTPResponse
-from tests.verb_fixtures import fake_conjugator, fixture_names, load
+from tests.verb_fixtures import REFUSED_QUERY, fake_conjugator, fixture_names, load
 
 SCRAPER = ScraperConfig(url="http://conjugator", port=8080, api_key="test-key")
 MODELS = {
@@ -49,13 +49,15 @@ class TestQueryFormat:
         assert _service().is_valid_verb(query)
 
     @pytest.mark.parametrize("query", ["", "a b c d e", "x" * 61, "sono  andato", " vado", "vado ", "parl4re",
-                                       "<b>", "andare-ci", "a\tb", None])
+                                       "<b>", "andare-ci", "ñ", "señor", "möchte", "ça", "andare2", "a\tb", None])
     def test_invalid(self, query):
         assert not _service().is_valid_verb(query)
 
     def test_normalize_collapses_spaces_lowercases_and_uses_the_plain_apostrophe(self):
         assert VerbService.normalize("  Me   NE\tvado ") == "me ne vado"
         assert VerbService.normalize("L’ho fatto") == "l'ho fatto"
+        assert VerbService.normalize("‘sto") == "'sto"
+        assert VerbService.normalize("perche" + chr(0x301)) == "perché"  # NFC
 
 
 class TestConjugate:
@@ -73,6 +75,11 @@ class TestConjugate:
         answer = await _service().conjugate("qwerty")
 
         assert isinstance(answer, VerbNotFound) and answer.error.code == "verb_not_found"
+
+    async def test_a_400_is_an_invalid_query_not_an_error(self):
+        answer = await _service().conjugate(REFUSED_QUERY)
+
+        assert isinstance(answer, InvalidQuery) and answer.error.code == "invalid_query"
 
     async def test_a_server_error_raises(self):
         with pytest.raises(ConjugatorError):

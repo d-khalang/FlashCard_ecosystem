@@ -134,6 +134,11 @@ class VerbNotFound(BaseModel):
     suggestions: list[str]
 
 
+class InvalidQuery(BaseModel):
+    """400 of GET /v2/conjugate: the query breaks the valid-query rule (contract section 2)."""
+    error: ErrorBody
+
+
 class Suggestions(BaseModel):
     """200 of GET /v2/suggest."""
     items: list[str]

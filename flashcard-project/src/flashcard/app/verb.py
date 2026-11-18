@@ -14,7 +14,9 @@ from dataclasses import dataclass
 from typing import Literal, Optional, Union
 
 from flashcard.schemas.user import UserId
-from flashcard.schemas.verbs import PERSONS, TENSE_IDS, Conjugation, Form, Match, Person, Verb
+from flashcard.schemas.verbs import (
+    PERSONS, TENSE_IDS, Conjugation, Form, InvalidQuery, Match, Person, Verb, VerbNotFound,
+)
 from flashcard.services.consumption import ConsumptionService
 from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
@@ -93,7 +95,7 @@ class NotFound:
     suggestions: list[str]
 
 
-LookupResult = Union[Found, NotFound]
+LookupResult = Union[Found, NotFound, InvalidVerb]
 
 
 @dataclass(frozen=True)
@@ -218,6 +220,8 @@ class VerbUseCases:
         if self.parse(query) != query:
             raise ValueError(f"Not a parsed verb: {query!r}")
         answer = await self.verbs.conjugate(query)
+        if isinstance(answer, InvalidQuery):
+            return InvalidVerb(verb=query)
         if not isinstance(answer, Conjugation):
             return NotFound(query=query, suggestions=answer.suggestions)
 
@@ -233,7 +237,8 @@ class VerbUseCases:
         """An already shown verb again (bot navigation); not counted, not recorded."""
         answer = await self.verbs.conjugate(infinitive)
         if not isinstance(answer, Conjugation):
-            return NotFound(query=infinitive, suggestions=answer.suggestions)
+            suggestions = answer.suggestions if isinstance(answer, VerbNotFound) else []
+            return NotFound(query=infinitive, suggestions=suggestions)
         return Conjugated(verb=answer.verb)
 
     async def home(self, user_id: UserId) -> Home:

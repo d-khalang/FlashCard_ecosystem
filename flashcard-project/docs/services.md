@@ -227,9 +227,9 @@ a failed request or an answer outside the contract raises `ConjugatorError`.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `normalize` | `(query) → str` | Trim, collapse spaces, lowercase, `’` → `'`. |
-| `is_valid_verb` | `(query) → bool` | Up to 4 words of letters and apostrophes, single spaces, ≤ 60 characters. |
-| `conjugate` | `(query) → Conjugation \| VerbNotFound` | `GET /v2/conjugate`: match + verb, or 404 with suggestions. |
+| `normalize` | `(query) → str` | NFC, lowercase, trim, single spaces, `’`/`‘` → `'`. |
+| `is_valid_verb` | `(query) → bool` | The contract's valid-query rule: up to 4 words of `[a-zàáèéìíòóùú']`, single spaces, ≤ 60 characters. |
+| `conjugate` | `(query) → Conjugation \| VerbNotFound` | `GET /v2/conjugate`: match + verb, 404 with suggestions, or 400 (`InvalidQuery`, shown as invalid, never 503). |
 | `suggest` | `(prefix, limit=8) → list[str]` | `GET /v2/suggest`: infinitives by prefix. |
 | `infinitives` | `(words) → dict[str, str?]` | `POST /v2/infinitives` in batches of 500: infinitives only. |
 

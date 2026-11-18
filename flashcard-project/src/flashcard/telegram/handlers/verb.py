@@ -47,6 +47,8 @@ async def cmd_verb(message: Message, command: CommandObject, verb_use_cases: Ver
     if isinstance(result, Found):
         await status_msg.edit_text(text=format_verb_message(result.verb, verb),
                                    reply_markup=get_verb_keyboard(i18n, result.verb))
+    elif isinstance(result, InvalidVerb):
+        await status_msg.edit_text(text=i18n.get("commands.verb.invalid"), reply_markup=None)
     else:
         await status_msg.edit_text(text=error_text, reply_markup=None)
 

@@ -23,7 +23,7 @@ from flashcard.telegram.ui.verb import format_verb_conjugation, format_verb_mess
 from tests.helpers import TEST_I18N as i18n
 from tests.helpers import TEST_LANGUAGE
 from tests.integration.helpers import make_cols
-from tests.verb_fixtures import fake_conjugator, load
+from tests.verb_fixtures import REFUSED_QUERY, fake_conjugator, load
 
 USER_ID = 999
 VERB = Conjugation.model_validate(load("conjugator/conjugate-vado.json")).verb
@@ -115,7 +115,7 @@ class TestVerbLookup:
         assert _sent(message) == [i18n.get("commands.verb.instruction")]
         assert d.http.calls == []
 
-    @pytest.mark.parametrize("text", ["/verb io non sono mai andato", "/verb parl4re", "/verb <b>"])
+    @pytest.mark.parametrize("text", ["/verb io non sono mai andato", "/verb parl4re", "/verb <b>", "/verb ñ"])
     async def test_invalid_verb_is_rejected_without_lookup(self, text):
         d = _deps()
         message, _ = await _run(d, text=text)
@@ -153,6 +153,14 @@ class TestVerbFailures:
 
         assert _sent(message) == [i18n.get("commands.verb.searching", verb="qwerty")]
         status.edit_text.assert_awaited_once_with(text=i18n.get("commands.verb.api_error"), reply_markup=None)
+        assert _lookups(d) == 0
+
+    async def test_a_conjugator_400_shows_the_invalid_message_without_alerting(self):
+        d = _deps()
+        message, status = await _run(d, text=f"/verb {REFUSED_QUERY}")
+
+        status.edit_text.assert_awaited_once_with(text=i18n.get("commands.verb.invalid"), reply_markup=None)
+        d.logger_bot.send_message.assert_not_awaited()
         assert _lookups(d) == 0
 
     async def test_lookup_error_notifies_admin_and_replaces_searching_with_error(self):

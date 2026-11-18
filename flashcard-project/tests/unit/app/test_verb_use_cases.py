@@ -21,7 +21,7 @@ from flashcard.services.verb import ScraperConfig, VerbService
 from flashcard.services.verb_practice import VerbPracticeService
 from tests.helpers import TEST_LANGUAGE
 from tests.integration.helpers import FakeHTTPClient, FakeHTTPResponse, make_cols
-from tests.verb_fixtures import fake_conjugator, load
+from tests.verb_fixtures import REFUSED_QUERY, fake_conjugator, load
 
 USER = 7
 SCRAPER = ScraperConfig(url="http://conjugator", port=8080, api_key="k")
@@ -64,7 +64,7 @@ class TestParse:
     def test_nothing_is_no_verb(self, text):
         assert _setup()[0].parse(text) == NoVerb()
 
-    @pytest.mark.parametrize("text", ["123", "a b c d e", "x" * 61, "<b>"])
+    @pytest.mark.parametrize("text", ["123", "a b c d e", "x" * 61, "<b>", "ñ", "señor"])
     def test_invalid_keeps_what_was_typed(self, text):
         assert _setup()[0].parse(text) == InvalidVerb(verb=text.strip())
 
@@ -130,6 +130,12 @@ class TestLookup:
         result = await use_cases.lookup(USER, "qwerty")
 
         assert result == NotFound(query="qwerty", suggestions=[])
+        assert "verbs_recent" not in _user(cols) and "consumption" not in _user(cols)
+
+    async def test_a_conjugator_400_is_invalid_and_neither_recorded_nor_counted(self):
+        use_cases, cols = _setup()
+
+        assert await use_cases.lookup(USER, REFUSED_QUERY) == InvalidVerb(verb=REFUSED_QUERY)
         assert "verbs_recent" not in _user(cols) and "consumption" not in _user(cols)
 
     async def test_an_unparsed_query_is_refused(self):

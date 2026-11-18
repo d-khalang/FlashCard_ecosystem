@@ -4,10 +4,11 @@ The client of our conjugator (it-conjugator-api, v2 routes; docs/verbs/contract.
 The conjugator is our own offline service, so nothing is cached here: every lookup asks it.
 """
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional, Union
 
-from flashcard.schemas.verbs import Conjugation, Infinitives, Suggestions, VerbNotFound
+from flashcard.schemas.verbs import Conjugation, Infinitives, InvalidQuery, Suggestions, VerbNotFound
 from flashcard.utils.logger import get_logger
 from flashcard.utils.tracing import observe
 
@@ -40,9 +41,9 @@ class ScraperConfig:
 
 
 class VerbService:
-    # Up to four words of letters and apostrophes, single spaces between them
-    # ("vado", "sono andato", "me ne vado", "l'ho fatto").
-    _WORD = r"[A-Za-zÀ-ÖØ-öø-ÿ']+"
+    # The contract's valid-query rule (section 2), the same as the conjugator's: up to four words of
+    # Italian letters and apostrophes, single spaces ("vado", "sono andato", "me ne vado", "l'ho fatto").
+    _WORD = r"[a-zàáèéìíòóùú']+"
     REGEX_VERB = rf"^{_WORD}(?: {_WORD}){{0,{MAX_QUERY_WORDS - 1}}}$"
 
     def __init__(self, http_client=None, scraper: Optional[ScraperConfig] = None):
@@ -52,8 +53,9 @@ class VerbService:
 
     @staticmethod
     def normalize(query: str) -> str:
-        """Trim, collapse whitespace, lowercase, and use the plain apostrophe."""
-        return " ".join(query.replace("’", "'").split()).lower()
+        """NFC, lowercase, trim, single spaces, ’/‘ -> ' (contract section 2)."""
+        text = unicodedata.normalize("NFC", query).replace("’", "'").replace("‘", "'")
+        return " ".join(text.split()).lower()
 
     def is_valid_verb(self, query: str) -> bool:
         """
@@ -76,7 +78,7 @@ class VerbService:
         return {"X-API-Key": self._config().api_key}
 
     @observe(name="VerbService.conjugate")
-    async def conjugate(self, query: str) -> Union[Conjugation, VerbNotFound]:
+    async def conjugate(self, query: str) -> Union[Conjugation, VerbNotFound, InvalidQuery]:
         """The verb a query (infinitive or any form) belongs to, or why there is none."""
         url = self._url("/v2/conjugate")
         try:
@@ -85,6 +87,10 @@ class VerbService:
             raise ConjugatorError(f"conjugate request failed: {type(e).__name__}") from e
         if res.status_code == 404:
             return self._read(VerbNotFound, res, "conjugate")
+        if res.status_code == 400:
+            # Our rule matches the conjugator's, so this should not happen; it is the user's input, not an outage.
+            logger.warning("The conjugator refused a query that passed our check")
+            return self._read(InvalidQuery, res, "conjugate")
         if res.status_code != 200:
             raise ConjugatorError(f"conjugate answered {res.status_code}")
         return self._read(Conjugation, res, "conjugate")

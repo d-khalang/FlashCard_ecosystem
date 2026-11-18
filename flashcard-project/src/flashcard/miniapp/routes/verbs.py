@@ -66,6 +66,8 @@ async def lookup(
     if isinstance(result, Found):
         return LookupFound(match=result.match, verb=result.verb, level_tenses=result.level_tenses,
                            meaning=result.meaning, in_collection=result.in_collection)
+    if isinstance(result, InvalidVerb):
+        return LookupInvalid(query=q.strip())
     return LookupNotFound(query=result.query, suggestions=result.suggestions)
 
 

@@ -17,7 +17,7 @@ from flashcard.settings import get_setting
 from tests.helpers import TEST_LANGUAGE
 from tests.integration.helpers import make_cols
 from tests.integration.study_helpers import auth_header
-from tests.verb_fixtures import fake_conjugator, load, same_shape
+from tests.verb_fixtures import REFUSED_QUERY, fake_conjugator, load, same_shape
 
 USER = 42
 
@@ -76,7 +76,7 @@ class TestLookup:
         _shape(response, "miniapp/lookup-not-found.json")
         assert response.json() == load("miniapp/lookup-not-found.json")
 
-    @pytest.mark.parametrize("q", ["123", "", "a b c d e"])
+    @pytest.mark.parametrize("q", ["123", "", "a b c d e", "ñ"])
     async def test_invalid(self, env, q):
         _, _, client = env()
         async with client:
@@ -84,6 +84,14 @@ class TestLookup:
 
         _shape(response, "miniapp/lookup-invalid.json")
         assert response.json() == {"status": "invalid", "query": q}
+
+    async def test_a_conjugator_400_is_invalid_not_503(self, env):
+        _, _, client = env()
+        async with client:
+            response = await _get(client, f"/lookup?q={REFUSED_QUERY}")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "invalid", "query": REFUSED_QUERY}
 
     async def test_conjugator_down_is_503_in_the_error_shape(self, env):
         _, _, client = env(http=fake_conjugator(broken=True))
