@@ -96,10 +96,15 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
             yield
         finally:
             if polling:
-                polling.cancel()
+                # Stop through aiogram, not by cancelling: a cancel that lands while start_polling
+                # waits skips its own cleanup and leaves the inner polling task running. If polling
+                # has not really started yet, the time limit cancels it instead.
+                if not polling.done():
+                    with contextlib.suppress(RuntimeError, TimeoutError):
+                        await asyncio.wait_for(dispatcher.stop_polling(), timeout=10)
                 # A polling failure was logged when it happened; it must not stop the shutdown.
                 with contextlib.suppress(asyncio.CancelledError, Exception):
-                    await polling
+                    await asyncio.wait_for(polling, timeout=10)
             # The webhook stays: the real bot replaces it when it starts again.
             await bot.session.close()
 

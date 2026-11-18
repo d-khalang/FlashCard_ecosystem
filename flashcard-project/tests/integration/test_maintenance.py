@@ -95,6 +95,35 @@ def test_polling_that_dies_at_start_makes_the_stand_in_unhealthy():
         assert client.get("/health").status_code == 503
 
 
+def test_shutdown_stops_a_running_polling_bot(caplog):
+    # The fake Telegram knows the bot but has no getUpdates: aiogram keeps retrying, so polling
+    # is running when the app stops. Shutdown must stop aiogram's own polling, not leave it behind.
+    # It must stop before the session closes: a polling task left behind would reopen it.
+    bot, session = make_bot()
+    events = []
+
+    async def close():
+        events.append("session closed")
+
+    session.close = close
+
+    class _Record(logging.Handler):
+        def emit(self, record):
+            if record.getMessage().startswith("Polling stopped for bot"):
+                events.append("polling stopped")
+
+    handler = _Record()
+    aiogram_log = logging.getLogger("aiogram.dispatcher")
+    aiogram_log.addHandler(handler)
+    caplog.set_level(logging.INFO, logger="aiogram.dispatcher")
+    try:
+        with TestClient(create_app(_settings("polling"), bot=bot)) as client:
+            time.sleep(0.2)
+            assert client.get("/health/ready").status_code == 200
+    finally:
+        aiogram_log.removeHandler(handler)
+    assert events[:2] == ["polling stopped", "session closed"]
+
 def test_the_session_closes_when_telegram_is_unreachable_at_start():
     bot, session = make_bot()
     closed = []
