@@ -29,11 +29,18 @@ Required checks on `main`: `unit-tests`, `miniapp`, `browser-tests`,
 `docker-build-check`, `lint`, `types` and `claude-review` (from `review.yml`).
 `audit` runs on every pull request and release candidate but is not required, so a
 newly published vulnerability does not block unrelated pull requests.
+`claude-review` always reports: it fails for fork and draft pull requests (Claude does
+not review them; a skipped required check would count as passed) and passes with a
+notice for Dependabot (only when Dependabot itself pushed; a human push to its branch
+is reviewed). Merge a reviewed fork PR with an admin bypass. Claude has no shell: the
+workflow writes the diff and the base branch's `releasing.md` and workflows to `.review/`,
+and a change that weakens a workflow gate is blocking.
 
 Details:
 
 - **MongoDB**: tests need it. CI sets `KARTINO_REQUIRE_MONGO=1`, so a missing
   database fails the run instead of skipping tests (locally they skip). The service
+  has a health check, so steps start only once it answers a ping. The image
   is `mongo:7.0`, not 8.0: GitHub runners run Linux 6.19+, where MongoDB 8 refuses
   to start (SERVER-121912).
 - **Browser tests** set `KARTINO_REQUIRE_BROWSER=1`; failures upload screenshots
@@ -58,6 +65,8 @@ Details:
 
 - `flashcard-project/requirements.txt`: locked runtime dependencies, with hashes.
 - `flashcard-project/requirements-dev.txt`: the same plus the `dev` extra.
+- `flashcard-project/requirements-tools.txt` (from `requirements-tools.in`): the `audit`
+  job's own tools, uv and pip-audit, hashed the same way.
 - CI and both Dockerfiles install with `pip install --require-hashes -r ...`, then
   `pip install --no-deps` for the project itself.
 - Python 3.12, all platforms (`--universal`).
@@ -70,9 +79,11 @@ Regenerate after changing dependencies in `pyproject.toml` (needs
 ```bash
 uv pip compile pyproject.toml --universal --python-version 3.12 --generate-hashes -o requirements.txt
 uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 --generate-hashes -o requirements-dev.txt
+uv pip compile requirements-tools.in --universal --python-version 3.12 --generate-hashes -o requirements-tools.txt
 ```
 
-To upgrade everything, add `--upgrade` to both commands.
+To upgrade everything, add `--upgrade` to the first two commands. To move uv or pip-audit,
+edit the version in `requirements-tools.in` and run the third.
 
 The Mini App uses `miniapp/package-lock.json` (`npm ci`).
 
@@ -87,8 +98,8 @@ comment. Dependabot proposes digest bumps within the same tag. The conjugator im
 
 The `audit` job fails the build on:
 
-- `pip-audit` on `requirements.txt` (runtime packages): any known vulnerability.
-  It has no severity filter.
+- `pip-audit` on `requirements.txt`, `requirements-dev.txt` and `requirements-tools.txt`
+  (runtime, test and CI tool packages): any known vulnerability. It has no severity filter.
 - `npm audit --omit=dev --audit-level=high` in `miniapp/`: production packages,
   high and above.
 
@@ -104,7 +115,7 @@ like any other pull request; CI decides.
   Python or Node version is changed by hand, after checking the packages support it.
 - **Python packages** are not updated by Dependabot: it rewrites the lock files with
   its own tool, and the `audit` job then fails because they differ from the output
-  of `uv pip compile`. Upgrade them with the `--upgrade` commands under "Lock files".
+  of `uv pip compile`. Upgrade them with the `--upgrade` commands under "Reproducible installs".
   Dependabot alerts for Python packages still appear in the repository's Security tab.
 
 ## Container Releases

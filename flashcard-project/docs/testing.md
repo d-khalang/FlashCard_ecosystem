@@ -5,8 +5,13 @@ The FlashCard project uses **pytest** with **pytest-asyncio** for testing. The s
 ## Quick Start
 
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+# Install the locked dev dependencies, exactly as CI does
+pip install --require-hashes -r requirements-dev.txt
+pip install --no-deps -e .
+
+# Static checks CI gates on
+ruff check src tests dev
+mypy
 
 # Run all tests
 pytest tests/ -v --tb=short
@@ -49,7 +54,7 @@ python -m playwright install webkit chromium
 pytest tests/browser -q
 ```
 
-Locally, a missing database, build or browser skips these tests; CI sets `KARTINO_REQUIRE_MONGO=1` and `KARTINO_REQUIRE_BROWSER=1` so they fail instead. A failing browser test leaves a screenshot and a Playwright trace in `tests/browser/.artifacts/` (CI uploads them); open a trace with `python -m playwright show-trace <file>.zip`.
+Locally, a missing database, build or browser skips these tests; CI sets `KARTINO_REQUIRE_MONGO=1` and `KARTINO_REQUIRE_BROWSER=1` so they fail instead. Set the same two variables locally before calling a change verified, so a stopped database or a missing build shows up as a failure, not a skip. A failing browser test leaves a screenshot and a Playwright trace in `tests/browser/.artifacts/` (CI uploads them); open a trace with `python -m playwright show-trace <file>.zip`.
 
 ## Live Contract Tests
 

@@ -98,6 +98,32 @@ def test_a_final_release_reuses_the_verified_candidates_images():
     assert "org.opencontainers.image.version=${{ needs.version.outputs.base }}" in metadata["with"]["labels"]
 
 
+
+def test_review_gate_blocks_unless_claude_reviewed():
+    """claude-review is the required check: it may pass only after Claude's review, or for Dependabot."""
+    import yaml
+
+    review = yaml.safe_load((ROOT / ".github" / "workflows" / "review.yml").read_text(encoding="utf-8"))
+    analyse, gate = review["jobs"]["analyse"], review["jobs"]["claude-review"]
+
+    # Always reports: a skipped required check would count as passed.
+    assert gate["needs"] == "analyse" and gate["if"] == "${{ !cancelled() }}"
+    script = gate["steps"][-1]["run"]
+    skipped = script.split('if [ "$ANALYSE_RESULT" = "skipped" ]; then', 1)[1].split("\nfi\n", 1)[0]
+    assert skipped.count("exit 0") == 1  # only Dependabot passes unreviewed ...
+    assert '[ "$AUTHOR" = "dependabot[bot]" ] && [ "$ACTOR" = "dependabot[bot]" ]' in skipped  # ... and only its own pushes
+    assert "!(github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]')" in analyse["if"]
+    assert 'exit "$status"' in script and "status=1" in script
+
+    # Claude has no write token and no shell; it reads the base branch's rules and workflows.
+    assert analyse["permissions"] == {"contents": "read", "pull-requests": "read"}
+    claude = [step for step in analyse["steps"] if step.get("id") == "claude"][0]
+    assert '--allowedTools "Read,Grep,Glob"' in claude["with"]["claude_args"]
+    assert "Bash," in claude["with"]["claude_args"].split("--disallowedTools", 1)[1]
+    assert "git archive HEAD^1" in "\n".join(step.get("run", "") for step in analyse["steps"])
+    assert ".review/base/.github/workflows/" in claude["with"]["prompt"]
+
+
 def test_public_repo_has_no_production_deploy_workflow():
     assert not (ROOT / ".github" / "workflows" / "deploy.yml").exists()
 
