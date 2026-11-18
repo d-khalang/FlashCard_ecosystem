@@ -88,8 +88,11 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
                                       allowed_updates=allowed_updates)
             else:
                 await bot.delete_webhook(drop_pending_updates=False)
+                # handle_as_tasks=False: each reply runs inside the polling task, so stopping
+                # polling also waits for a reply in flight before the session closes.
                 polling = asyncio.create_task(
-                    dispatcher.start_polling(bot, allowed_updates=allowed_updates, handle_signals=False))
+                    dispatcher.start_polling(bot, allowed_updates=allowed_updates, handle_signals=False,
+                                             handle_as_tasks=False))
                 polling.add_done_callback(_log_polling_end)
                 polling_task.append(polling)
             logger.info("Maintenance bot running (%s): every update gets the maintenance note", mode)
@@ -97,11 +100,15 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
         finally:
             if polling:
                 # Stop through aiogram, not by cancelling: a cancel that lands while start_polling
-                # waits skips its own cleanup and leaves the inner polling task running. If polling
-                # has not really started yet, the time limit cancels it instead.
+                # waits skips its own cleanup and leaves the inner polling task running.
                 if not polling.done():
-                    with contextlib.suppress(RuntimeError, TimeoutError):
+                    try:
                         await asyncio.wait_for(dispatcher.stop_polling(), timeout=10)
+                    except RuntimeError:
+                        # Not started yet (shutdown right after startup): cancel before it starts.
+                        polling.cancel()
+                    except TimeoutError:
+                        polling.cancel()
                 # A polling failure was logged when it happened; it must not stop the shutdown.
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await asyncio.wait_for(polling, timeout=10)
