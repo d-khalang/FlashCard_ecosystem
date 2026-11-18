@@ -136,7 +136,7 @@ def drill(verb: dict, tense_id: str) -> dict:
         if not slot["forms"]:
             continue
         primary = next(f for f in slot["forms"] if f["primary"])
-        accepted = [{"text": f["text"].lower(), "note": None if f["primary"] or not f["tags"] else
+        accepted = [{"text": f["text"].lower(), "note": None if f["primary"] else
                      ("feminine" if "feminine" in f["tags"] else "variant")} for f in slot["forms"]]
         parts = primary["parts"]
         hint = None
