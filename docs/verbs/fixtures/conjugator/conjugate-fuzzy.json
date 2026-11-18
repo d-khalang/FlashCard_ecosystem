@@ -46,6 +46,7 @@
                   "clitic": null,
                   "stem": "vad",
                   "ending": "o",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": false
                 }
@@ -66,6 +67,7 @@
                   "clitic": null,
                   "stem": "va",
                   "ending": "i",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": false
                 }
@@ -86,6 +88,7 @@
                   "clitic": null,
                   "stem": "v",
                   "ending": "a",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": false
                 }
@@ -106,6 +109,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "iamo",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -126,6 +130,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "ate",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -146,6 +151,7 @@
                   "clitic": null,
                   "stem": "vanno",
                   "ending": "",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -174,6 +180,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "avo",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -194,6 +201,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "avi",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -214,6 +222,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "ava",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -234,6 +243,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "avamo",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -254,6 +264,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "avate",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -274,6 +285,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "avano",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -302,6 +314,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "ai",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -322,6 +335,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "asti",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -342,6 +356,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "ò",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -362,6 +377,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "ammo",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -382,6 +398,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "aste",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -402,6 +419,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "arono",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -430,6 +448,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "ò",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -450,6 +469,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "ai",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -470,6 +490,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "à",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -490,6 +511,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "emo",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -510,6 +532,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "ete",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -530,6 +553,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "anno",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -1478,6 +1502,7 @@
                   "clitic": null,
                   "stem": "vad",
                   "ending": "a",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -1498,6 +1523,7 @@
                   "clitic": null,
                   "stem": "vad",
                   "ending": "a",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -1518,6 +1544,7 @@
                   "clitic": null,
                   "stem": "vad",
                   "ending": "a",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -1538,6 +1565,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "iamo",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -1558,6 +1586,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "iate",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -1578,6 +1607,7 @@
                   "clitic": null,
                   "stem": "vad",
                   "ending": "ano",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -1606,6 +1636,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "assi",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -1626,6 +1657,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "assi",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -1646,6 +1678,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "asse",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -1666,6 +1699,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "assimo",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -1686,6 +1720,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "aste",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -1706,6 +1741,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "assero",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -2194,6 +2230,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "ei",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2214,6 +2251,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "esti",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2234,6 +2272,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "ebbe",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2254,6 +2293,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "emmo",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2274,6 +2314,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "este",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2294,6 +2335,7 @@
                   "clitic": null,
                   "stem": "andr",
                   "ending": "ebbero",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2552,6 +2594,7 @@
                   "clitic": null,
                   "stem": "va",
                   "ending": "i",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2567,6 +2610,7 @@
                   "clitic": null,
                   "stem": "va'",
                   "ending": "",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2587,6 +2631,7 @@
                   "clitic": null,
                   "stem": "vad",
                   "ending": "a",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }
@@ -2607,6 +2652,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "iamo",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -2627,6 +2673,7 @@
                   "clitic": null,
                   "stem": "and",
                   "ending": "ate",
+                  "enclitic": null,
                   "irregular_stem": false,
                   "irregular_ending": false
                 }
@@ -2647,6 +2694,7 @@
                   "clitic": null,
                   "stem": "vad",
                   "ending": "ano",
+                  "enclitic": null,
                   "irregular_stem": true,
                   "irregular_ending": true
                 }

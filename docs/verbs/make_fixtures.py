@@ -79,7 +79,7 @@ def split(tense_id: str, index: int, form: str) -> dict:
     ending = max(fits, key=len) if fits else ""
     stem = form[: len(form) - len(ending)]
     return {
-        "kind": "simple", "clitic": None, "stem": stem, "ending": ending,
+        "kind": "simple", "clitic": None, "stem": stem, "ending": ending, "enclitic": None,
         "irregular_stem": stem != STEM, "irregular_ending": ending != regular_ending,
     }
 
