@@ -94,7 +94,7 @@ def _sort_key(value: Any) -> tuple:
     return (_SORT_ORDER.get(_bson_type(value), 0), value if value is not None else 0)
 
 
-def _match_condition(field_value: Any, condition: Any) -> bool:
+def _match_condition(field_value: Any, condition: Any, fold: bool = False) -> bool:
     if isinstance(condition, dict):
         regex_flags = 0
         if "$options" in condition and "i" in str(condition["$options"]).lower():
@@ -139,16 +139,18 @@ def _match_condition(field_value: Any, condition: Any) -> bool:
                 raise NotImplementedError(f"Unsupported query operator: {op}")
         return True
 
+    if fold:  # a query collation of strength 2: plain equality ignores case
+        return _collation_fold(field_value) == _collation_fold(condition)
     return field_value == condition
 
 
-def _matches(doc: dict[str, Any], query: dict[str, Any]) -> bool:
+def _matches(doc: dict[str, Any], query: dict[str, Any], fold: bool = False) -> bool:
     for key, value in query.items():
         if key == "$or":
-            if not any(_matches(doc, branch) for branch in value):
+            if not any(_matches(doc, branch, fold) for branch in value):
                 return False
             continue
-        if not _match_condition(_get_nested(doc, key), value):
+        if not _match_condition(_get_nested(doc, key), value, fold):
             return False
     return True
 
@@ -233,9 +235,11 @@ class InMemoryCollection:
             if any(self._index_key(other, index) == key for other in self.docs):
                 raise DuplicateKeyError("E11000 duplicate key error")
 
-    async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None,
+                       collation=None) -> dict[str, Any] | None:
+        fold = collation is not None and collation.document.get("strength") in (1, 2)
         for doc in self.docs:
-            if _matches(doc, query):
+            if _matches(doc, query, fold):
                 result = _deepcopy_doc(doc)
                 if projection:
                     # Like MongoDB, the id comes along unless excluded.

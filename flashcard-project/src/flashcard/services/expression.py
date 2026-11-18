@@ -249,11 +249,14 @@ class ExpressionService:
         return words
 
     async def find_word(self, user_id: UserId, value: str) -> Optional[WordMeaning]:
-        """The user's active card with this value (ignoring case), with its meaning; None if there is none."""
+        """
+        The user's active card with this value, with its meaning; None if there is none. Same
+        sameness as the unique card index (VALUE_COLLATION: ignores case, not accents), which serves it.
+        """
         doc = await self.expressions.find_one(
-            {"user_id": stored_user_id(user_id), "status": ACTIVE,
-             "value": {"$regex": f"^{re.escape(value)}$", "$options": "i"}},
+            {"user_id": stored_user_id(user_id), "status": ACTIVE, "value": value},
             {"value": 1, "last_card.card.translations": 1},
+            collation=VALUE_COLLATION,
         )
         if doc is None:
             return None

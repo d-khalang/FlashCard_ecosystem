@@ -60,8 +60,8 @@ def plain(text: str) -> str:
 
 
 def _answer_text(text: str) -> str:
-    """An accepted answer as the client compares it: NFC, lowercase, plain apostrophe."""
-    return unicodedata.normalize("NFC", text).replace("’", "'").lower()
+    """An accepted answer as the client compares it: NFC, lowercase, ’ and ‘ as a plain apostrophe."""
+    return unicodedata.normalize("NFC", text).replace("’", "'").replace("‘", "'").lower()
 
 
 # ---- results ---------------------------------------------------------------------------------------
@@ -244,7 +244,9 @@ class VerbUseCases:
     async def home(self, user_id: UserId) -> Home:
         """Recent verbs and the user's cards that are verb infinitives (newest first)."""
         user = await self.users.get_user(user_id)
-        return Home(recent=list(user.verbs_recent), collection=await self._collection_verbs(user_id))
+        # Deduped on read: two lookups at once can leave a verb twice (remember_verb is two updates).
+        recent = list(dict.fromkeys(user.verbs_recent))
+        return Home(recent=recent, collection=await self._collection_verbs(user_id))
 
     async def _collection_verbs(self, user_id: UserId) -> list[CollectionVerb]:
         words = await self.expressions.single_words(user_id)

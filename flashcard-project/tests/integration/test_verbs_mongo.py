@@ -70,3 +70,18 @@ async def test_the_old_cache_is_never_touched(harness):
 
     db = harness.cols["users"].database
     assert "conjugation" not in await db.list_collection_names()
+
+
+async def test_the_card_is_found_with_the_card_index_collation(harness):
+    await harness.get("/me")
+    await harness.cols["expression"].insert_many([
+        {"user_id": stored_user_id(USER), "value": "Andare", "status": "active"},
+        {"user_id": stored_user_id(USER), "value": "fàre", "status": "active"},
+    ])
+
+    andare = (await harness.get("/verbs/lookup?q=andare")).json()
+    # A card that differs by an accent is another word (the unique index says so too).
+    core = harness.app.state.core
+    fare = await core.expression_service.find_word(USER, "fare")
+
+    assert andare["in_collection"] is True and fare is None

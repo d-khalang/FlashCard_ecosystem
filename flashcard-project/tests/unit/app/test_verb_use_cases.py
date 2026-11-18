@@ -9,7 +9,7 @@ from bson import ObjectId
 
 from flashcard.app.verb import (
     CORE_TENSES, Conjugated, Drill, StemHint, Found, InvalidPractice, InvalidVerb, NoSuchVerb, NotFound, NoVerb, Recorded,
-    VerbUseCases, level_tenses,
+    VerbUseCases, _answer_text, level_tenses,
 )
 from flashcard.miniapp.schemas import drill_out
 from flashcard.schemas.user import stored_user_id
@@ -82,6 +82,13 @@ class TestLookup:
         assert result.verb.model_dump(mode="json") == expected["verb"]
         assert set(result.level_tenses) == set(expected["level_tenses"])
         assert (result.meaning, result.in_collection) == ("to go", True)
+
+    async def test_the_card_matches_accents_exactly(self):
+        use_cases, _ = _setup(cards=[_card("andàre", "x")])
+
+        result = await use_cases.lookup(USER, "andare")
+
+        assert result.in_collection is False
 
     async def test_the_card_is_found_ignoring_case(self):
         use_cases, _ = _setup(cards=[_card("Andare")])
@@ -174,6 +181,12 @@ class TestLevelTenses:
 
 class TestHome:
 
+    async def test_a_duplicate_recent_verb_is_shown_once(self):
+        use_cases, cols = _setup()
+        _user(cols)["verbs_recent"] = ["andare", "andare", "fare", "andare"]
+
+        assert (await use_cases.home(USER)).recent == ["andare", "fare"]
+
     async def test_recent_and_collection_verbs_with_meanings(self):
         cards = [_card("prendere", "to take"), _card("letto", "bed"), _card("andare d'accordo", "to get along"),
                  _card("svegliarsi", "to wake up")]
@@ -219,6 +232,10 @@ class TestSuggest:
 
 
 class TestDrill:
+
+    @pytest.mark.parametrize("quote", ["’", "‘"])
+    def test_answers_use_the_plain_apostrophe(self, quote):
+        assert _answer_text(f"Va{quote}") == "va'"
 
     @pytest.mark.parametrize("tense_id, fixture", [
         ("indicativo-futuro_semplice", "miniapp/drill-andare-futuro_semplice.json"),
