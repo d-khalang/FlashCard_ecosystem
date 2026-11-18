@@ -289,8 +289,12 @@ jobs:
 
       - name: Audit Python dependencies
         working-directory: flashcard-project
-        # Runtime, test (pytest, Playwright, ...) and CI tool packages.
-        run: pip-audit -r requirements.txt -r requirements-dev.txt -r requirements-tools.txt --no-deps --disable-pip
+        # Runtime, test (pytest, Playwright, ...) and CI tool packages. One call per lock file:
+        # in one call, a package pinned differently in two files fails as a duplicate requirement.
+        run: |
+          pip-audit -r requirements.txt --no-deps --disable-pip
+          pip-audit -r requirements-dev.txt --no-deps --disable-pip
+          pip-audit -r requirements-tools.txt --no-deps --disable-pip
 
       - name: Audit Mini App production dependencies
         working-directory: miniapp
