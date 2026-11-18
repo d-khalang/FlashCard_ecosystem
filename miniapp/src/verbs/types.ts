@@ -50,10 +50,11 @@ export interface Auxiliary {
   note: string | null;
 }
 
+/** Each may be null (essere has no present participle). */
 export interface PrincipalForms {
-  gerund: string;
-  past_participle: string;
-  present_participle: string;
+  gerund: string | null;
+  past_participle: string | null;
+  present_participle: string | null;
 }
 
 export interface SimpleParts {
@@ -61,6 +62,8 @@ export interface SimpleParts {
   clitic: string | null;
   stem: string;
   ending: string;
+  /** Pronouns attached after the verb, mostly in imperatives: svegli|a|ti, v|a|ttene. */
+  enclitic: string | null;
   irregular_stem: boolean;
   irregular_ending: boolean;
 }

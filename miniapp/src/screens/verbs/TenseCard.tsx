@@ -107,7 +107,7 @@ function Irregular({ on, children }: { on: boolean; children: string }) {
 }
 
 /**
- * clitic + stem + ending (simple), or clitic + auxiliary + participle (compound). Joins exactly like the contract.
+ * clitic + stem + ending + enclitic (simple), or clitic + auxiliary + participle (compound). Joins exactly like the contract.
  * Only the stem (and the participle) is marked irregular: `irregular_ending` compares with the regular paradigm's
  * full ending (andrò vs andERò), which would mark every futuro ending of andare.
  */
@@ -134,6 +134,7 @@ function FormText({ form }: { form: Form }) {
           {p.ending}
         </span>
       ) : null}
+      {p.enclitic ?? ''}
     </>
   );
 }

@@ -111,6 +111,32 @@ describe('Verbs deck', () => {
   });
 });
 
+describe('Verbs deck parts', () => {
+  it('renders clitic + stem + ending + enclitic, and hides null principal forms', async () => {
+    const found = fixture<LookupFound>('lookup-vado.json');
+    found.verb.principal_forms.gerund = null;
+    const slot = found.verb.tenses.find((x) => x.id === 'imperativo-presente')!.slots[0]!;
+    slot.forms = [
+      {
+        text: 'vattene',
+        primary: true,
+        tags: [],
+        tts: 'vattene',
+        irregular: true,
+        parts: { kind: 'simple', clitic: null, stem: 'v', ending: 'a', enclitic: 'ttene', irregular_stem: true, irregular_ending: false },
+      },
+    ];
+    verbsApi({ lookup: async () => found });
+    await search('vado');
+    await screen.findByRole('toolbar', { name: 'Tenses' });
+    const imp = screen.getByRole('heading', { name: /Imperativo\s*Presente/ }).closest('section')!;
+    const form = within(imp).getByText('ttene', { exact: false }).closest<HTMLElement>('.slot-form')!;
+    expect(form.textContent).toBe('v (irregular)attene');
+    expect(within(form).getByText('a').className).toBe('form-ending');
+    expect(screen.getByText('to go · essere · andato')).toBeTruthy();
+  });
+});
+
 describe('Verbs drill', () => {
   it('runs a round, grades per contract and posts practice once', async () => {
     const verbs = verbsApi();

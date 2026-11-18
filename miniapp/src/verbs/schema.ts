@@ -65,7 +65,7 @@ const form = obj({
   tts: str,
   irregular: bool,
   parts: union(
-    obj({ kind: lit('simple'), clitic: nullable(str), stem: str, ending: str, irregular_stem: bool, irregular_ending: bool }),
+    obj({ kind: lit('simple'), clitic: nullable(str), stem: str, ending: str, enclitic: nullable(str), irregular_stem: bool, irregular_ending: bool }),
     obj({
       kind: lit('compound'),
       clitic: nullable(str),
@@ -81,7 +81,7 @@ export const verbSchema = obj({
   infinitive: str,
   pronominal: nullable(str),
   auxiliaries: arr(obj({ verb: auxVerb, primary: bool, note: nullable(str) })),
-  principal_forms: obj({ gerund: str, past_participle: str, present_participle: str }),
+  principal_forms: obj({ gerund: nullable(str), past_participle: nullable(str), present_participle: nullable(str) }),
   irregular: bool,
   data_version: str,
   tenses: arr(
