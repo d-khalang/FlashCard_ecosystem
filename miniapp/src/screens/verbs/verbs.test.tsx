@@ -240,10 +240,35 @@ describe('Verbs drill', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Drill this tense' }));
     const box = (await screen.findByLabelText('Your answer')) as HTMLInputElement;
     fireEvent.change(box, { target: { value: 'adr' } });
+    // Let every pending effect of the freshly mounted drill run: none may clear what was typed.
+    await act(async () => undefined);
+    expect(box.value).toBe('adr');
     box.setSelectionRange(1, 1);
     fireEvent.click(screen.getByRole('button', { name: 'Insert ò' }));
     expect(box.value).toBe('aòdr');
     expect(box.selectionStart).toBe(2);
+  });
+
+  it('keeps what is typed right after the drill appears (before its effects run)', async () => {
+    let resolve: (d: Drill) => void = () => undefined;
+    verbsApi({ drill: () => new Promise<Drill>((r) => (resolve = r)) });
+    await search('vado');
+    fireEvent.click(await screen.findByRole('button', { name: 'Drill this tense' }));
+    // Type in the first microtask after the input is committed, as a slow CI run can: passive effects come later.
+    const typed = new Promise<HTMLInputElement>((done) => {
+      const mo = new MutationObserver(() => {
+        const box = document.getElementById('drill-answer') as HTMLInputElement | null;
+        if (!box) return;
+        mo.disconnect();
+        fireEvent.change(box, { target: { value: 'andr' } });
+        done(box);
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    });
+    resolve(fixture<Drill>('drill-andare-futuro_semplice.json'));
+    const box = await typed;
+    await act(async () => undefined);
+    expect(box.value).toBe('andr');
   });
 });
 

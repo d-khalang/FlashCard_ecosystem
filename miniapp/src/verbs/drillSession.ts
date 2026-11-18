@@ -29,7 +29,8 @@ export type DrillAction =
   | { type: 'restart' };
 
 export function startDrill(drill: Drill, round: DrillItem[] = drill.items, retry = false): DrillState {
-  return { drill, round, index: 0, answers: [], phase: 'answer', retry };
+  // A new array each time, so every round (even a restart of a one-item drill) is a new round for the UI.
+  return { drill, round: [...round], index: 0, answers: [], phase: 'answer', retry };
 }
 
 export function drillReducer(state: DrillState, action: DrillAction): DrillState {

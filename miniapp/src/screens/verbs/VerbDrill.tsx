@@ -124,8 +124,13 @@ function DrillRun({ drill, onExit }: { drill: Drill; onExit: () => void }) {
   const answered = state.phase === 'feedback' ? state.answers[state.index] : undefined;
   const mood = moodOf(drill.tense_id);
 
-  // Clear the box for each new item.
-  useEffect(() => setInput(''), [state.index, state.round]);
+  // Clear the box when the item changes, during render: an effect would also run after mount, late enough
+  // (the drill mounts after a fetch) to wipe what was already typed.
+  const [shownItem, setShownItem] = useState({ index: state.index, round: state.round });
+  if (shownItem.index !== state.index || shownItem.round !== state.round) {
+    setShownItem({ index: state.index, round: state.round });
+    setInput('');
+  }
 
   // Keep focus in the box (and the keyboard up) across check, show and next, so Enter always works.
   useEffect(() => {
