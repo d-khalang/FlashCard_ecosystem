@@ -182,7 +182,8 @@ def main() -> None:
     write("miniapp/suggest-and.json", {"items": ["andare", "andarsene", "andicappare"]})
     write("miniapp/home.json", {"recent": ["essere", "fare", "potere", "uscire"], "collection": [
         {"infinitive": "prendere", "expression_id": "6735a1f0c2a4b1e0d9f00001", "meaning": "to take"},
-        {"infinitive": "svegliarsi", "expression_id": "6735a1f0c2a4b1e0d9f00002", "meaning": "to wake up"}]})
+        {"infinitive": "svegliarsi", "expression_id": "6735a1f0c2a4b1e0d9f00002", "meaning": "to wake up"},
+        {"infinitive": "dimenticare", "expression_id": "6735a1f0c2a4b1e0d9f00003", "meaning": None}]})
     write("miniapp/drill-andare-futuro_semplice.json", drill(verb, "indicativo-futuro_semplice"))
     write("miniapp/drill-andare-passato_prossimo.json", drill(verb, "indicativo-passato_prossimo"))
     write("miniapp/practice-request.json", {"infinitive": "andare", "tense_id": "indicativo-futuro_semplice",

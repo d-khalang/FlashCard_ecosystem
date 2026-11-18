@@ -100,7 +100,7 @@ v1 `/conjugate` stays until the bot moves to v2. Fixtures: `fixtures/conjugator/
 
 | Route | Answer | Fixture |
 |-------|--------|---------|
-| `GET /home` | `{"recent": [infinitive], "collection": [{"infinitive", "expression_id", "meaning"}]}` | `home.json` |
+| `GET /home` | `{"recent": [infinitive], "collection": [{"infinitive", "expression_id", "meaning": str or null}]}` (null: the saved card has no translation yet) | `home.json` |
 | `GET /suggest?q=` | `{"items": [infinitive]}`; own rate limit | `suggest-and.json` |
 | `GET /lookup?q=` | `{"status": "found", "match", "verb", "level_tenses": [tense_id], "meaning": str or null, "in_collection": bool}` · `{"status": "not_found", "query", "suggestions"}` · `{"status": "invalid", "query"}` | `lookup-*.json` |
 | `GET /{infinitive}/drill/{tense_id}` | Drill (below); 404 if the verb or tense doesn't exist | `drill-*.json` |
@@ -125,7 +125,7 @@ v1 `/conjugate` stays until the bot moves to v2. Fixtures: `fixtures/conjugator/
 ```
 
 Client grading (the whole algorithm; Italian rules stay on the server):
-1. `n` = input → NFC, lowercase, trim, collapse spaces, `’` → `'`.
+1. `n` = input → NFC, lowercase, trim, collapse spaces, `’` and `‘` → `'` (same as the server does for `accepted`).
 2. If `n` starts with one of `strip_prefixes` followed by a space, drop it (first match in list order).
 3. `n` in `accepted[].text` → **right** (show the note if not null). Else accents removed (NFD, drop U+0300–U+036F) in
    `accepted_plain` → **accent** (right, with "accent: {primary}"). Else **wrong**.
