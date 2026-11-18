@@ -215,6 +215,15 @@ class TestWithoutConjugation:
 
         assert response.status_code == 404
 
+    async def test_practice_is_404(self, env):
+        _, cols, client = env(language=replace(TEST_LANGUAGE, conjugation=False))
+        async with client:
+            response = await client.post("/api/v1/verbs/practice", json=load("miniapp/practice-request.json"),
+                                         headers=auth_header(USER))
+
+        assert response.status_code == 404
+        assert cols["verb_practice"].docs == []
+
     async def test_sign_in_is_required(self, env):
         _, _, client = env()
         async with client:
