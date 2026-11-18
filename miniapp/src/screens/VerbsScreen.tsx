@@ -17,9 +17,13 @@ export function VerbsScreen() {
   const [tense, setTense] = useState<TenseId | undefined>(undefined);
   const [drilling, setDrilling] = useState<TenseId | null>(null);
 
+  /** Bumped on every lookup, so a new result (even another form of the open verb) opens a fresh deck on its match. */
+  const [opened, setOpened] = useState(0);
+
   const open = useCallback((r: LookupFound) => {
     setTense(undefined);
     setFound(r);
+    setOpened((n) => n + 1);
   }, []);
   const back = useCallback(() => setFound(null), []);
   const endDrill = useCallback(() => setDrilling(null), []);
@@ -43,7 +47,7 @@ export function VerbsScreen() {
   return (
     <>
       <VerbDeck
-        key={found.verb.infinitive}
+        key={opened}
         result={found}
         tenseId={tense}
         onTenseChange={setTense}

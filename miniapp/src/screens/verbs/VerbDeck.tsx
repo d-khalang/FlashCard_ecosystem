@@ -54,6 +54,8 @@ export function VerbDeck({ result, tenseId, onTenseChange, onBack, onDrill, onLo
 
   useEffect(() => pushBackHandler(onBack), [onBack]);
   useEffect(() => () => window.clearTimeout(targetTimer.current), []);
+  const currentRef = useRef(current);
+  currentRef.current = current;
 
   const step = () => {
     const el = track.current;
@@ -79,6 +81,24 @@ export function VerbDeck({ result, tenseId, onTenseChange, onBack, onDrill, onLo
     scrollToIndex(current, 'auto');
     // Only on mount: later moves come from the user.
   }, []);
+
+  // Re-snap to the current card when the track's width changes (Telegram resizes the webview, phones rotate).
+  useEffect(() => {
+    const el = track.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    let width = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      // Scroll events from the old width must not move the rail.
+      target.current = currentRef.current;
+      window.clearTimeout(targetTimer.current);
+      targetTimer.current = window.setTimeout(() => (target.current = null), 300);
+      scrollToIndex(currentRef.current, 'auto');
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scrollToIndex]);
 
   useEffect(() => {
     const id = tenses[current]?.id;

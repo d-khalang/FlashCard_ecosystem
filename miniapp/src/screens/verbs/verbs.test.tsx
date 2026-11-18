@@ -114,6 +114,64 @@ describe('Verbs deck', () => {
   });
 });
 
+describe('Verbs deck reopening and resizing', () => {
+  it('moves to the new match when another form of the open verb is looked up', async () => {
+    const vado = fixture<LookupFound>('lookup-vado.json');
+    const andremo: LookupFound = {
+      ...fixture<LookupFound>('lookup-vado.json'),
+      match: { query: 'andremo', kind: 'form', slots: [{ tense_id: 'indicativo-futuro_semplice', person: '1p' }], candidates: [] },
+    };
+    // The deck's "Also:" link looks up while the deck stays on screen.
+    verbsApi({ lookup: async (q: string) => (q === 'andarsene' ? andremo : vado) });
+    await search('vado');
+    const rail = () => screen.getByRole('toolbar', { name: 'Tenses' });
+    await screen.findByRole('toolbar', { name: 'Tenses' });
+    expect(within(rail()).getByRole('button', { current: true }).getAttribute('aria-label')).toBe('Indicativo Presente, 1 of 15');
+
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'andarsene' })));
+    expect(within(rail()).getByRole('button', { current: true }).getAttribute('aria-label')).toBe('Indicativo Futuro semplice, 4 of 15');
+    const futuro = screen.getByRole('heading', { name: /Indicativo\s*Futuro semplice/ }).closest('section')!;
+    expect(futuro.querySelector('.slot.is-matched')?.textContent).toContain('noi');
+    const presente = screen.getByRole('heading', { name: /Indicativo\s*Presente/ }).closest('section')!;
+    expect(presente.querySelector('.slot.is-matched')).toBeNull();
+  });
+
+  it('re-snaps to the current card when the track width changes', async () => {
+    let onResize: () => void = () => undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: () => void) {
+          onResize = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const width = { value: 300 };
+    const slideWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(() => width.value);
+    const trackWidth = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => width.value);
+    try {
+      verbsApi();
+      await search('vado');
+      const rail = await screen.findByRole('toolbar', { name: 'Tenses' });
+      fireEvent.keyDown(rail, { key: 'ArrowRight' });
+      fireEvent.keyDown(rail, { key: 'ArrowRight' });
+      const track = document.querySelector<HTMLElement>('.deck-track')!;
+      expect(track.scrollLeft).toBe(600);
+
+      width.value = 500; // rotated
+      act(() => onResize());
+      expect(track.scrollLeft).toBe(1000);
+      expect(within(rail).getByRole('button', { current: true }).getAttribute('aria-label')).toBe('Indicativo Passato remoto, 3 of 15');
+    } finally {
+      slideWidth.mockRestore();
+      trackWidth.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe('Verbs deck parts', () => {
   it('renders clitic + stem + ending + enclitic, and hides null principal forms', async () => {
     const found = fixture<LookupFound>('lookup-vado.json');
