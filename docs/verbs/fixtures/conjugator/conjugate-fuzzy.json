@@ -1,0 +1,2660 @@
+{
+  "match": {
+    "query": "andre",
+    "kind": "fuzzy",
+    "slots": [],
+    "candidates": [
+      "andare",
+      "ardere"
+    ]
+  },
+  "verb": {
+    "infinitive": "andare",
+    "pronominal": null,
+    "auxiliaries": [
+      {
+        "verb": "essere",
+        "primary": true,
+        "note": null
+      }
+    ],
+    "principal_forms": {
+      "gerund": "andando",
+      "past_participle": "andato",
+      "present_participle": "andante"
+    },
+    "irregular": true,
+    "data_version": "2026-11-13",
+    "tenses": [
+      {
+        "id": "indicativo-presente",
+        "mood": "indicativo",
+        "tense": "presente",
+        "compound": false,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "vado",
+                "primary": true,
+                "tags": [],
+                "tts": "vado",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "vad",
+                  "ending": "o",
+                  "irregular_stem": true,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "vai",
+                "primary": true,
+                "tags": [],
+                "tts": "vai",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "va",
+                  "ending": "i",
+                  "irregular_stem": true,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "va",
+                "primary": true,
+                "tags": [],
+                "tts": "va",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "v",
+                  "ending": "a",
+                  "irregular_stem": true,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "andiamo",
+                "primary": true,
+                "tags": [],
+                "tts": "andiamo",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "iamo",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "andate",
+                "primary": true,
+                "tags": [],
+                "tts": "andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "ate",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "vanno",
+                "primary": true,
+                "tags": [],
+                "tts": "vanno",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "vanno",
+                  "ending": "",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "indicativo-imperfetto",
+        "mood": "indicativo",
+        "tense": "imperfetto",
+        "compound": false,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "andavo",
+                "primary": true,
+                "tags": [],
+                "tts": "andavo",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "avo",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "andavi",
+                "primary": true,
+                "tags": [],
+                "tts": "andavi",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "avi",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "andava",
+                "primary": true,
+                "tags": [],
+                "tts": "andava",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "ava",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "andavamo",
+                "primary": true,
+                "tags": [],
+                "tts": "andavamo",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "avamo",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "andavate",
+                "primary": true,
+                "tags": [],
+                "tts": "andavate",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "avate",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "andavano",
+                "primary": true,
+                "tags": [],
+                "tts": "andavano",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "avano",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "indicativo-passato_remoto",
+        "mood": "indicativo",
+        "tense": "passato_remoto",
+        "compound": false,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "andai",
+                "primary": true,
+                "tags": [],
+                "tts": "andai",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "ai",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "andasti",
+                "primary": true,
+                "tags": [],
+                "tts": "andasti",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "asti",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "andò",
+                "primary": true,
+                "tags": [],
+                "tts": "andò",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "ò",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "andammo",
+                "primary": true,
+                "tags": [],
+                "tts": "andammo",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "ammo",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "andaste",
+                "primary": true,
+                "tags": [],
+                "tts": "andaste",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "aste",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "andarono",
+                "primary": true,
+                "tags": [],
+                "tts": "andarono",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "arono",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "indicativo-futuro_semplice",
+        "mood": "indicativo",
+        "tense": "futuro_semplice",
+        "compound": false,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "andrò",
+                "primary": true,
+                "tags": [],
+                "tts": "andrò",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "ò",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "andrai",
+                "primary": true,
+                "tags": [],
+                "tts": "andrai",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "ai",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "andrà",
+                "primary": true,
+                "tags": [],
+                "tts": "andrà",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "à",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "andremo",
+                "primary": true,
+                "tags": [],
+                "tts": "andremo",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "emo",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "andrete",
+                "primary": true,
+                "tags": [],
+                "tts": "andrete",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "ete",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "andranno",
+                "primary": true,
+                "tags": [],
+                "tts": "andranno",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "anno",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "indicativo-passato_prossimo",
+        "mood": "indicativo",
+        "tense": "passato_prossimo",
+        "compound": true,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "sono andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sono andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sono",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sono andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sono andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sono",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "sei andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sei andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sei",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sei andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sei andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sei",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "è andato",
+                "primary": true,
+                "tags": [],
+                "tts": "è andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "è",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "è andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "è andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "è",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "siamo andati",
+                "primary": true,
+                "tags": [],
+                "tts": "siamo andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siamo",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "siamo andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "siamo andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siamo",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "siete andati",
+                "primary": true,
+                "tags": [],
+                "tts": "siete andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siete",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "siete andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "siete andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siete",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "sono andati",
+                "primary": true,
+                "tags": [],
+                "tts": "sono andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sono",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sono andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sono andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sono",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "indicativo-trapassato_prossimo",
+        "mood": "indicativo",
+        "tense": "trapassato_prossimo",
+        "compound": true,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "ero andato",
+                "primary": true,
+                "tags": [],
+                "tts": "ero andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "ero",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "ero andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "ero andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "ero",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "eri andato",
+                "primary": true,
+                "tags": [],
+                "tts": "eri andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "eri",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "eri andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "eri andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "eri",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "era andato",
+                "primary": true,
+                "tags": [],
+                "tts": "era andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "era",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "era andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "era andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "era",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "eravamo andati",
+                "primary": true,
+                "tags": [],
+                "tts": "eravamo andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "eravamo",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "eravamo andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "eravamo andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "eravamo",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "eravate andati",
+                "primary": true,
+                "tags": [],
+                "tts": "eravate andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "eravate",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "eravate andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "eravate andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "eravate",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "erano andati",
+                "primary": true,
+                "tags": [],
+                "tts": "erano andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "erano",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "erano andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "erano andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "erano",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "indicativo-trapassato_remoto",
+        "mood": "indicativo",
+        "tense": "trapassato_remoto",
+        "compound": true,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "fui andato",
+                "primary": true,
+                "tags": [],
+                "tts": "fui andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fui",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fui andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fui andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fui",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "fosti andato",
+                "primary": true,
+                "tags": [],
+                "tts": "fosti andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fosti",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fosti andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fosti andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fosti",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "fu andato",
+                "primary": true,
+                "tags": [],
+                "tts": "fu andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fu",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fu andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fu andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fu",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "fummo andati",
+                "primary": true,
+                "tags": [],
+                "tts": "fummo andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fummo",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fummo andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fummo andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fummo",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "foste andati",
+                "primary": true,
+                "tags": [],
+                "tts": "foste andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "foste",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "foste andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "foste andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "foste",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "furono andati",
+                "primary": true,
+                "tags": [],
+                "tts": "furono andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "furono",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "furono andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "furono andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "furono",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "indicativo-futuro_anteriore",
+        "mood": "indicativo",
+        "tense": "futuro_anteriore",
+        "compound": true,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "sarò andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sarò andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarò",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sarò andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sarò andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarò",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "sarai andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sarai andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarai",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sarai andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sarai andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarai",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "sarà andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sarà andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarà",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sarà andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sarà andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarà",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "saremo andati",
+                "primary": true,
+                "tags": [],
+                "tts": "saremo andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "saremo",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "saremo andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "saremo andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "saremo",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "sarete andati",
+                "primary": true,
+                "tags": [],
+                "tts": "sarete andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarete",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sarete andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sarete andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarete",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "saranno andati",
+                "primary": true,
+                "tags": [],
+                "tts": "saranno andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "saranno",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "saranno andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "saranno andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "saranno",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "congiuntivo-presente",
+        "mood": "congiuntivo",
+        "tense": "presente",
+        "compound": false,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "vada",
+                "primary": true,
+                "tags": [],
+                "tts": "vada",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "vad",
+                  "ending": "a",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "vada",
+                "primary": true,
+                "tags": [],
+                "tts": "vada",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "vad",
+                  "ending": "a",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "vada",
+                "primary": true,
+                "tags": [],
+                "tts": "vada",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "vad",
+                  "ending": "a",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "andiamo",
+                "primary": true,
+                "tags": [],
+                "tts": "andiamo",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "iamo",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "andiate",
+                "primary": true,
+                "tags": [],
+                "tts": "andiate",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "iate",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "vadano",
+                "primary": true,
+                "tags": [],
+                "tts": "vadano",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "vad",
+                  "ending": "ano",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "congiuntivo-imperfetto",
+        "mood": "congiuntivo",
+        "tense": "imperfetto",
+        "compound": false,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "andassi",
+                "primary": true,
+                "tags": [],
+                "tts": "andassi",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "assi",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "andassi",
+                "primary": true,
+                "tags": [],
+                "tts": "andassi",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "assi",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "andasse",
+                "primary": true,
+                "tags": [],
+                "tts": "andasse",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "asse",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "andassimo",
+                "primary": true,
+                "tags": [],
+                "tts": "andassimo",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "assimo",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "andaste",
+                "primary": true,
+                "tags": [],
+                "tts": "andaste",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "aste",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "andassero",
+                "primary": true,
+                "tags": [],
+                "tts": "andassero",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "assero",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "congiuntivo-passato",
+        "mood": "congiuntivo",
+        "tense": "passato",
+        "compound": true,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "sia andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sia andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sia",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sia andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sia andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sia",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "sia andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sia andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sia",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sia andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sia andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sia",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "sia andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sia andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sia",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sia andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sia andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sia",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "siamo andati",
+                "primary": true,
+                "tags": [],
+                "tts": "siamo andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siamo",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "siamo andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "siamo andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siamo",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "siate andati",
+                "primary": true,
+                "tags": [],
+                "tts": "siate andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siate",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "siate andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "siate andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siate",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "siano andati",
+                "primary": true,
+                "tags": [],
+                "tts": "siano andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siano",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "siano andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "siano andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "siano",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "congiuntivo-trapassato",
+        "mood": "congiuntivo",
+        "tense": "trapassato",
+        "compound": true,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "fossi andato",
+                "primary": true,
+                "tags": [],
+                "tts": "fossi andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fossi",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fossi andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fossi andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fossi",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "fossi andato",
+                "primary": true,
+                "tags": [],
+                "tts": "fossi andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fossi",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fossi andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fossi andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fossi",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "fosse andato",
+                "primary": true,
+                "tags": [],
+                "tts": "fosse andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fosse",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fosse andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fosse andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fosse",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "fossimo andati",
+                "primary": true,
+                "tags": [],
+                "tts": "fossimo andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fossimo",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fossimo andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fossimo andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fossimo",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "foste andati",
+                "primary": true,
+                "tags": [],
+                "tts": "foste andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "foste",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "foste andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "foste andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "foste",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "fossero andati",
+                "primary": true,
+                "tags": [],
+                "tts": "fossero andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fossero",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "fossero andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "fossero andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "fossero",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "condizionale-presente",
+        "mood": "condizionale",
+        "tense": "presente",
+        "compound": false,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "andrei",
+                "primary": true,
+                "tags": [],
+                "tts": "andrei",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "ei",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "andresti",
+                "primary": true,
+                "tags": [],
+                "tts": "andresti",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "esti",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "andrebbe",
+                "primary": true,
+                "tags": [],
+                "tts": "andrebbe",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "ebbe",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "andremmo",
+                "primary": true,
+                "tags": [],
+                "tts": "andremmo",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "emmo",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "andreste",
+                "primary": true,
+                "tags": [],
+                "tts": "andreste",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "este",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "andrebbero",
+                "primary": true,
+                "tags": [],
+                "tts": "andrebbero",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "andr",
+                  "ending": "ebbero",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "condizionale-passato",
+        "mood": "condizionale",
+        "tense": "passato",
+        "compound": true,
+        "slots": [
+          {
+            "person": "1s",
+            "forms": [
+              {
+                "text": "sarei andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sarei andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarei",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sarei andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sarei andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarei",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "saresti andato",
+                "primary": true,
+                "tags": [],
+                "tts": "saresti andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "saresti",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "saresti andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "saresti andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "saresti",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "sarebbe andato",
+                "primary": true,
+                "tags": [],
+                "tts": "sarebbe andato",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarebbe",
+                  "participle": "andato",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sarebbe andata",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sarebbe andata",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarebbe",
+                  "participle": "andata",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "saremmo andati",
+                "primary": true,
+                "tags": [],
+                "tts": "saremmo andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "saremmo",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "saremmo andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "saremmo andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "saremmo",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "sareste andati",
+                "primary": true,
+                "tags": [],
+                "tts": "sareste andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sareste",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sareste andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sareste andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sareste",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "sarebbero andati",
+                "primary": true,
+                "tags": [],
+                "tts": "sarebbero andati",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarebbero",
+                  "participle": "andati",
+                  "irregular_participle": false
+                }
+              },
+              {
+                "text": "sarebbero andate",
+                "primary": false,
+                "tags": [
+                  "feminine"
+                ],
+                "tts": "sarebbero andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "compound",
+                  "clitic": null,
+                  "auxiliary_verb": "essere",
+                  "auxiliary": "sarebbero",
+                  "participle": "andate",
+                  "irregular_participle": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "imperativo-presente",
+        "mood": "imperativo",
+        "tense": "presente",
+        "compound": false,
+        "slots": [
+          {
+            "person": "2s",
+            "forms": [
+              {
+                "text": "vai",
+                "primary": true,
+                "tags": [],
+                "tts": "vai",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "va",
+                  "ending": "i",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              },
+              {
+                "text": "va'",
+                "primary": false,
+                "tags": [],
+                "tts": "va'",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "va'",
+                  "ending": "",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "3s",
+            "forms": [
+              {
+                "text": "vada",
+                "primary": true,
+                "tags": [],
+                "tts": "vada",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "vad",
+                  "ending": "a",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          },
+          {
+            "person": "1p",
+            "forms": [
+              {
+                "text": "andiamo",
+                "primary": true,
+                "tags": [],
+                "tts": "andiamo",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "iamo",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "2p",
+            "forms": [
+              {
+                "text": "andate",
+                "primary": true,
+                "tags": [],
+                "tts": "andate",
+                "irregular": false,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "and",
+                  "ending": "ate",
+                  "irregular_stem": false,
+                  "irregular_ending": false
+                }
+              }
+            ]
+          },
+          {
+            "person": "3p",
+            "forms": [
+              {
+                "text": "vadano",
+                "primary": true,
+                "tags": [],
+                "tts": "vadano",
+                "irregular": true,
+                "parts": {
+                  "kind": "simple",
+                  "clitic": null,
+                  "stem": "vad",
+                  "ending": "ano",
+                  "irregular_stem": true,
+                  "irregular_ending": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

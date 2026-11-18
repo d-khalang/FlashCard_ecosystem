@@ -1,0 +1,20 @@
+{
+  "recent": [
+    "essere",
+    "fare",
+    "potere",
+    "uscire"
+  ],
+  "collection": [
+    {
+      "infinitive": "prendere",
+      "expression_id": "6735a1f0c2a4b1e0d9f00001",
+      "meaning": "to take"
+    },
+    {
+      "infinitive": "svegliarsi",
+      "expression_id": "6735a1f0c2a4b1e0d9f00002",
+      "meaning": "to wake up"
+    }
+  ]
+}
