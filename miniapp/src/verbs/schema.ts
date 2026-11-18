@@ -97,7 +97,7 @@ export const verbSchema = obj({
 
 export const homeSchema = obj({
   recent: arr(str),
-  collection: arr(obj({ infinitive: str, expression_id: str, meaning: str })),
+  collection: arr(obj({ infinitive: str, expression_id: str, meaning: nullable(str) })),
 });
 
 export const suggestSchema = obj({ items: arr(str) });

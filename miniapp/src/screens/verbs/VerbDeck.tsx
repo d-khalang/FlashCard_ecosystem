@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { BookMarked, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { pushBackHandler } from '../../telegram';
 import { tenseIndex } from '../../verbs/labels';
@@ -53,6 +53,7 @@ export function VerbDeck({ result, tenseId, onTenseChange, onBack, onDrill, onLo
   const targetTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => pushBackHandler(onBack), [onBack]);
+  useEffect(() => () => window.clearTimeout(targetTimer.current), []);
 
   const step = () => {
     const el = track.current;
@@ -116,9 +117,17 @@ export function VerbDeck({ result, tenseId, onTenseChange, onBack, onDrill, onLo
           <ChevronLeft size={22} strokeWidth={2.6} aria-hidden="true" />
         </button>
         <div className="deck-titles">
-          <h1 className="deck-verb" lang="it">
-            {verb.infinitive}
-          </h1>
+          <div className="deck-title-row">
+            <h1 className="deck-verb" lang="it">
+              {verb.infinitive}
+            </h1>
+            {result.in_collection ? (
+              <span className="deck-badge">
+                <BookMarked size={14} strokeWidth={2.6} aria-hidden="true" />
+                {t('verbs.inCollection')}
+              </span>
+            ) : null}
+          </div>
           <p className="deck-sub" lang="it">
             {subtitle}
           </p>

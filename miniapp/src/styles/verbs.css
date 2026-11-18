@@ -220,6 +220,26 @@
   flex-direction: column;
 }
 
+.deck-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.deck-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--color-badge-bg);
+  border: var(--border-width-chip) solid var(--color-outline);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .deck-verb {
   font-family: var(--font-display);
   font-weight: 800;

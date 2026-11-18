@@ -127,7 +127,8 @@ export interface Match {
 export interface CollectionVerb {
   infinitive: string;
   expression_id: string;
-  meaning: string;
+  /** Null: the saved card has no translation yet. */
+  meaning: string | null;
 }
 
 export interface VerbHome {

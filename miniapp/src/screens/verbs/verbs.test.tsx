@@ -44,6 +44,8 @@ describe('Verbs search', () => {
     verbsApi();
     expect(await screen.findByRole('button', { name: 'essere' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /svegliarsi\s*to wake up/ })).toBeTruthy();
+    // A card without a translation yet: the row shows the verb alone.
+    expect(screen.getByRole('button', { name: 'dimenticare' }).textContent).toBe('dimenticare');
   });
 
   it('shows not found with the query', async () => {
@@ -75,6 +77,7 @@ describe('Verbs deck', () => {
     const current = () => within(rail).getByRole('button', { current: true });
     expect(current().getAttribute('aria-label')).toBe('Indicativo Presente, 1 of 15');
     expect(screen.getByText('matches your search')).toBeTruthy();
+    expect(screen.getByText('In your collection')).toBeTruthy();
 
     fireEvent.keyDown(rail, { key: 'ArrowRight' });
     expect(current().getAttribute('aria-label')).toBe('Indicativo Imperfetto, 2 of 15');

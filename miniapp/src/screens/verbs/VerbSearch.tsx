@@ -246,9 +246,11 @@ function HomeView({ home, error, onRetry, onPick }: HomeViewProps) {
               <li key={c.expression_id}>
                 <button type="button" className="verb-panel-row" onClick={() => onPick(c.infinitive)}>
                   <span lang="it">{c.infinitive}</span>
-                  <span className="verb-meaning" dir="auto">
-                    {c.meaning}
-                  </span>
+                  {c.meaning ? (
+                    <span className="verb-meaning" dir="auto">
+                      {c.meaning}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             ))}

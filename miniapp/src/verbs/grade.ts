@@ -7,14 +7,14 @@ export type Verdict =
   | { result: 'accent' }
   | { result: 'wrong' };
 
-/** Step 1: NFC, lowercase, trim, collapse spaces, typographic apostrophe to plain. */
+/** Step 1: NFC, lowercase, trim, collapse spaces, typographic apostrophes (’ and ‘) to plain. */
 export function normalizeAnswer(input: string): string {
-  return input.normalize('NFC').toLowerCase().trim().replace(/\s+/g, ' ').replace(/’/g, "'");
+  return input.normalize('NFC').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[\u2018\u2019]/g, "'");
 }
 
 /** Accents removed: NFD, then drop U+0300-U+036F. */
 export function stripAccents(text: string): string {
-  return text.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 /** Step 2: drop the first listed prefix that is followed by a space. */

@@ -34,7 +34,7 @@ describe('gradeAnswer (contract §4)', () => {
     ['exact', 'andrò', item(futuro, '1s'), futuro.strip_prefixes, right()],
     ['subject pronoun', 'io andrò', item(futuro, '1s'), futuro.strip_prefixes, right()],
     ['case, spaces', '  Io   ANDRÒ ', item(futuro, '1s'), futuro.strip_prefixes, right()],
-    ['decomposed accent (NFD input)', 'andrò', item(futuro, '1s'), futuro.strip_prefixes, right()],
+    ['decomposed accent (NFD input)', 'andro\u0300', item(futuro, '1s'), futuro.strip_prefixes, right()],
     ['missing accent', 'andro', item(futuro, '1s'), futuro.strip_prefixes, accent],
     ['missing accent with pronoun', 'io andro', item(futuro, '1s'), futuro.strip_prefixes, accent],
     ['wrong accent direction', 'andró', item(futuro, '1s'), futuro.strip_prefixes, accent],
@@ -48,7 +48,8 @@ describe('gradeAnswer (contract §4)', () => {
     ['feminine with pronoun', 'io sono andata', item(passato, '1s'), passato.strip_prefixes, right('feminine')],
     ['è without accent', 'e andato', item(passato, '3s'), passato.strip_prefixes, accent],
     ['è', 'lui è andato', item(passato, '3s'), passato.strip_prefixes, right()],
-    ['typographic apostrophe', 'va’', imperativo, ['tu'], right('variant')],
+    ['typographic apostrophe', 'va\u2019', imperativo, ['tu'], right('variant')],
+    ['left single quote', 'va\u2018', imperativo, ['tu'], right('variant')],
     ['clitic required', 'alzo', reflexive, ['io'], wrong],
     ['clitic with pronoun', 'io mi alzo', reflexive, ['io'], right()],
   ];
