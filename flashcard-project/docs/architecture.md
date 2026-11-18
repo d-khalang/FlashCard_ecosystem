@@ -20,7 +20,7 @@ graph LR
             SVC[Services Layer]
             DB[(MongoDB)]
         end
-        SCRAPER[WR Scraper]
+        SCRAPER[it-conjugator v2]
     end
 
     TG <-->|Webhook / Polling| DP
@@ -29,7 +29,6 @@ graph LR
     SVC --> DB
     SVC --> GEMINI
     SVC --> SCRAPER
-    SCRAPER --> WR
     API --> DP
 ```
 
@@ -50,7 +49,7 @@ flashcard-project/src/flashcard/
 │   ├── collection.py        # /import, list, search, remove
 │   ├── settings.py          # /settings, pause/resume
 │   ├── story.py             # /story
-│   ├── verb.py              # /verb lookups
+│   ├── verb.py              # /verb and the Verbs page: lookup, suggest, home, drill, practice
 │   ├── quota.py             # QuotaPolicy: tier limits, trial, own key
 │   └── shadow.py            # Shadow writes for the review-state migration (temporary)
 │
@@ -73,7 +72,7 @@ flashcard-project/src/flashcard/
 │   ├── user.py              # UserDB model
 │   ├── expression.py        # ExpressionDB / ExpressionCard / StoredCard
 │   ├── languages.py         # Language codes, levels, flags
-│   ├── conjugations.py      # Verb conjugation models
+│   ├── verbs.py             # Conjugator v2 shapes (docs/verbs/contract.md)
 │   ├── story.py             # Story response model
 │   ├── import_model.py      # Import parsing model
 │   ├── api_key.py           # LLM API key file model and loader
@@ -81,10 +80,11 @@ flashcard-project/src/flashcard/
 │
 ├── services/                # Data owners: each gets only its own collection
 │   ├── expression.py        # Cards: CRUD + review candidate selection
-│   ├── user.py              # User profile, settings, onboarding, last_seen_at
+│   ├── user.py              # User profile, settings, onboarding, last_seen_at, verbs_recent
 │   ├── consumption.py       # Usage counters
 │   ├── review_state.py      # ReviewStateStore: current review, last graded
-│   ├── verb.py              # Verb lookup (DB cache + scraper API)
+│   ├── verb.py              # Conjugator v2 client (no cache)
+│   ├── verb_practice.py     # Drill results (verb_practice)
 │   ├── language_validation.py # Input validators per language
 │   ├── i18n.py              # Internationalization (JSON locale files)
 │   ├── http_client.py       # Shared httpx client
@@ -111,7 +111,7 @@ flashcard-project/src/flashcard/
 │   │   ├── expression.py    # Review card formatting
 │   │   ├── expression_lists.py
 │   │   ├── review_label.py  # "Saved version" label
-│   │   ├── verb.py          # Verb conjugation formatting
+│   │   ├── verb.py          # /verb messages (primary forms, labels from ids)
 │   │   ├── story.py         # Story formatting
 │   │   └── factories/       # Callback data factories
 │   └── states/              # FSM state definitions
@@ -290,4 +290,5 @@ The global error handler in [`errors.py`](../src/flashcard/telegram/handlers/err
 |------------|--------|---------|
 | `users` | `UserDB` | User profiles, settings, scheduling state |
 | `expressions` | `ExpressionDB` | Saved flashcards with review stats |
-| `conjugations` | — | Cached verb conjugation data |
+| `verb_practice` | — | Verbs page drill results, one document per user and verb (`docs/verbs/contract.md` §5); user data |
+| `conjugations` | — | Old conjugation cache, no longer read; dropped by `migrations.drop_conjugation_cache` |

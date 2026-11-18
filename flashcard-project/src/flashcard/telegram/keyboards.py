@@ -8,7 +8,8 @@ from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCall
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.telegram.ui.factories.settings_callback import SettingsCallback
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
-from flashcard.schemas.conjugations import ConjugationResponse
+from flashcard.schemas.verbs import Verb
+from flashcard.telegram.ui.verb import web_table_url
 from flashcard.services.i18n import I18nService
 from flashcard.schemas.languages import get_language_flag
 
@@ -23,56 +24,41 @@ def expression_action_kb(i18n: I18nService, norm: str, audio_parts: Sequence[Pre
     return builder.as_markup()
 
 
-def get_verb_keyboard(i18n: I18nService, data: ConjugationResponse) -> InlineKeyboardMarkup:
-    verb = data.queried
-    url = data.url
-    
-    # 1. Initialize the Builder
+def get_verb_keyboard(i18n: I18nService, verb: Verb) -> InlineKeyboardMarkup:
+    """Mood headers and a button per tense (callbacks carry conjugator v2 ids), then the full table online."""
+    infinitive = verb.infinitive
+
+    def tense(text: str, mood: str, tense_name: str) -> None:
+        builder.button(text=text, callback_data=VerbCallback(mood=mood, tense=tense_name, verb=infinitive))
+
     builder = InlineKeyboardBuilder()
 
-    # --- INDICATIVO SECTION ---
-    # Header
     builder.button(text="🧭 INDICATIVO", callback_data="noop|hdr|indicativo")
-    # Row: Presente, Imperfetto
-    builder.button(text="Presente", callback_data=VerbCallback(mood="indicativo", tense="presente", verb=verb))
-    builder.button(text="Imperfetto", callback_data=VerbCallback(mood="indicativo", tense="imperfetto", verb=verb))
-    # Row: Pass. remoto, Fut. semplice
-    builder.button(text="Pass. remoto", callback_data=VerbCallback(mood="indicativo", tense="passato remoto", verb=verb))
-    builder.button(text="Fut. semplice", callback_data=VerbCallback(mood="indicativo", tense="futuro semplice", verb=verb))
+    tense("Presente", "indicativo", "presente")
+    tense("Imperfetto", "indicativo", "imperfetto")
+    tense("Pass. remoto", "indicativo", "passato_remoto")
+    tense("Fut. semplice", "indicativo", "futuro_semplice")
 
-    # --- TEMPI COMPOSTI SECTION ---
-    # Header
+    # Compound indicative tenses (mood "indicativo" in v2, still their own section here).
     builder.button(text="⏱️ TEMPI COMPOSTI", callback_data="noop|hdr|composti")
-    # Row: Pass. prossimo, Trap. prossimo
-    builder.button(text="Pass. prossimo", callback_data=VerbCallback(mood="tempi composti", tense="passato prossimo", verb=verb))
-    builder.button(text="Trap. prossimo", callback_data=VerbCallback(mood="tempi composti", tense="trapassato prossimo", verb=verb))
-    # Row: Trap. remoto, Fut. anteriore
-    builder.button(text="Trap. remoto", callback_data=VerbCallback(mood="tempi composti", tense="trapassato remoto", verb=verb))
-    builder.button(text="Fut. anteriore", callback_data=VerbCallback(mood="tempi composti", tense="futuro anteriore", verb=verb))
+    tense("Pass. prossimo", "indicativo", "passato_prossimo")
+    tense("Trap. prossimo", "indicativo", "trapassato_prossimo")
+    tense("Trap. remoto", "indicativo", "trapassato_remoto")
+    tense("Fut. anteriore", "indicativo", "futuro_anteriore")
 
-    # --- CONGIUNTIVO SECTION ---
-    # Header
     builder.button(text="🧠 CONGIUNTIVO", callback_data="noop|hdr|congiuntivo")
-    # Row: Presente, Imperfetto
-    builder.button(text="Presente", callback_data=VerbCallback(mood="congiuntivo", tense="presente", verb=verb))
-    builder.button(text="Imperfetto", callback_data=VerbCallback(mood="congiuntivo", tense="imperfetto", verb=verb))
-    # Row: Passato, Trapassato
-    builder.button(text="Passato", callback_data=VerbCallback(mood="congiuntivo", tense="passato", verb=verb))
-    builder.button(text="Trapassato", callback_data=VerbCallback(mood="congiuntivo", tense="trapassato", verb=verb))
+    tense("Presente", "congiuntivo", "presente")
+    tense("Imperfetto", "congiuntivo", "imperfetto")
+    tense("Passato", "congiuntivo", "passato")
+    tense("Trapassato", "congiuntivo", "trapassato")
 
-    # --- CONDIZIONALE SECTION ---
-    # Header
     builder.button(text="🤔 CONDIZIONALE", callback_data="noop|hdr|condizionale")
-    # Row: Presente, Passato
-    builder.button(text="Presente", callback_data=VerbCallback(mood="condizionale", tense="presente", verb=verb))
-    builder.button(text="Passato", callback_data=VerbCallback(mood="condizionale", tense="passato", verb=verb))
+    tense("Presente", "condizionale", "presente")
+    tense("Passato", "condizionale", "passato")
 
-    # --- IMPERATIVO SECTION ---
-    # Header/Item
-    builder.button(text="📣 IMPERATIVO - Presente", callback_data=VerbCallback(mood="imperativo", tense="presente", verb=verb))
+    tense("📣 IMPERATIVO - Presente", "imperativo", "presente")
 
-    # --- URL SECTION ---
-    builder.button(text=i18n.get("messages.buttons.verb_web_table"), url=url)
+    builder.button(text=i18n.get("messages.buttons.verb_web_table"), url=web_table_url(infinitive))
 
     # 2. Define the Grid Layout
     builder.adjust(

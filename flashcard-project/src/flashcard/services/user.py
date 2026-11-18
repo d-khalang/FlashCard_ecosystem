@@ -14,6 +14,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Verbs kept in `verbs_recent` (docs/verbs/contract.md section 5).
+MAX_RECENT_VERBS = 10
+
 
 class UserService:
     def __init__(
@@ -130,6 +133,14 @@ class UserService:
             {"user_id": stored_user_id(user_id)},
             {"$set": {field: value}},
         )
+
+    async def remember_verb(self, user_id: UserId, infinitive: str) -> None:
+        """Put a looked-up verb first in `verbs_recent` (once, newest first, at most 10). Never creates a user."""
+        query = {"user_id": stored_user_id(user_id)}
+        # Two steps: Mongo refuses $pull and $push on one field in the same update.
+        await self.users.update_one(query, {"$pull": {"verbs_recent": infinitive}})
+        await self.users.update_one(query, {"$push": {"verbs_recent": {
+            "$each": [infinitive], "$position": 0, "$slice": MAX_RECENT_VERBS}}})
 
     async def advance_onboarding(self, user_id: UserId, current_step: int) -> bool:
         """

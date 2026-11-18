@@ -20,7 +20,7 @@ graph TD
     H --> RS[ReviewStateStore]
     RS --> DB
     VS --> DB
-    VS --> SCRAPER[WR Scraper API]
+    VS --> SCRAPER[it-conjugator v2]
     LLM --> GEMINI[Google Gemini API]
     LLM --> GROQ[Groq API]
     CS --> DB
@@ -159,7 +159,7 @@ Tracks resource usage (LLM tokens, API calls) with lazy daily resets.
 | `cards_generated` | `system_api` / `user_api` | LLM card generations (text→card, regen, /get, scheduled, part refresh), for stats |
 | `credits_used` | `system_api` / `user_api` | Card credits spent, checked against the daily limit: 2 per new card, 1 per refreshed part. Added in the same write as `cards_generated` (`increment(..., credits=n)`) |
 | `stories_generated` | `system_api` / `user_api` | LLM story generations (/story) |
-| `verb_lookups` | top-level | Third-party verb scraper calls (always system-side) |
+| `verb_lookups` | top-level | Verb lookups (bot `/verb`, Mini App lookup; always system-side) |
 
 ---
 
@@ -219,30 +219,32 @@ Trace lifecycle finalization is centralized in [`utils/tracing.py`](../src/flash
 ## VerbService
 
 **File:** [`services/verb.py`](../src/flashcard/services/verb.py)  
-**Collections:** `conjugation`  
-**Dependencies:** `conjugations` (the conjugation cache collection), `http_client` (httpx)
+**Collections:** none (the conjugator is read directly; contract: `docs/verbs/contract.md`)  
+**Dependencies:** `http_client` (httpx), `ScraperConfig` (URL, port, `X-API-Key`)
 
-Handles verb conjugation lookup with DB caching.
+Client of the it-conjugator v2 API. Answers are read into the models of `schemas/verbs.py`;
+a failed request or an answer outside the contract raises `ConjugatorError`.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `extract_verb` | `(message_text) → str?` | Extracts verb from `/verb <word>` command text. |
-| `is_valid_verb` | `(verb) → bool` | Validates Italian verb format (regex). |
-| `get_verb_data` | `(verb) → ConjugationResponse?` | Orchestrates: check DB → check API → cache to DB. |
-| `get_verb_from_db` | `(verb) → dict?` | Direct DB lookup. |
-| `get_verb_from_api` | `(verb) → ConjugationResponse?` | Calls WR Scraper API. |
-| `get_verb_keyboard` | `(i18n, data) → InlineKeyboardMarkup` | Builds tense selection keyboard. |
+| `normalize` | `(query) → str` | NFC, lowercase, trim, single spaces, `’`/`‘` → `'`. |
+| `is_valid_verb` | `(query) → bool` | The contract's valid-query rule: up to 4 words of `[a-zàáèéìíòóùú']`, single spaces, ≤ 60 characters. |
+| `conjugate` | `(query) → Conjugation \| VerbNotFound` | `GET /v2/conjugate`: match + verb, 404 with suggestions, or 400 (`InvalidQuery`, shown as invalid, never 503). |
+| `suggest` | `(prefix, limit=8) → list[str]` | `GET /v2/suggest`: infinitives by prefix. |
+| `infinitives` | `(words) → dict[str, str?]` | `POST /v2/infinitives` in batches of 500: infinitives only. |
 
-### Lookup Strategy
+## VerbPracticeService
 
-```mermaid
-graph LR
-    REQ[get_verb_data] --> DB{In DB?}
-    DB -->|Yes| RET[Return cached]
-    DB -->|No| API{Call Scraper API}
-    API -->|Found| SAVE[Cache to DB] --> RET2[Return]
-    API -->|Not found| NONE[Return None]
-```
+**File:** [`services/verb_practice.py`](../src/flashcard/services/verb_practice.py)  
+**Collections:** `verb_practice` (user data)
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `ensure_indexes` | `()` | Unique `user_id + infinitive`; `user_id + updated_at`. |
+| `record` | `(user_id, PracticeResult)` | One upsert per drill: `$set` the tense's last result, `$inc` attempts, `$max` best score. |
+
+`UserService.remember_verb(user_id, infinitive)` keeps `users.verbs_recent` (newest first, at most 10).
+`ExpressionService.single_words` / `find_word` give the Verbs page the user's cards and their meaning.
 
 ---
 

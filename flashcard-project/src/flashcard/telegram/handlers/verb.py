@@ -5,10 +5,11 @@ from aiogram.enums import ChatAction
 from contextlib import suppress
 from aiogram.exceptions import TelegramBadRequest
 
-from flashcard.app.verb import Found, InvalidVerb, NoVerb, VerbUseCases
+from flashcard.app.verb import Conjugated, Found, InvalidVerb, NoVerb, VerbUseCases
 from flashcard.telegram.ui.verb import format_verb_conjugation, format_verb_message
 from flashcard.telegram.ui.factories.verb_callback import VerbCallback
 from flashcard.services.i18n import I18nService
+from flashcard.services.verb import ConjugatorError
 from flashcard.telegram.keyboards import get_verb_keyboard
 from flashcard.telegram.helpers.callback_utils import safe_answer_callback
 from flashcard.utils.logger import get_logger, notify_admin_with_trace
@@ -45,9 +46,21 @@ async def cmd_verb(message: Message, command: CommandObject, verb_use_cases: Ver
         return
 
     if isinstance(result, Found):
-        await status_msg.edit_text(text=format_verb_message(result.data), reply_markup=get_verb_keyboard(i18n, result.data))
+        await status_msg.edit_text(text=format_verb_message(result.verb, verb),
+                                   reply_markup=get_verb_keyboard(i18n, result.verb))
+    elif isinstance(result, InvalidVerb):
+        await status_msg.edit_text(text=i18n.get("commands.verb.invalid"), reply_markup=None)
     else:
         await status_msg.edit_text(text=error_text, reply_markup=None)
+
+
+def legacy_ids(mood: str, tense: str) -> tuple[str, str]:
+    """
+    Buttons sent before the conjugator v2 carry v1 names ("tempi composti", "passato prossimo");
+    map them to v2 ids so old messages keep working.
+    """
+    mood = "indicativo" if mood == "tempi composti" else mood
+    return mood, tense.replace(" ", "_")
 
 
 @router.callback_query(VerbCallback.filter())
@@ -55,12 +68,19 @@ async def handle_conjugation(callback: CallbackQuery, callback_data: VerbCallbac
     """
     Handle verb conjugation navigation callbacks.
     """
-    result = await verb_use_cases.conjugation(callback_data.verb)
-    if not isinstance(result, Found):
+    try:
+        result = await verb_use_cases.conjugation(callback_data.verb)
+    except ConjugatorError as e:
+        # Every tap is a live conjugator call: say so and stop the spinner instead of failing the update.
+        logger.warning(f"Conjugator failed for the tense button of '{callback_data.verb}': {e}")
+        await safe_answer_callback(callback, i18n.get("commands.verb.api_error"), show_alert=True)
+        return
+    if not isinstance(result, Conjugated):
         await safe_answer_callback(callback, i18n.get("callbacks.verb.not_found"), show_alert=True)
         return
 
-    html_text = format_verb_conjugation(result.data, callback_data.mood, callback_data.tense)
+    mood, tense = legacy_ids(callback_data.mood, callback_data.tense)
+    html_text = format_verb_conjugation(result.verb, mood, tense)
 
     # Pressing the shown tense again leaves the text unchanged, which Telegram rejects.
     with suppress(TelegramBadRequest):

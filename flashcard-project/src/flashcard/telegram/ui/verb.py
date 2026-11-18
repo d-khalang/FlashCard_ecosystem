@@ -1,6 +1,12 @@
+"""
+/verb messages from the conjugator v2 verb object: primary forms only, labels built from ids.
+Everything that comes from outside (the query, the forms) is HTML-escaped.
+"""
+from html import escape
+from typing import Optional
+from urllib.parse import quote
 
-from flashcard.schemas.conjugations import ConjugationResponse
-
+from flashcard.schemas.verbs import Tense, Verb
 
 PERSON_EMOJIS = {
     "io": "👤",
@@ -11,113 +17,94 @@ PERSON_EMOJIS = {
     "loro": "👨‍👩‍👧‍👦"
 }
 
-def _cap(s: str) -> str:
+PERSON_LABELS = {"1s": "io", "2s": "tu", "3s": "lui/lei", "1p": "noi", "2p": "voi", "3p": "loro"}
+# Imperativo: 3s is Lei and 3p is Loro (contract section 1).
+IMPERATIVE_LABELS = {"2s": "tu", "3s": "Lei", "1p": "noi", "2p": "voi", "3p": "Loro"}
+
+# The full table online (the old conjugator answered this link itself).
+WEB_TABLE_URL = "https://www.wordreference.com/conj/itverbs.aspx?v={verb}"
+
+
+def _cap(s: Optional[str]) -> str:
     return s.capitalize() if s else ''
 
-def _format_header(data: ConjugationResponse) -> str:
-    verb = data.queried
-    infinitivo = data.principal_forms.get('infinito', '—')
-    gerundio = data.principal_forms.get('gerundio', '—')
-    auxiliary = data.auxiliary if data.auxiliary else '—'
-    
+
+def tense_label(tense_id_part: str) -> str:
+    """A mood or tense id as a label: "passato_prossimo" -> "Passato prossimo"."""
+    return _cap((tense_id_part or "").replace("_", " "))
+
+
+def web_table_url(infinitive: str) -> str:
+    return WEB_TABLE_URL.format(verb=quote(infinitive))
+
+
+def _auxiliaries(verb: Verb) -> str:
+    ordered = sorted(verb.auxiliaries, key=lambda a: not a.primary)
+    return " / ".join(a.verb for a in ordered) or '—'
+
+
+def _format_header(verb: Verb, query: str) -> str:
+    gerund = verb.principal_forms.gerund or '—'
     return (
-        f"🔤 Requested verb: <b>{verb}</b>\n"
+        f"🔤 Requested verb: <b>{escape(query)}</b>\n"
         "________________________\n"
-        f"♾️ Infinito (Infinitive): <b>{infinitivo}</b>\n"
-        f"🌀 Gerundio (Gerund): <b>{gerundio}</b>\n"
-        f"⚙️ Ausiliare (Auxiliary): <b>{auxiliary}</b>"
+        f"♾️ Infinito (Infinitive): <b>{escape(verb.infinitive)}</b>\n"
+        f"🌀 Gerundio (Gerund): <b>{escape(gerund)}</b>\n"
+        f"⚙️ Ausiliare (Auxiliary): <b>{escape(_auxiliaries(verb))}</b>"
     )
+
 
 def _format_footer() -> str:
     return "<i>👉 Altri tempi e modi (Other tenses and moods): usa i pulsanti qui sotto (use the buttons below).</i>"
 
-def format_verb_message(data: ConjugationResponse) -> str:
-    """
-    Formats the verb conjugation data into an HTML message.
-    matches the n8n template structure.
-    """
-    # Safely access Presente Indicativo
-    try:
-        presente = data.conjugations['indicativo']['presente']
-        io = presente.get('io', '—')
-        tu = presente.get('tu', '—')
-        lui_lei = presente.get('lui, lei, Lei, egli', '—')
-        noi = presente.get('noi', '—')
-        voi = presente.get('voi', '—')
-        loro = presente.get('loro, Loro, essi', '—')
-    except KeyError:
-        # Fallback if specific tense data is missing
-        io = tu = lui_lei = noi = voi = loro = '?'
 
-    # Construct the body with standardized emojis
-    body = (
-        "📚 Presente (Indicativo) — Present (Indicative)\n"
-        f"{PERSON_EMOJIS['io']} io → <b>{io}</b>\n"
-        f"{PERSON_EMOJIS['tu']} tu → <b>{tu}</b>\n"
-        f"{PERSON_EMOJIS['lui/lei']} lui/lei → <b>{lui_lei}</b>\n"
-        f"{PERSON_EMOJIS['noi']} noi → <b>{noi}</b>\n"
-        f"{PERSON_EMOJIS['voi']} voi → <b>{voi}</b>\n"
-        f"{PERSON_EMOJIS['loro']} loro → <b>{loro}</b>"
-    )
+def _primary_forms(tense: Optional[Tense]) -> dict[str, str]:
+    """person -> the primary form's text ("—" for a slot without forms)."""
+    if tense is None:
+        return {}
+    forms: dict[str, str] = {}
+    for slot in tense.slots:
+        primary = slot.primary
+        forms[slot.person] = primary.text if primary else '—'
+    return forms
 
-    return f"{_format_header(data)}\n________________________\n\n{body}\n\n{_format_footer()}"
 
-def format_verb_conjugation(data: ConjugationResponse, mood: str, tense: str) -> str:
-    """
-    Formats the specific mood/tense conjugation view.
-    Matches the n8n logic for 'build html' node.
-    """
-    
-    conj = data.conjugations
-    
-    if mood not in conj or tense not in conj[mood]:
+def _person_lines(tense: Tense) -> list[str]:
+    forms = _primary_forms(tense)
+    if tense.mood == "imperativo":
+        return [f"👉 {label} → <b>{escape(forms.get(person, '—'))}</b>"
+                for person, label in IMPERATIVE_LABELS.items()]
+    return [f"{PERSON_EMOJIS[label]} {label} → <b>{escape(forms.get(person, '—'))}</b>"
+            for person, label in PERSON_LABELS.items()]
+
+
+def format_verb_message(verb: Verb, query: str) -> str:
+    """The overview: header and the present indicative."""
+    presente = verb.tense("indicativo-presente")
+    if presente is None:
+        lines = [f"{PERSON_EMOJIS[label]} {label} → <b>?</b>" for label in PERSON_LABELS.values()]
+    else:
+        lines = _person_lines(presente)
+    body = "📚 Presente (Indicativo) — Present (Indicative)\n" + "\n".join(lines)
+    return f"{_format_header(verb, query)}\n________________________\n\n{body}\n\n{_format_footer()}"
+
+
+def format_verb_conjugation(verb: Verb, mood: str, tense: str) -> str:
+    """One mood and tense (ids, e.g. "indicativo", "passato_prossimo")."""
+    shown = verb.tense(f"{mood}-{tense}")
+    if shown is None:
         return (
             f"<b>⚠️ Non trovato</b>\n"
-            f"Richiesta: {_cap(mood)} → {_cap(tense)}\n\n"
+            f"Richiesta: {escape(tense_label(mood))} → {escape(tense_label(tense))}\n\n"
             "Prova un altro tempo o modo."
         )
-
-    t = conj[mood][tense]
-    lines = []
-    
-    if mood == 'imperativo':
-        # Special order and labels for Imperativo
-        order = ["(tu)", "(Lei)", "(noi)", "(voi)", "(Loro)"]
-        labels = {"(tu)": "tu", "(Lei)": "Lei", "(noi)": "noi", "(voi)": "voi", "(Loro)": "Loro"}
-        
-        for k in order:
-             label = labels.get(k, k)
-             val = t.get(k, '—')
-             lines.append(f"👉 {label} → <b>{val}</b>")
-    else:
-        # Standard person mapping
-        mapping = [
-            ("io", "io"),
-            ("tu", "tu"),
-            ("lui, lei, Lei, egli", "lui/lei"),
-            ("noi", "noi"),
-            ("voi", "voi"),
-            ("loro, Loro, essi", "loro")
-        ]
-        
-        for key, label in mapping:
-            val = t.get(key, '—')
-            # Use emoji from PERSON_EMOJIS if available, fallback to 👤
-            emoji = PERSON_EMOJIS.get(label, "👤")
-            lines.append(f"{emoji} {label} → <b>{val}</b>")
-
     html_parts = [
-        _format_header(data),
+        _format_header(verb, verb.infinitive),
         "________________________",
         "",
-        f"📚 {_cap(mood)} - {_cap(tense)}",
-    ]
-    
-    html_parts.extend(lines)
-    
-    html_parts.extend([
+        f"📚 {tense_label(shown.mood)} - {tense_label(shown.tense)}",
+        *_person_lines(shown),
         "",
-        _format_footer()
-    ])
-    
+        _format_footer(),
+    ]
     return "\n".join(html_parts)

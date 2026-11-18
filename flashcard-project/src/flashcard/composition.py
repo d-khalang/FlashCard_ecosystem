@@ -32,6 +32,7 @@ from flashcard.services.review_state import ReviewStateStore
 from flashcard.services.speech import EdgeSpeechProvider
 from flashcard.services.user import UserService
 from flashcard.services.verb import ScraperConfig, VerbService
+from flashcard.services.verb_practice import VerbPracticeService
 
 
 @dataclass(frozen=True)
@@ -110,7 +111,6 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
     review_state = ReviewStateStore(users=cols["users"])
     verb_service = (
         VerbService(
-            conjugations=cols["conjugation"],
             http_client=http_client,
             scraper=ScraperConfig.from_settings(settings),
         )
@@ -157,7 +157,13 @@ def build_core(cols: dict, http_client, settings, language: LanguageConfig) -> C
             llm_service=llm_service,
         ),
         verb_use_cases=(
-            VerbUseCases(verb_service=verb_service, consumption_service=consumption_service)
+            VerbUseCases(
+                verb_service=verb_service,
+                consumption_service=consumption_service,
+                user_service=user_service,
+                expression_service=expression_service,
+                practice_service=VerbPracticeService(practice=cols["verb_practice"]),
+            )
             if verb_service is not None else None
         ),
         collection_use_cases=CollectionUseCases(

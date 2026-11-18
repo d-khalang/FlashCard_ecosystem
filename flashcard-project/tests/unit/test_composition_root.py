@@ -20,9 +20,9 @@ SRC = Path(flashcard.__file__).parent
 MIGRATIONS = {"migrations/backfill_created_at.py", "migrations/backfill_current_review.py",
               "migrations/dedupe_expressions.py", "migrations/convert_dates.py",
               "migrations/ensure_indexes.py", "migrations/check_documents.py",
-              "migrations/clear_conjugation_cache.py"}
+              "migrations/drop_conjugation_cache.py"}
 BUILT_BY_THE_ROOT = {"ExpressionService", "UserService", "ConsumptionService", "ReviewStateStore",
-                     "VerbService", "LLMService", "QuotaPolicy"}
+                     "VerbService", "VerbPracticeService", "LLMService", "QuotaPolicy"}
 OPENERS = {"init_and_get_mongo", "init_and_get_http_client"}
 RAW_SERVICES = {"expression_service", "consumption_service", "review_state", "verb_service",
                 "llm_service", "language_validator", "http_client"}
