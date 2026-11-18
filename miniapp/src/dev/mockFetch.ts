@@ -4,9 +4,12 @@
 // Query options: scenario=empty|caught|low|quota|unlimited (low: few credits left; unlimited: admin or own key), long=1 (long word), reverse=1 (reverse cards),
 // fail=grade|refresh|undo|audio (make that route fail), audio=limit (daily audio limit used up), slow=1 (add latency), n=3 (cards in the queue),
 // stored=1 (cards come from storage), pending=1 (a card is waiting), noremind=1 (reminders unavailable).
+// Verbs (fixtures from docs/verbs/fixtures/miniapp): scenario=noverbs hides the tab, fail=verbs makes verb routes fail like
+// a lost connection. Lookups: vado, andare, andre (fuzzy), any form of andare (sono andato...), 123 (invalid), others not found.
 
 import { SILENT_CLIP } from '../audio/player';
 import type { Content, Me, StudyCard } from '../api/types';
+import { mockVerbs } from './mockVerbs';
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
@@ -67,6 +70,7 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
     quota: { used, limit: scenario === 'unlimited' ? null : LIMIT, card_cost: 2, section_cost: 1 },
     words: { total: scenario === 'empty' ? 0 : 40, ready: queue.length, pending: pendingFlag || current !== null },
     reminders_available: !params.has('noremind'),
+    features: { verbs: scenario !== 'noverbs' },
     options: {
       levels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
       languages: [
@@ -99,6 +103,10 @@ export function createMockFetch(params: URLSearchParams): typeof fetch {
     await sleep(250);
 
     if (path === '/me') return json(200, me());
+    if (path.startsWith('/verbs/')) {
+      if (fail === 'verbs') throw new TypeError('Failed to fetch');
+      return mockVerbs(path, url.searchParams, method, body, json, err, sleep);
+    }
     if (path === '/study/current') return json(200, { card: current, undo_available: undo !== null });
     if (path === '/study/next') {
       if (!current) {

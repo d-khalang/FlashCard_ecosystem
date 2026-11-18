@@ -12,6 +12,8 @@ export default defineConfig({
   },
   server: {
     proxy: { '/api': 'http://127.0.0.1:8765' },
+    // The `?mock` dev API reads the verbs contract fixtures from docs/ (see src/dev/verbFixtures.ts).
+    fs: { allow: ['.', '../docs/verbs/fixtures'] },
   },
   test: {
     environment: 'jsdom',
