@@ -121,7 +121,7 @@ Note = Literal["feminine", "variant"]
 @dataclass(frozen=True)
 class Accepted:
     text: str
-    # None for the primary form and untagged variants of equal standing.
+    # None for the primary form; "feminine" for the feminine variant; "variant" for any other.
     note: Optional[Note]
 
 
@@ -286,7 +286,7 @@ class VerbUseCases:
             accepted: dict[str, Accepted] = {}
             for form in slot.forms:
                 text = _answer_text(form.text)
-                note: Optional[Note] = None if form.primary or not form.tags else (
+                note: Optional[Note] = None if form.primary else (
                     "feminine" if "feminine" in form.tags else "variant")
                 accepted.setdefault(text, Accepted(text=text, note=note))
             items.append(DrillItem(

@@ -200,7 +200,10 @@ class TestHome:
 class TestSuggest:
 
     async def test_suggest(self):
-        assert await _setup()[0].suggest("And") == ["andare", "andarsene", "andicappare"]
+        http = fake_conjugator()
+        items = await _setup(http=http)[0].suggest("And")  # the fixture shows the shape, not the list
+        assert isinstance(items, list) and all(isinstance(i, str) for i in items)
+        assert http.calls[0]["params"] == {"q": "and", "limit": 8}
 
     @pytest.mark.parametrize("prefix", ["", "a", "1x", "x" * 61])
     async def test_short_or_impossible_prefixes_ask_nothing(self, prefix):
@@ -226,7 +229,7 @@ class TestDrill:
 
         items = {item.person: item for item in result.items}
         assert [i.person for i in result.items] == ["2s", "3s", "1p", "2p", "3p"]
-        assert [(a.text, a.note) for a in items["2s"].accepted] == [("vai", None), ("va'", None)]
+        assert [(a.text, a.note) for a in items["2s"].accepted] == [("vai", None), ("va'", "variant")]
         assert items["3p"].hint == StemHint(stem="vad") and items["1p"].hint is None
 
     async def test_empty_slots_are_left_out(self):

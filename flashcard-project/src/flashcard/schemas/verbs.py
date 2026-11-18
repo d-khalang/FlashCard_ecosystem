@@ -37,6 +37,8 @@ class SimpleParts(BaseModel):
     clitic: Optional[str]
     stem: str
     ending: str
+    # Pronouns attached after the verb (svegli|a|ti, v|a|ttene); stem and flags are of the base form.
+    enclitic: Optional[str] = None
     irregular_stem: bool
     irregular_ending: bool
 
@@ -84,6 +86,7 @@ class Auxiliary(BaseModel):
 
 
 class PrincipalForms(BaseModel):
+    """Each may be null (essere has no present participle)."""
     gerund: Optional[str]
     past_participle: Optional[str]
     present_participle: Optional[str]
