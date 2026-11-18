@@ -15,6 +15,11 @@
       "infinitive": "svegliarsi",
       "expression_id": "6735a1f0c2a4b1e0d9f00002",
       "meaning": "to wake up"
+    },
+    {
+      "infinitive": "dimenticare",
+      "expression_id": "6735a1f0c2a4b1e0d9f00003",
+      "meaning": null
     }
   ]
 }
