@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { asApiError } from '../api/errors';
 import { useApp } from '../app/context';
 import { errorCopy } from '../components/errorText';
@@ -25,18 +25,26 @@ export function VerbsScreen() {
     setFound(r);
     setOpened((n) => n + 1);
   }, []);
-  const back = useCallback(() => setFound(null), []);
+  /** Bumped by every deck lookup and by Back: only the newest deck lookup may change the screen. */
+  const deckLookup = useRef(0);
+  const back = useCallback(() => {
+    deckLookup.current += 1;
+    setFound(null);
+  }, []);
   const endDrill = useCallback(() => setDrilling(null), []);
 
   // A candidate from the deck ("Also: andarsene") opens straight away; problems fall back to the search.
   const lookupFromDeck = useCallback(
     async (infinitive: string) => {
+      const seq = ++deckLookup.current;
       setQuery(infinitive);
       try {
         const r = await api.verbs.lookup(infinitive);
+        if (seq !== deckLookup.current) return;
         if (r.status === 'found') open(r);
         else setFound(null);
       } catch (e) {
+        if (seq !== deckLookup.current) return;
         toast(t(errorCopy(asApiError(e)).title), 'error');
       }
     },

@@ -69,6 +69,53 @@ describe('Verbs search', () => {
   });
 });
 
+describe('Verbs late answers', () => {
+  function deferredLookup() {
+    let resolve: (r: LookupFound) => void = () => undefined;
+    const lookup = vi.fn(() => new Promise<LookupFound>((r) => (resolve = r)));
+    return { lookup, answer: () => act(async () => resolve(fixture<LookupFound>('lookup-vado.json'))) };
+  }
+
+  it('shows the home loading state on screen', async () => {
+    verbsApi({ home: () => new Promise(() => undefined) });
+    const loading = await screen.findByText('Loading');
+    expect(loading.getAttribute('role')).toBe('status');
+    expect(loading.className).toBe('verb-loading');
+  });
+
+  it.each([
+    ['typing', () => fireEvent.change(screen.getByLabelText('Any verb or form'), { target: { value: 'essere' } })],
+    ['clearing', () => fireEvent.click(screen.getByRole('button', { name: 'Clear' }))],
+  ])('drops a pending lookup after %s', async (_, edit) => {
+    const { lookup, answer } = deferredLookup();
+    verbsApi({ lookup });
+    await search('vado');
+    edit();
+    await answer();
+    expect(screen.queryByRole('toolbar', { name: 'Tenses' })).toBeNull();
+  });
+
+  it('still opens a lookup with no edit in between', async () => {
+    const { lookup, answer } = deferredLookup();
+    verbsApi({ lookup });
+    await search('vado');
+    await answer();
+    expect(screen.getByRole('toolbar', { name: 'Tenses' })).toBeTruthy();
+  });
+
+  it('a deck link answered after Back does not reopen the deck', async () => {
+    let resolve: (r: LookupFound) => void = () => undefined;
+    const vado = fixture<LookupFound>('lookup-vado.json');
+    verbsApi({ lookup: (q: string) => (q === 'andarsene' ? new Promise<LookupFound>((r) => (resolve = r)) : Promise.resolve(vado)) });
+    await search('vado');
+    await screen.findByRole('toolbar', { name: 'Tenses' });
+    fireEvent.click(screen.getByRole('button', { name: 'andarsene' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to search' }));
+    await act(async () => resolve(vado));
+    expect(screen.queryByRole('toolbar', { name: 'Tenses' })).toBeNull();
+  });
+});
+
 describe('Verbs deck', () => {
   it('opens on the matched tense with the matched slot marked, and moves with the rail and buttons', async () => {
     verbsApi();

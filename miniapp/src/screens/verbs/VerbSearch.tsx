@@ -77,6 +77,12 @@ export function VerbSearch({ query, onQueryChange, onFound }: VerbSearchProps) {
     }
   };
 
+  /** Editing or clearing the query drops a pending lookup, so its late answer cannot open a deck. */
+  const resetLookup = () => {
+    lookupSeq.current += 1;
+    setStatus({ kind: 'idle' });
+  };
+
   const pick = (infinitive: string) => {
     onQueryChange(infinitive);
     void lookup(infinitive);
@@ -119,14 +125,14 @@ export function VerbSearch({ query, onQueryChange, onFound }: VerbSearchProps) {
             lang="it"
             onChange={(e) => {
               onQueryChange(e.target.value);
-              if (statusKind !== 'loading') setStatus({ kind: 'idle' });
+              resetLookup();
             }}
           />
           {typing ? (
             <>
               <button type="button" className="icon-btn icon-btn-small" aria-label={t('verbs.search.clear')} onClick={() => {
                 onQueryChange('');
-                setStatus({ kind: 'idle' });
+                resetLookup();
               }}>
                 <X size={18} strokeWidth={2.6} aria-hidden="true" />
               </button>
@@ -215,7 +221,14 @@ interface HomeViewProps {
 function HomeView({ home, error, onRetry, onPick }: HomeViewProps) {
   const { t } = useI18n();
   if (error) return <ErrorState error={error} onRetry={onRetry} compact />;
-  if (!home) return <span className="sr-only" role="status">{t('common.loading')}</span>;
+  if (!home) {
+    return (
+      <p className="verb-loading" role="status">
+        <Loader2 size={20} strokeWidth={2.6} className="spin" aria-hidden="true" />
+        {t('common.loading')}
+      </p>
+    );
+  }
   if (home.recent.length === 0 && home.collection.length === 0) return <p className="field-hint">{t('verbs.search.hint')}</p>;
   return (
     <>
