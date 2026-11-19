@@ -128,7 +128,7 @@ describe('Verbs deck links answered late', () => {
     const answers: Record<string, (r: LookupFound) => void> = {};
     const lookup = (q: string) =>
       q === 'vado' ? Promise.resolve(withTwoLinks) : new Promise<LookupFound>((r) => (answers[q] = r));
-    return { lookup, answer: (q: string, r: LookupFound) => act(async () => answers[q](r)) };
+    return { lookup, answer: (q: string, r: LookupFound) => act(async () => answers[q]!(r)) };
   }
 
   it('only the newest of two links opens, whatever order they answer in', async () => {
@@ -152,7 +152,7 @@ describe('Verbs deck links answered late', () => {
     await search('vado');
     await screen.findByRole('toolbar', { name: 'Tenses' });
     fireEvent.click(screen.getByRole('button', { name: 'andarsene' }));
-    await act(async () => fireEvent.click(screen.getAllByRole('button', { name: 'Drill this tense' })[0]));
+    await act(async () => fireEvent.click(screen.getAllByRole('button', { name: 'Drill this tense' })[0]!));
     expect(await screen.findByRole('button', { name: 'Stop drill' })).toBeTruthy();
 
     await answer('andarsene', { ...vado, status: 'not_found' } as unknown as LookupFound);
