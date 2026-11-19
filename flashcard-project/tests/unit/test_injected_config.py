@@ -15,13 +15,14 @@ ENTRY_POINTS = {
     "__main__.py",
     "api/main.py",
     "miniapp/api.py",
+    "maintenance.py",
     "migrations/backfill_created_at.py",
     "migrations/backfill_current_review.py",
     "migrations/dedupe_expressions.py",
     "migrations/convert_dates.py",
     "migrations/ensure_indexes.py",
     "migrations/check_documents.py",
-    "migrations/clear_conjugation_cache.py",
+    "migrations/drop_conjugation_cache.py",
 }
 
 
@@ -59,4 +60,5 @@ def test_i18n_is_built_only_by_the_composition_root():
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Call) and ast.unparse(node.func).startswith("I18nService"):
                 builders.add(module)
-    assert builders == {"composition.py"}
+    # The maintenance stand-in is its own small root: it runs without the core (no database).
+    assert builders == {"composition.py", "maintenance.py"}

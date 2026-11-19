@@ -77,7 +77,7 @@ async def cmd_get(message: Message, review_use_cases: ReviewUseCases):
 |------|---------|
 | [`ui/expression.py`](../src/flashcard/telegram/ui/expression.py) | `format_review_message()` — formats flashcard for display |
 | [`ui/expression_lists.py`](../src/flashcard/telegram/ui/expression_lists.py) | Formats collection listings |
-| [`ui/verb.py`](../src/flashcard/telegram/ui/verb.py) | `format_verb_conjugation()` — formats conjugation tables |
+| [`ui/verb.py`](../src/flashcard/telegram/ui/verb.py) | `format_verb_message()`, `format_verb_conjugation()` — conjugator v2 verb as tables of primary forms; labels from ids |
 | [`ui/story.py`](../src/flashcard/telegram/ui/story.py) | `format_story_messages()` — splits story into Telegram-safe chunks |
 
 ### Callback Factories (`telegram/ui/factories/`)
@@ -86,7 +86,7 @@ Callback factories define structured callback data patterns using aiogram's `Cal
 
 | Factory | Pattern | Used by |
 |---------|---------|---------|
-| `VerbCallback` | Verb tense selection | `verb.py` |
+| `VerbCallback` | Verb tense selection (v2 ids; v1 names on old messages are mapped) | `verb.py` |
 | Review callbacks | `grade:{id}:{grade}:{direction}` | `review.py` |
 | Creation callbacks | `save:{norm}`, `regen:{expression}` | `creation.py` |
 
@@ -94,7 +94,7 @@ Callback factories define structured callback data patterns using aiogram's `Cal
 
 Central keyboard builder for inline and reply keyboards:
 - `get_review_keyboard()` — grade buttons (0–5)
-- `get_verb_keyboard(i18n, data)` — tense selection buttons and the web table link
+- `get_verb_keyboard(i18n, verb)` — tense selection buttons and the web table link (WordReference)
 - Reply keyboard for quick command access
 
 ### FSM States (`telegram/states/`)

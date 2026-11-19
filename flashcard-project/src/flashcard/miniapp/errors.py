@@ -55,6 +55,10 @@ def speech_failed() -> ApiError:
     return ApiError(503, "generation_failed", "Could not generate the audio. Try again in a moment.")
 
 
+def verbs_unavailable() -> ApiError:
+    return ApiError(503, "service_unavailable", "Verbs are unavailable right now. Try again in a moment.")
+
+
 def audio_limit_reached(limit: int) -> ApiError:
     """No Retry-After: the limit lasts until the next UTC day, so retrying soon is pointless."""
     return ApiError(429, "audio_limit", f"The daily limit of {limit} audio clips is used up.")

@@ -149,7 +149,8 @@ class TestMe:
 
         body = (await api.get(f"{BASE}/me", headers=_as())).json()
 
-        assert set(body) == {"reminders_available", "language", "settings", "quota", "words", "options"}
+        assert set(body) == {"reminders_available", "language", "settings", "quota", "words", "options", "features"}
+        assert body["features"] == {"verbs": True}  # the test language has conjugation
         assert body["language"] == {"code": "it", "name": "Italian", "country": "it"}
         assert set(body["settings"]) == {"target_level", "primary_language", "secondary_language", "review_mode",
                                          "review_interval_minutes", "is_active"}

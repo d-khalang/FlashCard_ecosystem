@@ -1,0 +1,137 @@
+{
+  "infinitive": "andare",
+  "tense_id": "indicativo-passato_prossimo",
+  "items": [
+    {
+      "person": "1s",
+      "primary": "sono andato",
+      "accepted": [
+        {
+          "text": "sono andato",
+          "note": null
+        },
+        {
+          "text": "sono andata",
+          "note": "feminine"
+        }
+      ],
+      "accepted_plain": [
+        "sono andata",
+        "sono andato"
+      ],
+      "hint": null
+    },
+    {
+      "person": "2s",
+      "primary": "sei andato",
+      "accepted": [
+        {
+          "text": "sei andato",
+          "note": null
+        },
+        {
+          "text": "sei andata",
+          "note": "feminine"
+        }
+      ],
+      "accepted_plain": [
+        "sei andata",
+        "sei andato"
+      ],
+      "hint": null
+    },
+    {
+      "person": "3s",
+      "primary": "è andato",
+      "accepted": [
+        {
+          "text": "è andato",
+          "note": null
+        },
+        {
+          "text": "è andata",
+          "note": "feminine"
+        }
+      ],
+      "accepted_plain": [
+        "e andata",
+        "e andato"
+      ],
+      "hint": null
+    },
+    {
+      "person": "1p",
+      "primary": "siamo andati",
+      "accepted": [
+        {
+          "text": "siamo andati",
+          "note": null
+        },
+        {
+          "text": "siamo andate",
+          "note": "feminine"
+        }
+      ],
+      "accepted_plain": [
+        "siamo andate",
+        "siamo andati"
+      ],
+      "hint": null
+    },
+    {
+      "person": "2p",
+      "primary": "siete andati",
+      "accepted": [
+        {
+          "text": "siete andati",
+          "note": null
+        },
+        {
+          "text": "siete andate",
+          "note": "feminine"
+        }
+      ],
+      "accepted_plain": [
+        "siete andate",
+        "siete andati"
+      ],
+      "hint": null
+    },
+    {
+      "person": "3p",
+      "primary": "sono andati",
+      "accepted": [
+        {
+          "text": "sono andati",
+          "note": null
+        },
+        {
+          "text": "sono andate",
+          "note": "feminine"
+        }
+      ],
+      "accepted_plain": [
+        "sono andate",
+        "sono andati"
+      ],
+      "hint": null
+    }
+  ],
+  "strip_prefixes": [
+    "che io",
+    "che tu",
+    "che lui",
+    "che lei",
+    "che noi",
+    "che voi",
+    "che loro",
+    "io",
+    "tu",
+    "lui",
+    "lei",
+    "noi",
+    "voi",
+    "loro",
+    "che"
+  ]
+}

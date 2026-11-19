@@ -56,6 +56,15 @@ pytest tests/browser -q
 
 Locally, a missing database, build or browser skips these tests; CI sets `KARTINO_REQUIRE_MONGO=1` and `KARTINO_REQUIRE_BROWSER=1` so they fail instead. Set the same two variables locally before calling a change verified, so a stopped database or a missing build shows up as a failure, not a skip. A failing browser test leaves a screenshot and a Playwright trace in `tests/browser/.artifacts/` (CI uploads them); open a trace with `python -m playwright show-trace <file>.zip`.
 
+## Verbs Page Fixtures
+
+The Verbs page shares one contract with the conjugator and the Mini App: `../docs/verbs/contract.md`
+and its fixtures in `../docs/verbs/fixtures/` (owned by the coordinator; tests never edit them).
+`tests/verb_fixtures.py` loads them and offers `fake_conjugator()`, a fake v2 conjugator over the
+fixtures, and `same_shape()`, which compares a response's keys and types with a fixture. Every
+conjugator fixture must read into the `schemas/verbs.py` models and write back unchanged; route
+answers must have the shape of their Mini App fixture, and drills must equal theirs.
+
 ## Live Contract Tests
 
 `tests/contract/` calls the real outside services through the bot's own clients: Groq (every LLM call the bot makes, with the production model), Microsoft edge-tts (every configured voice) and the it-conjugator API (started from the `it-conjugator-api` submodule). They run for each release candidate and only when asked locally:
@@ -72,6 +81,7 @@ A missing key or submodule skips them locally; the release workflow sets `KARTIN
 tests/
 ├── conftest.py                     # Env var setup & autouse router state fixtures
 ├── helpers.py                      # Shared unit test utilities (AsyncCursorMock)
+├── verb_fixtures.py                # Verbs page fixtures (../docs/verbs/fixtures), fake conjugator v2, same_shape
 ├── __init__.py                     # Makes tests/ importable
 │
 ├── unit/                           # Mocked unit tests
@@ -85,7 +95,7 @@ tests/
 │   │
 │   ├── services/                   # Business logic (mocked MongoDB)
 │   │   ├── test_expression_service.py  # CRUD + review candidate
-│   │   ├── test_verb_service.py        # Verb lookup + scraper cache
+│   │   ├── test_verb_service.py        # Conjugator v2 client; every conjugator fixture round-trips
 │   │   ├── test_user_service.py        # User CRUD + settings FSM
 │   │   ├── test_i18n_service.py        # Locale loading & dot-notation keys
 │   │   ├── test_consumption_service.py # Daily quota tracking & resolution
@@ -93,6 +103,9 @@ tests/
 │   │
 │   ├── schemas/                    # Pydantic models + language normalization
 │   │   └── test_schemas.py         # ExpressionDB, UserDB, language normalization
+│   │
+│   ├── app/test_verb_use_cases.py  # Verb use cases; drills equal the Mini App fixtures
+│   ├── miniapp/test_verbs_routes.py # /api/v1/verbs routes vs the Mini App fixtures
 │   │
 │   ├── telegram/                   # UI + keyboards (no real Telegram)
 │   │   ├── test_bot_setup.py           # Dependency registration
@@ -103,7 +116,7 @@ tests/
 │   │   ├── test_expression_card_ui.py  # Card rendering + standard/reverse modes
 │   │   ├── test_expression_ui.py       # Expression list formatting and chunking
 │   │   ├── test_inline_remove_handler.py # Inline card removal & callbacks
-│   │   ├── test_verb_ui.py             # Conjugation table formatting
+│   │   ├── test_verb_ui.py             # /verb messages from the v2 verb
 │   │   ├── test_story_and_callbacks.py # Story UI + callback factories
 │   │   └── test_review_handler.py      # Callback timeout helper behavior
 │   │
@@ -121,6 +134,7 @@ tests/
 │   ├── test_dispatcher_runtime.py  # Telegram message routing integration
 │   ├── test_lifecycle_runtime.py   # Full app lifespan & service wiring integration
 │   ├── test_cross_surface.py       # A card crossing the bot and the Mini App
+│   ├── test_verbs_mongo.py         # Verbs page on Mongo: practice upsert + indexes, recent verbs
 │   └── test_dev_profiles.py        # Dev seed profiles and the shifted clock
 │
 ├── browser/                        # Built Mini App in WebKit and Chromium (needs a build + browsers)

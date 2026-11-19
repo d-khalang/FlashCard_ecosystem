@@ -1,203 +1,126 @@
 """
-Unit tests for flashcard.services.verb.VerbService
-
-Tests validation and the DB→API fallback orchestration.
-The pure method is_valid_verb needs no mocking.
-get_verb_data orchestration uses mocked DB + HTTP.
+VerbService: the conjugator v2 client (docs/verbs/contract.md section 3), over the shared fixtures.
 """
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
-from flashcard.services.verb import ScraperConfig, VerbService
+from flashcard.schemas.verbs import (
+    TENSE_IDS, Conjugation, Infinitives, InfinitivesRequest, InvalidQuery, Suggestions, VerbNotFound,
+)
+from flashcard.services.verb import ConjugatorError, ScraperConfig, VerbService
+from tests.integration.helpers import FakeHTTPClient, FakeHTTPResponse
+from tests.verb_fixtures import REFUSED_QUERY, fake_conjugator, fixture_names, load
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-def _make_service():
-    """Create a VerbService with mocked dependencies."""
-    mock_cols = {"conjugation": MagicMock()}
-    mock_cols["conjugation"].find_one = AsyncMock(return_value=None)
-    mock_cols["conjugation"].replace_one = AsyncMock()
-    mock_http = MagicMock()
-    mock_http.get = AsyncMock()
-    return VerbService(
-        conjugations=mock_cols["conjugation"],
-        http_client=mock_http,
-        scraper=ScraperConfig(url="http://localhost", port=5000, api_key="test-key"),
-    ), mock_cols, mock_http
+SCRAPER = ScraperConfig(url="http://conjugator", port=8080, api_key="test-key")
+MODELS = {
+    "conjugate-vado.json": Conjugation, "conjugate-fuzzy.json": Conjugation,
+    "conjugate-not-found.json": VerbNotFound, "suggest-and.json": Suggestions,
+    "infinitives-request.json": InfinitivesRequest, "infinitives-response.json": Infinitives,
+}
 
 
-# ===================================================================
-# is_valid_verb — pure function
-# ===================================================================
-class TestIsValidVerb:
-
-    def test_simple_verb(self):
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("parlare") is True
-
-    def test_accented_characters(self):
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("être") is True
-
-    def test_surrounding_whitespace_is_ignored(self):
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("  parlare ") is True
-
-    def test_command_text_is_not_a_verb(self):
-        """Command parsing belongs to the handler (command.args); the service checks format only."""
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("/verb parlare") is False
-        assert service.is_valid_verb("/verbparlare") is False
-
-    def test_numbers_rejected(self):
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("abc123") is False
-
-    def test_empty_string_rejected(self):
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("") is False
-
-    def test_just_command_rejected(self):
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("/verb") is False
-
-    def test_special_characters_rejected(self):
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("hello!") is False
-
-    def test_spaces_rejected(self):
-        """Multiple words should fail the single-word regex."""
-        service, _, _ = _make_service()
-        assert service.is_valid_verb("fare bene") is False
-
-    def test_none_input_rejected(self):
-        service, _, _ = _make_service()
-        assert service.is_valid_verb(None) is False
+def _service(http=None) -> VerbService:
+    return VerbService(http_client=http or fake_conjugator(), scraper=SCRAPER)
 
 
-# ===================================================================
-# get_verb_data — orchestration (DB → API fallback)
-# ===================================================================
-class TestGetVerbData:
+class TestFixtures:
 
-    async def test_returns_from_db_when_found(self):
-        """DB has the verb → returns it, no API call."""
-        service, cols, http = _make_service()
+    def test_every_conjugator_fixture_has_a_model(self):
+        assert {name.split("/")[1] for name in fixture_names("conjugator")} == set(MODELS)
 
-        # Simulate a valid DB document matching ConjugationDBResponse schema
-        db_doc = {
-            "verb": "parlare",
-            "data": {
-                "queried": "parlare",
-                "url": "https://example.com/parlare",
-                "principal_forms": {"infinito": "parlare"},
-                "conjugations": {"indicativo": {"presente": {"io": "parlo", "tu": "parli"}}},
-            },
-        }
-        cols["conjugation"].find_one = AsyncMock(return_value=db_doc)
+    @pytest.mark.parametrize("name", fixture_names("conjugator"))
+    def test_each_fixture_reads_and_writes_back_unchanged(self, name):
+        data = load(name)
+        model = MODELS[name.split("/")[1]]
 
-        result = await service.get_verb_data("parlare")
+        assert model.model_validate(data).model_dump(mode="json") == data
 
-        assert result is not None
-        assert result.queried == "parlare"
-        http.get.assert_not_called()  # No API call needed
+    def test_the_fixture_verb_has_the_canonical_tenses_in_order(self):
+        verb = Conjugation.model_validate(load("conjugator/conjugate-vado.json")).verb
 
-    async def test_fallback_to_api_when_db_empty(self):
-        """DB miss → calls API → saves to DB → returns data."""
-        service, cols, http = _make_service()
-        cols["conjugation"].find_one = AsyncMock(return_value=None)
+        assert [t.id for t in verb.tenses] == list(TENSE_IDS)
+        assert all(sum(f.primary for f in slot.forms) == 1 for t in verb.tenses for slot in t.slots if slot.forms)
 
-        # Mock API response
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "success": True,
-            "data": {
-                "queried": "parlare",
-                "url": "https://example.com/parlare",
-                "principal_forms": {"infinito": "parlare"},
-                "conjugations": {"indicativo": {"presente": {"io": "parlo"}}},
-            },
-        }
-        http.get = AsyncMock(return_value=mock_response)
 
-        result = await service.get_verb_data("parlare")
+class TestQueryFormat:
 
-        assert result is not None
-        assert result.queried == "parlare"
-        http.get.assert_called_once()
-        cols["conjugation"].replace_one.assert_called_once()  # Saved to DB
+    @pytest.mark.parametrize("query", ["andare", "vado", "sono andato", "mi alzo", "me ne vado", "l'ho fatto",
+                                       "perché", "a b c d", "x" * 60])
+    def test_valid(self, query):
+        assert _service().is_valid_verb(query)
 
-    async def test_api_response_returns_conjugation_response_type(self):
-        """Return type should be ConjugationResponse, not raw dict."""
-        from flashcard.schemas.conjugations import ConjugationResponse
+    @pytest.mark.parametrize("query", ["", "a b c d e", "x" * 61, "sono  andato", " vado", "vado ", "parl4re",
+                                       "<b>", "andare-ci", "ñ", "señor", "möchte", "ça", "andare2", "a\tb", None])
+    def test_invalid(self, query):
+        assert not _service().is_valid_verb(query)
 
-        service, cols, http = _make_service()
-        cols["conjugation"].find_one = AsyncMock(return_value=None)
+    def test_normalize_collapses_spaces_lowercases_and_uses_the_plain_apostrophe(self):
+        assert VerbService.normalize("  Me   NE\tvado ") == "me ne vado"
+        assert VerbService.normalize("L’ho fatto") == "l'ho fatto"
+        assert VerbService.normalize("‘sto") == "'sto"
+        assert VerbService.normalize("perche" + chr(0x301)) == "perché"  # NFC
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "success": True,
-            "data": {
-                "queried": "parlare",
-                "url": "https://example.com/parlare",
-                "principal_forms": {"infinito": "parlare"},
-                "conjugations": {"indicativo": {"presente": {"io": "parlo"}}},
-            },
-        }
-        http.get = AsyncMock(return_value=mock_response)
 
-        result = await service.get_verb_data("parlare")
-        assert isinstance(result, ConjugationResponse)
+class TestConjugate:
 
-    async def test_api_failure_returns_none(self):
-        """API returns error → returns None."""
-        service, cols, http = _make_service()
-        cols["conjugation"].find_one = AsyncMock(return_value=None)
+    async def test_a_form_finds_its_verb(self):
+        http = fake_conjugator()
+        answer = await _service(http).conjugate("vado")
 
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        http.get = AsyncMock(return_value=mock_response)
+        assert isinstance(answer, Conjugation)
+        assert answer.verb.infinitive == "andare" and answer.match.kind == "form"
+        assert http.calls == [{"url": "http://conjugator:8080/v2/conjugate", "params": {"q": "vado"},
+                               "headers": {"X-API-Key": "test-key"}}]
 
-        result = await service.get_verb_data("parlare")
-        assert result is None
+    async def test_not_found_is_an_answer_not_an_error(self):
+        answer = await _service().conjugate("qwerty")
 
-    async def test_api_exception_raises(self):
-        """API throws exception → propagates up."""
-        service, cols, http = _make_service()
-        cols["conjugation"].find_one = AsyncMock(return_value=None)
-        http.get = AsyncMock(side_effect=Exception("Connection timeout"))
+        assert isinstance(answer, VerbNotFound) and answer.error.code == "verb_not_found"
 
-        with pytest.raises(Exception, match="Connection timeout"):
-            await service.get_verb_data("parlare")
+    async def test_a_400_is_an_invalid_query_not_an_error(self):
+        answer = await _service().conjugate(REFUSED_QUERY)
 
-    async def test_corrupted_db_falls_back_to_api(self):
-        """DB data fails validation → falls through to API."""
-        service, cols, http = _make_service()
+        assert isinstance(answer, InvalidQuery) and answer.error.code == "invalid_query"
 
-        # Invalid DB document (missing required fields)
-        cols["conjugation"].find_one = AsyncMock(
-            return_value={"verb": "parlare", "data": "not_valid_data"}
-        )
+    async def test_a_server_error_raises(self):
+        with pytest.raises(ConjugatorError):
+            await _service(fake_conjugator(broken=True)).conjugate("vado")
 
-        # Valid API response as fallback
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "success": True,
-            "data": {
-                "queried": "parlare",
-                "url": "https://example.com/parlare",
-                "principal_forms": {"infinito": "parlare"},
-                "conjugations": {"indicativo": {"presente": {"io": "parlo"}}},
-            },
-        }
-        http.get = AsyncMock(return_value=mock_response)
+    async def test_an_answer_outside_the_contract_raises(self):
+        http = FakeHTTPClient(FakeHTTPResponse(200, {"success": True, "data": {}}))  # the v1 shape
+        with pytest.raises(ConjugatorError):
+            await _service(http).conjugate("vado")
 
-        result = await service.get_verb_data("parlare")
+    async def test_a_network_error_raises(self):
+        class Down:
+            async def get(self, *args, **kwargs):
+                raise OSError("connection refused")
 
-        assert result is not None
-        http.get.assert_called_once()  # Fell through to API
+        with pytest.raises(ConjugatorError):
+            await _service(Down()).conjugate("vado")
+
+    async def test_missing_settings_fail_loudly(self):
+        with pytest.raises(RuntimeError):
+            await VerbService(http_client=fake_conjugator()).conjugate("vado")
+
+
+class TestSuggestAndInfinitives:
+
+    async def test_suggest(self):
+        http = fake_conjugator()
+
+        items = await _service(http).suggest("and")  # the fixture shows the shape, not the list
+        assert all(isinstance(i, str) for i in items)
+        assert http.calls[0]["params"] == {"q": "and", "limit": 8}
+
+    async def test_infinitives_are_asked_in_batches_of_500(self):
+        http = fake_conjugator()
+        words = ["andare", "letto"] + [f"w{i}" for i in range(999)]
+
+        found = await _service(http).infinitives(words)
+
+        assert len(http.calls) == 3 and [len(c["json"]["words"]) for c in http.calls] == [500, 500, 1]
+        assert found["andare"] == "andare" and found["letto"] is None and len(found) == len(words)
+
+    async def test_infinitives_error_raises(self):
+        with pytest.raises(ConjugatorError):
+            await _service(fake_conjugator(broken=True)).infinitives(["andare"])

@@ -1,0 +1,125 @@
+{
+  "infinitive": "andare",
+  "tense_id": "indicativo-futuro_semplice",
+  "items": [
+    {
+      "person": "1s",
+      "primary": "andrò",
+      "accepted": [
+        {
+          "text": "andrò",
+          "note": null
+        }
+      ],
+      "accepted_plain": [
+        "andro"
+      ],
+      "hint": {
+        "kind": "irregular_stem",
+        "stem": "andr"
+      }
+    },
+    {
+      "person": "2s",
+      "primary": "andrai",
+      "accepted": [
+        {
+          "text": "andrai",
+          "note": null
+        }
+      ],
+      "accepted_plain": [
+        "andrai"
+      ],
+      "hint": {
+        "kind": "irregular_stem",
+        "stem": "andr"
+      }
+    },
+    {
+      "person": "3s",
+      "primary": "andrà",
+      "accepted": [
+        {
+          "text": "andrà",
+          "note": null
+        }
+      ],
+      "accepted_plain": [
+        "andra"
+      ],
+      "hint": {
+        "kind": "irregular_stem",
+        "stem": "andr"
+      }
+    },
+    {
+      "person": "1p",
+      "primary": "andremo",
+      "accepted": [
+        {
+          "text": "andremo",
+          "note": null
+        }
+      ],
+      "accepted_plain": [
+        "andremo"
+      ],
+      "hint": {
+        "kind": "irregular_stem",
+        "stem": "andr"
+      }
+    },
+    {
+      "person": "2p",
+      "primary": "andrete",
+      "accepted": [
+        {
+          "text": "andrete",
+          "note": null
+        }
+      ],
+      "accepted_plain": [
+        "andrete"
+      ],
+      "hint": {
+        "kind": "irregular_stem",
+        "stem": "andr"
+      }
+    },
+    {
+      "person": "3p",
+      "primary": "andranno",
+      "accepted": [
+        {
+          "text": "andranno",
+          "note": null
+        }
+      ],
+      "accepted_plain": [
+        "andranno"
+      ],
+      "hint": {
+        "kind": "irregular_stem",
+        "stem": "andr"
+      }
+    }
+  ],
+  "strip_prefixes": [
+    "che io",
+    "che tu",
+    "che lui",
+    "che lei",
+    "che noi",
+    "che voi",
+    "che loro",
+    "io",
+    "tu",
+    "lui",
+    "lei",
+    "noi",
+    "voi",
+    "loro",
+    "che"
+  ]
+}

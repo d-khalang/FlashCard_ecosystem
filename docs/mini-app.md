@@ -160,7 +160,7 @@ keep the translation labels. Merge the result into `last_card` with a compare-an
 
 Base `/api/v1`. JSON. Errors: `{"error": {"code", "message"}}` with codes `auth_required` 401,
 `not_allowed` 403, `not_found` 404, `invalid_request` 422, `rate_limited` 429 (with `Retry-After`),
-`generation_failed` 503, `payload_too_large` 413. Rate limits per user, in memory: 120/min on every route,
+`generation_failed` 503, `service_unavailable` 503 (the conjugator failed; Verbs routes), `payload_too_large` 413. Rate limits per user, in memory: 120/min on every route,
 and on top of that 20/min and `MINIAPP_LLM_DAILY_ATTEMPTS`/day for each real LLM call (routes marked *; see
 above). Request bodies over 64 KB are refused with 413 before sign-in (by `Content-Length`, and while
 streaming when it is missing or wrong). `GET /health` needs no auth.
@@ -179,7 +179,7 @@ QuotaResult  {status: "quota", tier: str, limit: int}   (limit: today's credits)
 
 | Route | Body / query | Response |
 |---|---|---|
-| `GET /me` | | `{reminders_available: bool, language: {code, name, country}, settings: Settings, quota: {used, limit: int\|null, card_cost, section_cost}, words: {total, ready, pending: bool}, options: {levels: str[], languages: [{code, name, country}], min_interval, max_interval}}` |
+| `GET /me` | | `{reminders_available: bool, language: {code, name, country}, settings: Settings, quota: {used, limit: int\|null, card_cost, section_cost}, words: {total, ready, pending: bool}, options: {levels: str[], languages: [{code, name, country}], min_interval, max_interval}, features: {verbs: bool}}`. `features.verbs`: the language has conjugation (Italian); the Verbs tab shows only then |
 | `GET /study/current` | | `{card: StudyCard\|null, undo_available: bool}` |
 | `POST /study/next` * | | `{status: "ready", card}` or `{status: "none"}` or `QuotaResult`. Returns the pending card if one exists, so a double tap is safe |
 | `POST /study/prepare` * | | `202 {}` |
@@ -195,6 +195,14 @@ QuotaResult  {status: "quota", tier: str, limit: int}   (limit: today's credits)
 | `PATCH /settings` | any `Settings` fields | `Settings`. Bad values are 422 (`SettingsUseCases` raises `ValueError`) |
 | `GET /audio/{key}` | key: 64 lowercase hex characters, from a preview's `audio` | `audio/mpeg` of that part of an unsaved preview. 404 when the key is unknown or expired (a preview's keys last about a day from their last use); other errors as below |
 | `GET /audio/{expression_id}/{part}` | part: `word`, `definition`, `example`, `translation_0`, `translation_1` | `audio/mpeg` of that part of the user's stored card. 404 if the card or part is gone, 429 `audio_limit` (no `Retry-After`) when the daily audio limit is used up, 429 `rate_limited` above 30 generated clips a minute, 503 `generation_failed` when the speech service fails |
+| `GET /verbs/home` | | `{recent: str[], collection: [{infinitive, expression_id, meaning: str\|null}]}` |
+| `GET /verbs/suggest` | `q` | `{items: str[]}` (infinitives); own rate limit |
+| `GET /verbs/lookup` | `q` (infinitive or any form, up to 4 words) | `{status: "found", match, verb, level_tenses, meaning, in_collection}` or `{status: "not_found", query, suggestions}` or `{status: "invalid", query}` |
+| `GET /verbs/{infinitive}/drill/{tense_id}` | | Drill (accepted answers per person); 404 if the verb or tense doesn't exist |
+| `POST /verbs/practice` | `{infinitive, tense_id, score, out_of, missed}` | 204 |
+
+The Verbs routes exist only when the language has conjugation (else 404), never call the LLM, and answer 503
+`service_unavailable` when the conjugator fails. Shapes (verb object, ids, drill grading): [verbs/contract.md](verbs/contract.md).
 
 `words.pending` is true when a delivered card is waiting for a grade, by the same rule as resuming it (the review
 exists, its expression still has a stored card and is still pending under that delivery id).
@@ -202,7 +210,7 @@ exists, its expression still has a stored card and is still pending under that d
 has no limit. An import is refused whole when the collection is full before the LLM call, or when the parsed
 items would pass the limit (duplicates among them count, so it errs on the strict side).
 
-Later features add routes and a navigation entry only: `stories`, `progress`, `verbs/{verb}`, `feedback`.
+Later features add routes and a navigation entry only: `stories`, `progress`, `feedback`.
 
 Static files and API responses send a CSP with `frame-ancestors https://web.telegram.org https://*.telegram.org`
 and `script-src 'self' https://telegram.org`, plus `X-Content-Type-Options: nosniff`. `index.html` is not cached.

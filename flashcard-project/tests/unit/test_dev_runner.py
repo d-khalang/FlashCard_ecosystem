@@ -45,6 +45,45 @@ def _env_file(tmp_path, text):
     return path
 
 
+# --- Local conjugator: Italian only, its key never served -----------------------------------------------
+
+def _settings_env(language, **extra):
+    return {"language": language, "token": "111:abcdefgh", "user_id": 5, "groq_key": "groqkey123",
+            "uri": "mongodb://127.0.0.1:27019", "database": "kartino_dev_it", "groq_model": None, **extra}
+
+
+@pytest.fixture
+def restore_environ():
+    """make_settings writes os.environ (tokens, ENABLE_CONJUGATION, ...); put it back for the next tests."""
+    saved = dict(runner.os.environ)
+    yield
+    runner.os.environ.clear()
+    runner.os.environ.update(saved)
+
+
+def test_conjugation_is_on_only_while_a_local_conjugator_key_is_set(tmp_path, restore_environ):
+    for name in ("SCRAPER_URL", "SCRAPER_PORT", "SCRAPER_API_KEY", "ENABLE_CONJUGATION"):
+        runner.os.environ.pop(name, None)
+    key_file = tmp_path / "k.json"
+    key_file.write_text('{"core": [], "reminder": [], "users": {}}')
+
+    on = runner.make_settings(_settings_env("it", conjugator_key="c0ffee" * 8), key_file)
+    assert on.ENABLE_CONJUGATION and on.SCRAPER_URL == "http://127.0.0.1" and on.SCRAPER_PORT == runner.CONJUGATOR_PORT
+
+    off = runner.make_settings(_settings_env("it"), key_file)
+    assert not off.ENABLE_CONJUGATION and not off.SCRAPER_API_KEY
+
+
+def test_the_conjugator_runs_for_italian_unless_turned_off():
+    assert runner.conjugator_wanted(_settings_env("it"))
+    assert not runner.conjugator_wanted(_settings_env("it", no_conjugator=True))
+    assert not runner.conjugator_wanted(_settings_env("en"))
+
+
+def test_the_conjugator_key_counts_as_a_secret():
+    assert "c0ffee" * 8 in runner.secret_values(_settings_env("it", conjugator_key="c0ffee" * 8))
+
+
 # --- Tunnel mode: shadow bots only, nothing secret served ----------------------------------------------
 
 BASE = "KARTINO_DEV_USER_ID=5\nKARTINO_DEV_GROQ_KEY=k\n"
@@ -55,6 +94,7 @@ def test_the_language_picks_its_shadow_bot(tmp_path):
 
     assert runner.load_env(_env_file(tmp_path, both))["token"] == "111:en"
     assert runner.load_env(_env_file(tmp_path, both + "KARTINO_DEV_LANGUAGE=it\n"))["token"] == "222:it"
+    assert runner.load_env(_env_file(tmp_path, both), language="it")["token"] == "222:it"
 
 
 def test_a_production_bot_id_is_refused_in_every_mode(tmp_path):

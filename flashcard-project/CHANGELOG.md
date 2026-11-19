@@ -6,7 +6,22 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## Unreleased
 
-Data migration: after the new it-conjugator image is live, run `python -m flashcard.migrations.clear_conjugation_cache --apply` on the Italian database (dry run first, without `--apply`, to see the count). It empties the conjugation cache, which still holds the old dialect forms; the bot refills it from the API on the next lookup of each verb. Running it before the new image is live would let old forms be cached again.
+Config: needs the it-conjugator image with the v2 routes (`/v2/conjugate`, `/v2/suggest`, `/v2/infinitives`); the bot no longer calls v1. New optional `COLLECTION_VERB_PRACTICE` (default `verb_practice`).
+
+Data migration: on the Italian database, run `python -m flashcard.migrations.ensure_indexes --apply` (builds the `verb_practice` indexes). After this release is live there, run `python -m flashcard.migrations.drop_conjugation_cache` (dry run: prints the count), then with `--apply` to drop the old conjugation cache, which nothing reads any more. This replaces the earlier `clear_conjugation_cache` step.
+
+### Feature
+
+- Mini App Verbs page API (`/api/v1/verbs`): search suggestions, lookup of any form (also with spaces: `sono andato`, `me ne vado`), recent verbs, the verbs in your collection, the tenses for your level, a typing drill and its results. `/me` says whether the Verbs tab is available (`features.verbs`, Italian only).
+- `/verb` accepts forms with spaces (`/verb sono andato`, `/verb me ne vado`) and shows the verb they belong to.
+
+### Change
+
+- Conjugations are read from the conjugator every time instead of a copy stored in the database, so a conjugator data fix shows at once.
+
+### New
+
+- `flashcard-maintenance`: a stand-in bot for long server work. Run with a bot's own token and settings, it answers every message and button with one "under maintenance" note, shows an "under maintenance" line above empty inline search results, and needs no database. A webhook bot sets the same webhook as the real one. What users send meanwhile is answered, not kept.
 
 ### Fix
 

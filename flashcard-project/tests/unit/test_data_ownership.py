@@ -5,8 +5,10 @@ Services receive only their own collection, never the `cols` dict, so a service
 cannot read or write another's data. `build_core` in the composition root is
 the only place that hands collections out.
 
-`users` field groups: profile/settings/onboarding/last_seen_at (UserService),
+`users` field groups: profile/settings/onboarding/last_seen_at/verbs_recent (UserService),
 consumption (ConsumptionService), review state (ReviewStateStore).
+`verb_practice`: VerbPracticeService only. User data lives in `users`, `expression` and
+`verb_practice` (USER_DATA_COLLECTIONS): deleting a user's data means all three.
 """
 import ast
 from pathlib import Path
@@ -24,7 +26,7 @@ MAY_INDEX_COLS = {"composition.py", "db/mongo.py",
                   "migrations/backfill_created_at.py", "migrations/backfill_current_review.py",
                   "migrations/dedupe_expressions.py", "migrations/convert_dates.py",
                   "migrations/ensure_indexes.py", "migrations/check_documents.py",
-                  "migrations/clear_conjugation_cache.py"}
+                  "migrations/drop_conjugation_cache.py"}
 
 
 def _modules():
@@ -56,4 +58,16 @@ def test_each_service_gets_only_its_own_collection(monkeypatch):
     assert services.user_service.users is cols["users"]
     assert services.consumption_service.users is cols["users"]
     assert services.review_state.users is cols["users"]
-    assert services.verb_service.conjugations is cols["conjugation"]
+    assert services.verb_use_cases.practice.practice is cols["verb_practice"]
+    # The conjugator is read directly: the verb service holds no collection.
+    assert not any(hasattr(services.verb_service, name) for name in ("conjugations", "users", "practice"))
+
+
+# Collections that hold a user's own data, keyed by `user_id` (the Verbs page added verb_practice;
+# `users.verbs_recent` is a field of the user document). `audio_words` is shared, not per user.
+USER_DATA_COLLECTIONS = {"users", "expression", "verb_practice"}
+
+
+def test_every_collection_is_known_to_hold_user_data_or_not():
+    shared = {"audio_words"}
+    assert set(make_cols()) == USER_DATA_COLLECTIONS | shared

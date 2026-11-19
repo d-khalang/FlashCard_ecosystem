@@ -23,7 +23,7 @@ from flashcard.miniapp.bot_buttons import BotCardButtons
 from flashcard.miniapp.errors import install_error_handlers
 from flashcard.miniapp.prefetch import PreparedCards
 from flashcard.miniapp.rate_limit import DailyBudget, RateLimiter
-from flashcard.miniapp.routes import audio, cards, collection, me, settings as settings_routes, study
+from flashcard.miniapp.routes import audio, cards, collection, me, settings as settings_routes, study, verbs
 from flashcard.settings import Settings, get_setting
 from flashcard.telegram.session import build_ipv4_session
 from flashcard.utils.logger import configure_log_level
@@ -36,6 +36,8 @@ LLM_LIMIT_PER_MINUTE = 20
 GENERAL_LIMIT_PER_MINUTE = 120
 # Per user and minute: generated audio clips. A stored word replayed is not charged.
 AUDIO_LIMIT_PER_MINUTE = 30
+# Per user and minute: verb suggestions while typing (debounced by the client).
+SUGGEST_LIMIT_PER_MINUTE = 120
 
 CONTENT_SECURITY_POLICY = "; ".join([
     "default-src 'self'",
@@ -169,6 +171,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         "llm": RateLimiter(LLM_LIMIT_PER_MINUTE),
         "general": RateLimiter(GENERAL_LIMIT_PER_MINUTE),
         "audio": RateLimiter(AUDIO_LIMIT_PER_MINUTE),
+        "suggest": RateLimiter(SUGGEST_LIMIT_PER_MINUTE),
     }
     app.state.budget = DailyBudget(settings.MINIAPP_LLM_DAILY_ATTEMPTS)
     app.state.prepared = PreparedCards()
@@ -177,7 +180,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     install_error_handlers(app)
 
     api = APIRouter(prefix=API_PREFIX)
-    for module in (me, study, cards, collection, audio, settings_routes):
+    for module in (me, study, cards, collection, audio, settings_routes, verbs):
         api.include_router(module.router)
     api.include_router(health.router)
     app.include_router(api)

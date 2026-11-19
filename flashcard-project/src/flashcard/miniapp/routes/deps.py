@@ -59,6 +59,17 @@ async def _signed_in(request: Request, identity: TelegramIdentity, kind: str) ->
     return identity.user_id
 
 
+async def suggest_user(request: Request, identity: Annotated[TelegramIdentity, Depends(verified_identity)]) -> UserId:
+    """
+    Search-as-you-type: its own per-minute limit, so typing never uses up the general one, and no
+    `record_seen` write per keystroke (the Verbs page's other requests record the user).
+    """
+    wait = request.app.state.limiters["suggest"].hit(identity.user_id)
+    if wait:
+        raise rate_limited(wait)
+    return identity.user_id
+
+
 async def general_user(request: Request, identity: Annotated[TelegramIdentity, Depends(verified_identity)]) -> UserId:
     return await _signed_in(request, identity, "general")
 
@@ -81,6 +92,7 @@ async def llm_user(request: Request, identity: Annotated[TelegramIdentity, Depen
 # and every real LLM call is charged by `generation_gate`.
 GeneralUser = Annotated[UserId, Depends(general_user)]
 LlmUser = Annotated[Caller, Depends(llm_user)]
+SuggestUser = Annotated[UserId, Depends(suggest_user)]
 
 
 def generation_gate(request: Request, caller: Caller, *, honor_hold: bool = False) -> GenerationGate:
