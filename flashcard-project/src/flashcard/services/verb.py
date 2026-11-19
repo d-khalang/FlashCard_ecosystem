@@ -1,12 +1,29 @@
-import re
-from dataclasses import dataclass
-from typing import Optional
+"""
+The client of our conjugator (it-conjugator-api, v2 routes; docs/verbs/contract.md section 3).
 
-from flashcard.schemas.conjugations import ConjugationDBResponse, ConjugationAPIResponse, ConjugationResponse
+The conjugator is our own offline service, so nothing is cached here: every lookup asks it.
+"""
+import re
+import unicodedata
+from dataclasses import dataclass
+from typing import Optional, Union
+
+from flashcard.schemas.verbs import Conjugation, Infinitives, InvalidQuery, Suggestions, VerbNotFound
 from flashcard.utils.logger import get_logger
 from flashcard.utils.tracing import observe
 
 logger = get_logger(__name__)
+
+# Query limits shared by the bot and the Mini App (contract section 2, "Match").
+MAX_QUERY_CHARS = 60
+MAX_QUERY_WORDS = 4
+# Words per POST /v2/infinitives.
+INFINITIVES_BATCH = 500
+SUGGEST_LIMIT = 8
+
+
+class ConjugatorError(Exception):
+    """The conjugator could not be reached or gave an answer outside the contract."""
 
 
 @dataclass(frozen=True)
@@ -24,111 +41,89 @@ class ScraperConfig:
 
 
 class VerbService:
-    REGEX_VERB = r"^[A-Za-zÀ-ÖØ-öø-ÿ']+$"
+    # The contract's valid-query rule (section 2), the same as the conjugator's: up to four words of
+    # Italian letters and apostrophes, single spaces ("vado", "sono andato", "me ne vado", "l'ho fatto").
+    _WORD = r"[a-zàáèéìíòóùú']+"
+    REGEX_VERB = rf"^{_WORD}(?: {_WORD}){{0,{MAX_QUERY_WORDS - 1}}}$"
 
-    def __init__(self, conjugations, http_client=None, scraper: Optional[ScraperConfig] = None):
-        """`conjugations`: the conjugation cache collection; `scraper`: the conjugation API."""
-        self.conjugations = conjugations
+    def __init__(self, http_client=None, scraper: Optional[ScraperConfig] = None):
+        """`scraper`: where the conjugator listens and its key."""
         self.http_client = http_client
         self.scraper = scraper
 
-    def is_valid_verb(self, verb: str) -> bool:
+    @staticmethod
+    def normalize(query: str) -> str:
+        """NFC, lowercase, trim, single spaces, ’/‘ -> ' (contract section 2)."""
+        text = unicodedata.normalize("NFC", query).replace("’", "'").replace("‘", "'")
+        return " ".join(text.split()).lower()
+
+    def is_valid_verb(self, query: str) -> bool:
         """
-        Validates the verb's format only. Callers pass the verb itself: command
+        Format only, for a normalized query. Callers pass the query itself: command
         parsing (e.g. "/verb ...") belongs to the Telegram handler.
         """
-        if not isinstance(verb, str) or not verb.strip():
+        if not isinstance(query, str) or not query or len(query) > MAX_QUERY_CHARS:
             return False
-        return bool(re.match(self.REGEX_VERB, verb.strip()))
+        return re.match(self.REGEX_VERB, query) is not None
 
-
-    @observe(name="VerbService.get_verb_data")
-    async def get_verb_data(self, verb: str) -> Optional[ConjugationResponse]:
-        """
-        Orchestrates retrieving verb data:
-        1. Checks DB.
-        2. If not in DB, checks API.
-        3. If found in API, saves to DB.
-        Returns ConjugationResponse or None if not found/error.
-        """
-        # 1. Check DB
-        verb_db = await self.get_verb_from_db(verb)
-        if verb_db:
-            try:
-                db_response = ConjugationDBResponse.model_validate(verb_db)
-                return db_response.data
-            except Exception as e:
-                logger.error(f"Error validating DB data for verb {verb}: {e}")
-                # Fallback to API if DB data is corrupted? Or just return None?
-                # For now let's try API if DB fails validation, or we could just error out.
-                # Let's proceed to API as fallback.
-                pass
-
-        # 2. Check API
-        verb_api_response = await self.get_verb_from_api(verb)
-        if not verb_api_response:
-            return None
-
-        # 3. Save to DB (Background task or await? Await is safer for consistency)
-        await self._save_verb_to_db(verb, verb_api_response)
-
-        return verb_api_response
-
-
-    async def get_verb_from_db(self, verb: str) -> Optional[dict]:
-        """
-        Gets the verb from the database. returns None if not found.
-        """
-        try:
-            return await self.conjugations.find_one({'verb': verb})
-        except Exception as e:
-            logger.error(f"Failed to get verb from db: {e}")
-            return None
-
-
-    async def get_verb_from_api(self, verb: str) -> Optional[ConjugationResponse]:
-        """
-        Gets the verb from the API.
-        """
+    def _config(self) -> ScraperConfig:
         if self.scraper is None:
             raise RuntimeError("Conjugation service is enabled but its settings are incomplete")
+        return self.scraper
 
+    def _url(self, path: str) -> str:
+        return f"{self._config().url}:{self._config().port}{path}"
+
+    def _headers(self) -> dict:
+        return {"X-API-Key": self._config().api_key}
+
+    @observe(name="VerbService.conjugate")
+    async def conjugate(self, query: str) -> Union[Conjugation, VerbNotFound, InvalidQuery]:
+        """The verb a query (infinitive or any form) belongs to, or why there is none."""
+        url = self._url("/v2/conjugate")
         try:
-            res = await self.http_client.get(f"{self.scraper.url}:{self.scraper.port}/conjugate",
-                params={"v": verb},
-                headers={"X-API-Key": self.scraper.api_key})
-            
+            res = await self.http_client.get(url, params={"q": query}, headers=self._headers())
+        except Exception as e:
+            raise ConjugatorError(f"conjugate request failed: {type(e).__name__}") from e
+        if res.status_code == 404:
+            return self._read(VerbNotFound, res, "conjugate")
+        if res.status_code == 400:
+            # Our rule matches the conjugator's, so this should not happen; it is the user's input, not an outage.
+            logger.warning("The conjugator refused a query that passed our check")
+            return self._read(InvalidQuery, res, "conjugate")
+        if res.status_code != 200:
+            raise ConjugatorError(f"conjugate answered {res.status_code}")
+        return self._read(Conjugation, res, "conjugate")
+
+    async def suggest(self, prefix: str, limit: int = SUGGEST_LIMIT) -> list[str]:
+        """Infinitives starting with `prefix`, most common first."""
+        url = self._url("/v2/suggest")
+        try:
+            res = await self.http_client.get(url, params={"q": prefix, "limit": limit}, headers=self._headers())
+        except Exception as e:
+            raise ConjugatorError(f"suggest request failed: {type(e).__name__}") from e
+        if res.status_code != 200:
+            raise ConjugatorError(f"suggest answered {res.status_code}")
+        return self._read(Suggestions, res, "suggest").items
+
+    async def infinitives(self, words: list[str]) -> dict[str, Optional[str]]:
+        """word -> its infinitive when the word is one (andare, svegliarsi), else None."""
+        url = self._url("/v2/infinitives")
+        found: dict[str, Optional[str]] = {}
+        for start in range(0, len(words), INFINITIVES_BATCH):
+            batch = words[start:start + INFINITIVES_BATCH]
+            try:
+                res = await self.http_client.post(url, json={"words": batch}, headers=self._headers())
+            except Exception as e:
+                raise ConjugatorError(f"infinitives request failed: {type(e).__name__}") from e
             if res.status_code != 200:
-                logger.warning(f"API returned status {res.status_code} for verb {verb}")
-                return None
-            
-            res_json = res.json()
-            api_response = ConjugationAPIResponse.model_validate(res_json)
-            
-            if api_response.success and api_response.data:
-                return api_response.data
-            else:
-                logger.warning(f"API success=False or no data for verb {verb}: {api_response.error}")
-                return None
+                raise ConjugatorError(f"infinitives answered {res.status_code}")
+            found.update(self._read(Infinitives, res, "infinitives").infinitives)
+        return found
 
-        except Exception as e:
-            logger.error(f"Failed to get verb from api: {e}")
-            raise
-
-
-    async def _save_verb_to_db(self, verb: str, data: ConjugationResponse):
-        """
-        Saves the verb data to the database using ConjugationDBResponse schema.
-        """
+    @staticmethod
+    def _read(model, res, route: str):
         try:
-            db_entry = ConjugationDBResponse(verb=verb, data=data)
-            # Use upsert to prevent duplicates if created in parallel
-            await self.conjugations.replace_one(
-                {'verb': verb}, 
-                db_entry.model_dump(), 
-                upsert=True
-            )
-            logger.info(f"Saved verb {verb} to DB")
-        except Exception as e:
-            logger.error(f"Failed to save verb {verb} to DB: {e}")
-
+            return model.model_validate(res.json())
+        except Exception as e:  # invalid JSON or a shape outside the contract
+            raise ConjugatorError(f"{route} answer outside the contract: {type(e).__name__}") from e

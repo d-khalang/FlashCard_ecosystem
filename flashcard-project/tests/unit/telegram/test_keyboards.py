@@ -14,7 +14,9 @@ from flashcard.telegram.keyboards import (
     get_verb_keyboard,
 )
 from flashcard.app.audio import ListenablePart
-from flashcard.schemas.conjugations import ConjugationResponse
+from flashcard.schemas.verbs import Conjugation
+from flashcard.telegram.ui.factories.verb_callback import VerbCallback
+from tests.verb_fixtures import load
 from flashcard.telegram.ui.factories.audio_callback import AUDIO_MENU, AudioCallback
 from flashcard.telegram.ui.factories.grade_callback import GradeCallback
 from tests.helpers import TEST_I18N
@@ -25,17 +27,29 @@ from tests.helpers import TEST_I18N
 # ===================================================================
 class TestVerbKeyboard:
 
+    def _verb(self):
+        return Conjugation.model_validate(load("conjugator/conjugate-vado.json")).verb
+
     def test_web_table_link_uses_the_ui_locale(self):
-        data = ConjugationResponse(
-            queried="parlare", url="https://example.com/parlare",
-            principal_forms={}, auxiliary="avere", conjugations={},
-        )
-        kb = get_verb_keyboard(TEST_I18N, data)
+        kb = get_verb_keyboard(TEST_I18N, self._verb())
         link = [btn for row in kb.inline_keyboard for btn in row if btn.url]
 
         assert len(link) == 1
         assert link[0].text == TEST_I18N.get("messages.buttons.verb_web_table")
-        assert link[0].url == "https://example.com/parlare"
+        assert link[0].url == "https://www.wordreference.com/conj/itverbs.aspx?v=andare"
+
+    def test_tense_buttons_carry_v2_ids(self):
+        kb = get_verb_keyboard(TEST_I18N, self._verb())
+        tenses = [VerbCallback.unpack(btn.callback_data) for row in kb.inline_keyboard for btn in row
+                  if btn.callback_data and btn.callback_data.startswith("conj|")]
+
+        assert [f"{t.mood}-{t.tense}" for t in tenses] == [
+            "indicativo-presente", "indicativo-imperfetto", "indicativo-passato_remoto", "indicativo-futuro_semplice",
+            "indicativo-passato_prossimo", "indicativo-trapassato_prossimo", "indicativo-trapassato_remoto",
+            "indicativo-futuro_anteriore", "congiuntivo-presente", "congiuntivo-imperfetto", "congiuntivo-passato",
+            "congiuntivo-trapassato", "condizionale-presente", "condizionale-passato", "imperativo-presente"]
+        assert {t.verb for t in tenses} == {"andare"}
+        assert all(len(btn.callback_data) <= 64 for row in kb.inline_keyboard for btn in row if btn.callback_data)
 
 
 # ===================================================================

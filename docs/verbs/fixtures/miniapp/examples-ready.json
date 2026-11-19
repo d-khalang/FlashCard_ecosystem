@@ -1,0 +1,17 @@
+{
+  "status": "ready",
+  "examples": [
+    {
+      "tense_id": "indicativo-presente",
+      "person": "1s",
+      "text": "Domani vado a Roma.",
+      "translation": "Tomorrow I'm going to Rome."
+    },
+    {
+      "tense_id": "indicativo-futuro_semplice",
+      "person": "1p",
+      "text": "Andremo insieme.",
+      "translation": "We will go together."
+    }
+  ]
+}

@@ -124,6 +124,9 @@ class UserDB(BaseModel):
     review_interval_minutes: int = Field(30, description="Minutes between review batches")
     api_config: Optional[UserAPIConfig] = Field(None, description="Custom User API Config")
     
+    # Verbs page: infinitives looked up last, newest first (UserService.remember_verb).
+    verbs_recent: list[str] = Field(default_factory=list, description="Recently looked-up verbs, max 10")
+
     # Onboarding
     onboarding_step: int = Field(0, description="Onboarding progress: 0=new, 1=first save seen, 2=first review seen")
     

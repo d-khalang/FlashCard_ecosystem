@@ -3,6 +3,7 @@ import './theme/sticker.css';
 import './styles/base.css';
 import './styles/components.css';
 import './styles/screens.css';
+import './styles/verbs.css';
 import { App } from './App';
 import { I18nProvider } from './i18n';
 import { initTelegram } from './telegram';

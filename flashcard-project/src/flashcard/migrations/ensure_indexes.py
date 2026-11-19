@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from flashcard.services.speech_cache import SpeechCache
 from flashcard.services.expression import ExpressionService
 from flashcard.services.user import UserService
+from flashcard.services.verb_practice import VerbPracticeService
 
 
 @dataclass
@@ -29,7 +30,8 @@ class IndexReport:
 
 
 async def ensure_indexes(
-    cols: dict, users: UserService, expressions: ExpressionService, speech: SpeechCache, *, apply: bool,
+    cols: dict, users: UserService, expressions: ExpressionService, speech: SpeechCache,
+    practice: VerbPracticeService, *, apply: bool,
 ) -> IndexReport:
     report = IndexReport()
     ids = Counter([doc.get("user_id") async for doc in cols["users"].find({}, {"user_id": 1})])
@@ -38,6 +40,7 @@ async def ensure_indexes(
         await users.ensure_indexes()
         await expressions.ensure_indexes()
         report.speech_dates_added = await speech.ensure_indexes()
+        await practice.ensure_indexes()
         report.indexes_built = True
     return report
 
@@ -55,6 +58,7 @@ async def _main(apply: bool) -> None:
             UserService(users=cols["users"], defaults=LanguageConfig.from_settings(settings).user_defaults),
             ExpressionService(expressions=cols["expression"]),
             SpeechCache(entries=cols["audio_words"]),
+            VerbPracticeService(practice=cols["verb_practice"]),
             apply=apply,
         )
     finally:

@@ -4,8 +4,8 @@ clients. They catch what mocks cannot: a changed model, API or voice, a broken k
 
 - Groq (LLM): needs KARTINO_CONTRACT_GROQ_KEY. Uses the production model setting.
 - Microsoft edge-tts (speech): no key.
-- it-conjugator: the API from ../it-conjugator-api (its submodule must be checked out), started
-  locally and called through VerbService.
+- it-conjugator: the API from ../it-conjugator-api (its submodule must be checked out, with the v2
+  routes), started locally and called through VerbService.
 
 They cost a few LLM calls and need the internet, so they run only when asked:
 `KARTINO_CONTRACT=1 pytest tests/contract`. A missing key or submodule then skips; with

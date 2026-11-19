@@ -24,7 +24,6 @@ from flashcard.telegram.bot import build_bot_dispatcher
 from .helpers import (
     DummyTraceLogger,
     FakeHTTPClient,
-    FakeHTTPResponse,
     FakeLLMService,
     InMemoryMongoClient,
     make_bot,
@@ -32,6 +31,7 @@ from .helpers import (
     make_services,
 )
 from tests.helpers import TEST_LANGUAGE
+from tests.verb_fixtures import fake_conjugator
 
 
 @pytest.fixture
@@ -58,25 +58,8 @@ def llm_service() -> FakeLLMService:
 
 @pytest.fixture
 def fake_http_client() -> FakeHTTPClient:
-    payload = {
-        "success": True,
-        "data": {
-            "queried": "andare",
-            "url": "http://scraper/conjugate?v=andare",
-            "model": "andare",
-            "principal_forms": {"infinito": "andare"},
-            "auxiliary": "avere",
-            "conjugations": {
-                "indicativo": {
-                    "presente": {
-                        "io": "vado",
-                        "tu": "vai",
-                    }
-                }
-            },
-        },
-    }
-    return FakeHTTPClient(FakeHTTPResponse(200, payload))
+    """The conjugator v2, answering from the shared Verbs page fixtures."""
+    return fake_conjugator()
 
 
 @pytest.fixture
@@ -155,7 +138,7 @@ async def mongo_cols():
         pytest.skip(message)
     name = f"kartino_test_{uuid.uuid4().hex}"
     db = client[name]
-    cols = {"users": db["users"], "expression": db["expression"], "conjugation": db["conjugation"],
+    cols = {"users": db["users"], "expression": db["expression"], "verb_practice": db["verb_practice"],
             "audio_words": db["audio_words"]}
     try:
         yield cols
@@ -177,6 +160,7 @@ async def study_core(monkeypatch: pytest.MonkeyPatch, mongo_cols, study_llm):
     core = composition.build_core(mongo_cols, None, get_setting(), TEST_LANGUAGE)
     await core.expression_service.ensure_indexes()
     await core.user_service.ensure_indexes()
+    await core.verb_use_cases.practice.ensure_indexes()
     return core
 
 
@@ -213,6 +197,7 @@ async def open_harness(monkeypatch: pytest.MonkeyPatch, cols, llm, http_client, 
     core = composition.build_core(cols, http_client, settings, TEST_LANGUAGE)
     await core.expression_service.ensure_indexes()
     await core.user_service.ensure_indexes()
+    await core.verb_use_cases.practice.ensure_indexes()
 
     bot, session = make_bot()
     _, dp = build_bot_dispatcher("123456:test-token", TEST_LANGUAGE)

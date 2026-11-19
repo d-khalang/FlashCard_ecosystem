@@ -113,7 +113,6 @@ module = [
     "flashcard.migrations.dedupe_expressions",
     "flashcard.miniapp.rate_limit",
     "flashcard.scheduler.scheduler",
-    "flashcard.schemas.conjugations",
     "flashcard.schemas.expression",
     "flashcard.schemas.languages",
     "flashcard.schemas.trace",

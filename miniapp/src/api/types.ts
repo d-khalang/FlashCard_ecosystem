@@ -59,6 +59,8 @@ export interface Me {
   /** False until the user has started the bot chat, so reminders cannot be delivered. */
   reminders_available: boolean;
   words: { total: number; ready: number; /** A card is waiting for an answer. */ pending: boolean };
+  /** Optional features of this bot. Missing (an older server) means all off. */
+  features?: { /** The bot's language has conjugation: show the Verbs tab. */ verbs: boolean };
   options: {
     levels: string[];
     languages: LanguageInfo[];

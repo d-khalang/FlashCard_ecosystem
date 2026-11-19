@@ -95,7 +95,7 @@ def _sort_key(value: Any) -> tuple:
     return (_SORT_ORDER.get(_bson_type(value), 0), value if value is not None else 0)
 
 
-def _match_condition(field_value: Any, condition: Any) -> bool:
+def _match_condition(field_value: Any, condition: Any, fold: bool = False) -> bool:
     if isinstance(condition, dict):
         regex_flags = 0
         if "$options" in condition and "i" in str(condition["$options"]).lower():
@@ -140,16 +140,18 @@ def _match_condition(field_value: Any, condition: Any) -> bool:
                 raise NotImplementedError(f"Unsupported query operator: {op}")
         return True
 
+    if fold:  # a query collation of strength 2: plain equality ignores case
+        return _collation_fold(field_value) == _collation_fold(condition)
     return field_value == condition
 
 
-def _matches(doc: dict[str, Any], query: dict[str, Any]) -> bool:
+def _matches(doc: dict[str, Any], query: dict[str, Any], fold: bool = False) -> bool:
     for key, value in query.items():
         if key == "$or":
-            if not any(_matches(doc, branch) for branch in value):
+            if not any(_matches(doc, branch, fold) for branch in value):
                 return False
             continue
-        if not _match_condition(_get_nested(doc, key), value):
+        if not _match_condition(_get_nested(doc, key), value, fold):
             return False
     return True
 
@@ -234,12 +236,15 @@ class InMemoryCollection:
             if any(self._index_key(other, index) == key for other in self.docs):
                 raise DuplicateKeyError("E11000 duplicate key error")
 
-    async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None,
+                       collation=None) -> dict[str, Any] | None:
+        fold = collation is not None and collation.document.get("strength") in (1, 2)
         for doc in self.docs:
-            if _matches(doc, query):
+            if _matches(doc, query, fold):
                 result = _deepcopy_doc(doc)
                 if projection:
-                    projected = {}
+                    # Like MongoDB, the id comes along unless excluded.
+                    projected = {"_id": result["_id"]} if "_id" in result and projection.get("_id", 1) else {}
                     for key, include in projection.items():
                         if include:
                             value = _get_nested(result, key)
@@ -326,12 +331,26 @@ class InMemoryCollection:
                     elif key == "$unset":
                         for field in values:
                             _unset_nested(doc, field)
+                    elif key == "$pull":  # equality only
+                        for field, value in values.items():
+                            current = _get_nested(doc, field)
+                            if isinstance(current, list):
+                                _set_nested(doc, field, [item for item in current if item != value])
+                    elif key == "$push":  # a value, or {$each, $position, $slice}
+                        for field, value in values.items():
+                            current = list(_get_nested(doc, field) or [])
+                            spec = value if isinstance(value, dict) and "$each" in value else {"$each": [value]}
+                            position = spec.get("$position", len(current))
+                            current[position:position] = spec["$each"]
+                            if "$slice" in spec:
+                                current = current[:spec["$slice"]]
+                            _set_nested(doc, field, current)
                     else:
                         raise NotImplementedError(f"Unsupported update operator: {key}")
-                return SimpleNamespace(modified_count=1, upserted_id=None, deleted_count=0)
+                return SimpleNamespace(matched_count=1, modified_count=1, upserted_id=None, deleted_count=0)
 
         if not upsert:
-            return SimpleNamespace(modified_count=0, upserted_id=None, deleted_count=0)
+            return SimpleNamespace(matched_count=0, modified_count=0, upserted_id=None, deleted_count=0)
         if "_id" in query and any(doc.get("_id") == query["_id"] for doc in self.docs):
             # The filter missed an existing document: MongoDB's upsert then collides on _id.
             raise DuplicateKeyError("E11000 duplicate key error collection: _id")
@@ -354,7 +373,7 @@ class InMemoryCollection:
                         _set_nested(new_doc, field, value)
         new_doc.setdefault("_id", ObjectId())
         self.docs.append(new_doc)
-        return SimpleNamespace(modified_count=0, upserted_id=new_doc["_id"], deleted_count=0)
+        return SimpleNamespace(matched_count=0, modified_count=0, upserted_id=new_doc["_id"], deleted_count=0)
 
     async def delete_one(self, query: dict[str, Any]) -> SimpleNamespace:
         for index, doc in enumerate(self.docs):
@@ -411,14 +430,32 @@ class FakeHTTPResponse:
 
 
 class FakeHTTPClient:
-    def __init__(self, response: FakeHTTPResponse):
+    """
+    `response`: one answer for every request, or a map from the URL's path ("/v2/conjugate") to the
+    answer, or to a function of the request (params or JSON body) that returns it.
+    """
+
+    def __init__(self, response):
         self.response = response
         self.calls: list[dict[str, Any]] = []
         self.closed = False
 
+    def _answer(self, url: str, given: Any) -> FakeHTTPResponse:
+        if isinstance(self.response, FakeHTTPResponse):
+            return self.response
+        path = "/" + url.split("://", 1)[-1].split("/", 1)[-1]
+        answer = self.response.get(path)
+        if answer is None:
+            return FakeHTTPResponse(404, {"detail": "Not Found"})
+        return answer(given) if callable(answer) else answer
+
     async def get(self, url: str, params: dict[str, Any] | None = None, headers: dict[str, Any] | None = None) -> FakeHTTPResponse:
         self.calls.append({"url": url, "params": params or {}, "headers": headers or {}})
-        return self.response
+        return self._answer(url, params or {})
+
+    async def post(self, url: str, json: Any = None, headers: dict[str, Any] | None = None) -> FakeHTTPResponse:
+        self.calls.append({"url": url, "json": json, "headers": headers or {}})
+        return self._answer(url, json)
 
     async def aclose(self) -> None:
         self.closed = True
@@ -632,12 +669,12 @@ def make_inline_query_update(
     )
 
 
-def make_cols(*, users: list[dict[str, Any]] | None = None, expressions: list[dict[str, Any]] | None = None, conjugations: list[dict[str, Any]] | None = None) -> dict[str, InMemoryCollection]:
+def make_cols(*, users: list[dict[str, Any]] | None = None, expressions: list[dict[str, Any]] | None = None) -> dict[str, InMemoryCollection]:
     return {
         "users": InMemoryCollection(users),
         "expression": InMemoryCollection(expressions),
-        "conjugation": InMemoryCollection(conjugations),
         "audio_words": InMemoryCollection(),
+        "verb_practice": InMemoryCollection(),
     }
 
 
@@ -645,7 +682,7 @@ def make_services(cols: dict[str, InMemoryCollection], http_client: FakeHTTPClie
     expression_service = ExpressionService(expressions=cols["expression"])
     consumption_service = ConsumptionService(users=cols["users"])
     user_service = UserService(users=cols["users"], defaults=TEST_LANGUAGE.user_defaults)
-    verb_service = VerbService(conjugations=cols["conjugation"], http_client=http_client)
+    verb_service = VerbService(http_client=http_client)
     review_state = ReviewStateStore(users=cols["users"])
     return {
         "expression_service": expression_service,

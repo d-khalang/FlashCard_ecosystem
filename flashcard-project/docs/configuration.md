@@ -39,7 +39,8 @@ Requests are authenticated by `WEBHOOK_SECRET`, which Telegram sends in the `X-T
 > The project uses granular MongoDB timeouts (server selection, connect, socket, TLS handshake, and wait queue) to prevent long stalls while still allowing retries during failovers.
 | `COLLECTION_USERS` | ✅ | Users collection name | `users` |
 | `COLLECTION_EXPRESSION` | ✅ | Expressions collection name | `expressions` |
-| `COLLECTION_CONJUGATION` | ✅ | Conjugations collection name | `conjugations` |
+| `COLLECTION_CONJUGATION` | ✅ | The old conjugation cache; only `migrations.drop_conjugation_cache` uses it | `conjugations` |
+| `COLLECTION_VERB_PRACTICE` | | Verbs page drill results | `verb_practice` |
 | `COLLECTION_AUDIO_WORDS` | | Stored speech (all sources, each with its own expiry; see `services/speech_cache.py`). Backups still include it: mongodump cannot leave one collection out, and a supported exclusion is an open item | `audio_words` |
 | `TIER_LIMITS_{NORMAL,DIGI,PLUS,ADMIN}_CREDITS` | | Card credits per day: a new card (or `/import`) costs 2, a refreshed card part 1. Replaces `TIER_LIMITS_*_CARDS` | `20`, `80`, `100`, `1998` |
 | `TIER_LIMITS_{NORMAL,DIGI,PLUS,ADMIN}_STORIES` | | Stories per day | `2`, `3`, `10`, `99` |

@@ -7,7 +7,7 @@ import { AppProvider, useApp } from './app/context';
 import { BottomNav } from './components/BottomNav';
 import { ErrorState } from './components/ErrorState';
 import { useI18n } from './i18n';
-import { NAV } from './navigation';
+import { visibleNav } from './navigation';
 import { StudyScreen } from './screens/StudyScreen';
 import { getInitData } from './telegram';
 
@@ -32,7 +32,8 @@ function Shell() {
   const { me, meError, authLost } = useApp();
   const { t } = useI18n();
   const online = useOnline();
-  const [tab, setTab] = useState(NAV[0]!.id);
+  const nav = visibleNav(me);
+  const [tab, setTab] = useState(nav[0]!.id);
   const [studying, setStudying] = useState(false);
 
   if (authLost || meError?.kind === 'auth') {
@@ -59,7 +60,7 @@ function Shell() {
     );
   }
 
-  const entry = NAV.find((n) => n.id === tab) ?? NAV[0]!;
+  const entry = nav.find((n) => n.id === tab) ?? nav[0]!;
   const Screen = entry.Screen;
   return (
     <div className="app">
@@ -67,7 +68,7 @@ function Shell() {
       <main className="app-main" key={entry.id}>
         <Screen onStudy={() => setStudying(true)} />
       </main>
-      <BottomNav entries={NAV} current={entry.id} onSelect={setTab} />
+      <BottomNav entries={nav} current={entry.id} onSelect={setTab} />
       {me === null && meError === null ? <span className="sr-only" role="status">{t('common.loading')}</span> : null}
     </div>
   );

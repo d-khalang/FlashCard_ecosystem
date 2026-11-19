@@ -1,4 +1,4 @@
-"""The bot's VerbService reads what the real it-conjugator API answers (started here from its source)."""
+"""The bot's VerbService reads what the real it-conjugator v2 API answers (started here from its source)."""
 from __future__ import annotations
 
 import os
@@ -11,7 +11,9 @@ import time
 import httpx
 import pytest
 
-from flashcard.services.verb import ScraperConfig, VerbService
+from flashcard.schemas.verbs import TENSE_IDS, Conjugation, VerbNotFound
+from flashcard.services.verb import ConjugatorError, ScraperConfig, VerbService
+from tests.verb_fixtures import load
 
 from .conftest import CONJUGATOR_DIR, missing
 
@@ -53,20 +55,28 @@ def conjugator():
             process.kill()
 
 
-async def _lookup(conjugator, verb: str, *, key: str | None = None):
+def _service(client, conjugator, *, key: str | None = None) -> VerbService:
     url, port, right_key = conjugator
+    return VerbService(http_client=client, scraper=ScraperConfig(url=url, port=port, api_key=key or right_key))
+
+
+async def _conjugate(conjugator, query: str):
     async with httpx.AsyncClient(timeout=10) as client:
-        service = VerbService(conjugations=None, http_client=client,
-                              scraper=ScraperConfig(url=url, port=port, api_key=key or right_key))
-        return await service.get_verb_from_api(verb)
+        return await _service(client, conjugator).conjugate(query)
 
 
-async def test_a_verb_comes_back_in_the_shape_the_bot_reads(conjugator):
-    data = await _lookup(conjugator, "andare")
+def _primary(answer, tense_id: str, person: str) -> str:
+    slot = next(s for s in answer.verb.tense(tense_id).slots if s.person == person)
+    return slot.primary.text
 
-    assert data is not None and data.auxiliary
-    present = data.conjugations["indicativo"]["presente"]
-    assert len(present) == 6 and all(form.strip() for form in present.values())
+
+async def test_a_verb_comes_back_in_the_v2_shape(conjugator):
+    answer = await _conjugate(conjugator, "andare")
+
+    assert isinstance(answer, Conjugation) and answer.verb.infinitive == "andare"
+    assert [t.id for t in answer.verb.tenses] == [t for t in TENSE_IDS if answer.verb.tense(t)]
+    present = answer.verb.tense("indicativo-presente")
+    assert [s.person for s in present.slots] == ["1s", "2s", "3s", "1p", "2p", "3p"]
 
 
 # Regression: the conjugator's data used to give dialect or archaic forms for these (andare: vò/và,
@@ -75,17 +85,33 @@ async def test_a_verb_comes_back_in_the_shape_the_bot_reads(conjugator):
                                           ("essere", "sono", "è"), ("dare", "do", "dà"),
                                           ("stare", "sto", "sta")])
 async def test_irregular_verbs_have_their_standard_forms(conjugator, verb, io, lui):
-    present = (await _lookup(conjugator, verb)).conjugations["indicativo"]["presente"]
+    answer = await _conjugate(conjugator, verb)
 
-    assert (present["io"], present["lui, lei, Lei, egli"]) == (io, lui)
+    assert (_primary(answer, "indicativo-presente", "1s"), _primary(answer, "indicativo-presente", "3s")) == (io, lui)
 
 
-async def test_a_pronominal_verb_is_conjugated(conjugator):
-    data = await _lookup(conjugator, "arrabbiarsi")
+@pytest.mark.parametrize("query, infinitive", [("vado", "andare"), ("sono andato", "andare")])
+async def test_forms_and_queries_with_spaces_find_their_verb(conjugator, query, infinitive):
+    answer = await _conjugate(conjugator, query)
 
-    assert data is not None
-    assert "arrabbio" in data.conjugations["indicativo"]["presente"]["io"]
+    assert isinstance(answer, Conjugation) and answer.verb.infinitive == infinitive
+
+
+async def test_an_unknown_word_is_not_found(conjugator):
+    assert isinstance(await _conjugate(conjugator, "qwertyuiop"), VerbNotFound)
+
+
+async def test_suggest_and_infinitives(conjugator):
+    async with httpx.AsyncClient(timeout=10) as client:
+        service = _service(client, conjugator)
+        suggestions = await service.suggest("and")
+        infinitives = await service.infinitives(["prendere", "letto", "svegliarsi", "andare d'accordo"])
+
+    assert "andare" in suggestions
+    assert infinitives == load("conjugator/infinitives-response.json")["infinitives"]
 
 
 async def test_a_wrong_key_is_refused(conjugator):
-    assert await _lookup(conjugator, "andare", key="wrong") is None
+    async with httpx.AsyncClient(timeout=10) as client:
+        with pytest.raises(ConjugatorError):
+            await _service(client, conjugator, key="wrong").conjugate("andare")

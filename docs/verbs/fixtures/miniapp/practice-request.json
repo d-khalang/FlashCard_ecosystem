@@ -1,0 +1,10 @@
+{
+  "infinitive": "andare",
+  "tense_id": "indicativo-futuro_semplice",
+  "score": 4,
+  "out_of": 6,
+  "missed": [
+    "1p",
+    "2p"
+  ]
+}

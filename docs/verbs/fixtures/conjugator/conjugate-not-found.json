@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "verb_not_found",
+    "message": "No verb for 'qwerty'"
+  },
+  "suggestions": []
+}

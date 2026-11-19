@@ -174,17 +174,20 @@ async def test_grade_callback_updates_expression_and_user(dispatcher_env):
     assert user_doc["has_pending"] is False
 
 
-async def test_verb_command_uses_scraper_response_and_caches_result(dispatcher_env):
+async def test_verb_command_reads_the_conjugator_and_records_the_verb(dispatcher_env):
     await dispatcher_env["dp"].feed_update(
         dispatcher_env["bot"],
-        make_message_update(text="/verb andare"),
+        make_message_update(text="/verb vado"),
         **dispatcher_env["dispatcher_data"],
     )
 
-    conjugation = await dispatcher_env["cols"]["conjugation"].find_one({"verb": "andare"})
     user_doc = await dispatcher_env["cols"]["users"].find_one({"user_id": "42"})
-    assert conjugation is not None
+    http = dispatcher_env["dispatcher_data"]["verb_use_cases"].verbs.http_client
+    assert [call["params"]["q"] for call in http.calls] == ["vado"]
     assert user_doc["consumption"]["verb_lookups"] == 1
+    assert user_doc["verbs_recent"] == ["andare"]
+    edited = [c.payload for c in dispatcher_env["session"].calls if c.method == "EditMessageText"]
+    assert "io → <b>vado</b>" in edited[-1]["text"]
 
 
 async def test_inline_remove_confirm_deletes_expression(dispatcher_env):

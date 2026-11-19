@@ -20,6 +20,10 @@ Seed profiles (`seed --profile NAME`) replace the dev user's words and daily usa
     reviewed  words with history: 2 due (one often missed), 2 resting (reviewed an hour ago), 1 new
     limit     like ready, with today's card credits used up
 
+For Italian, serve and tunnel also run the conjugator (it-conjugator-api, the git submodule) on
+127.0.0.1:8770 with a key made for that run, and turn conjugation on, so /verb and the Verbs page work.
+`--no-conjugator` leaves it off.
+
 `--days-ahead N` runs the app's clock N days ahead (serve, tunnel, seed), e.g. to see resting words come
 due. Sign-in still uses the real time. It lives only in this process; production never shifts its clock.
 
@@ -40,15 +44,21 @@ import sys
 import threading
 import tempfile
 import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
+from secrets import token_hex
 from urllib.parse import urlencode
+from urllib.request import urlopen
 
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parent
 sys.path.insert(0, str(PROJECT / "src"))
 
 HOST, PORT = "127.0.0.1", 8765
+CONJUGATOR_DIR = ROOT / "it-conjugator-api"
+CONJUGATOR_PORT = 8770
+CONJUGATOR_START_SECONDS = 60
 ORIGINAL_ENVIRON = dict(os.environ)  # before make_settings adds tokens; what child processes get
 FRONTEND_ENV = ROOT / "miniapp" / ".env.local"
 FRONTEND_VAR = "VITE_DEV_INIT_DATA"
@@ -88,14 +98,14 @@ def pick(values: dict[str, str], *names: str) -> tuple[str | None, str | None]:
     return None, None
 
 
-def load_env(path: Path, tunnel: bool = False) -> dict:
+def load_env(path: Path, tunnel: bool = False, language: str | None = None) -> dict:
     """
     Dev values from .env.dev. The bot is the shadow bot of KARTINO_DEV_LANGUAGE
     (KARTINO_EN_SHADOW_BOT_TOKEN or KARTINO_IT_SHADOW_BOT_TOKEN). A token whose bot id is in
     KARTINO_PROD_BOT_IDS is refused; the tunnel requires that list.
     """
     values = read_env_file(path)
-    language = values.get("KARTINO_DEV_LANGUAGE") or "en"
+    language = language or values.get("KARTINO_DEV_LANGUAGE") or "en"
     if language not in LANGUAGE_NAMES:
         raise SetupError("The language (KARTINO_DEV_LANGUAGE) must be it or en")
 
@@ -190,11 +200,17 @@ def make_settings(env: dict, key_file: Path):
         "BOT_TOKEN": env["token"], "LOGGER_BOT_TOKEN": env["token"], "ADMIN_ID": str(env["user_id"]),
         "MONGO_URI": env["uri"], "MONGO_DB": env["database"],
         "COLLECTION_USERS": "users", "COLLECTION_EXPRESSION": "expression", "COLLECTION_CONJUGATION": "conjugation",
-        "ENABLE_CONJUGATION": "false", "TELEGRAM_DELIVERY_MODE": "polling",
+        "ENABLE_CONJUGATION": "true" if env.get("conjugator_key") else "false", "TELEGRAM_DELIVERY_MODE": "polling",
         "LEARNING_LANGUAGE_CODE": env["language"], "LEARNING_LANGUAGE_NAME": name, "LEARNING_LANGUAGE_FLAG": flag,
         "LANGUAGE_VALIDATOR": validator, "LLM_KEY_FILE": str(key_file),
         "MINIAPP_ALLOWED_USER_IDS": str(env["user_id"]),
     })
+    if env.get("conjugator_key"):
+        os.environ.update({"SCRAPER_URL": f"http://{HOST}", "SCRAPER_PORT": str(CONJUGATOR_PORT),
+                           "SCRAPER_API_KEY": env["conjugator_key"]})
+    else:
+        for name in ("SCRAPER_URL", "SCRAPER_PORT", "SCRAPER_API_KEY"):
+            os.environ.pop(name, None)
     if env["groq_model"]:
         os.environ["LLM_GROQ_MODEL"] = env["groq_model"]
     os.environ.pop("MINIAPP_STATIC_DIR", None)  # the frontend runs on Vite in development
@@ -216,6 +232,49 @@ def with_settings(env: dict, run):
         return run(make_settings(env, key_file))
 
 
+def conjugator_wanted(env: dict) -> bool:
+    return env["language"] == "it" and not env.get("no_conjugator")
+
+
+@contextmanager
+def local_conjugator(env: dict):
+    """
+    For Italian: run the conjugator on loopback with a key made for this run (env["conjugator_key"]
+    while it runs), so conjugation can be on. Other languages, or --no-conjugator: nothing.
+    """
+    if not conjugator_wanted(env):
+        yield
+        return
+    if not (CONJUGATOR_DIR / "verbs.db").is_file():
+        raise SetupError("it-conjugator-api/verbs.db is missing: run `git submodule update --init it-conjugator-api` "
+                         "from the repo root, or pass --no-conjugator")
+    key = token_hex(24)
+    process = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "app.api:app", "--host", HOST, "--port", str(CONJUGATOR_PORT),
+         "--log-level", "warning"],
+        cwd=CONJUGATOR_DIR, env={**ORIGINAL_ENVIRON, "SCRAPER_API_KEY": key})
+    try:
+        deadline = time.monotonic() + CONJUGATOR_START_SECONDS
+        while True:
+            if process.poll() is not None:
+                raise SetupError(f"The conjugator stopped during start-up (is port {CONJUGATOR_PORT} free?)")
+            try:
+                with urlopen(f"http://{HOST}:{CONJUGATOR_PORT}/health", timeout=2) as response:
+                    if response.status == 200:
+                        break
+            except OSError:
+                pass
+            if time.monotonic() > deadline:
+                raise SetupError("The conjugator did not start in time")
+            time.sleep(0.5)
+        env["conjugator_key"] = key
+        print(f"Conjugator on http://{HOST}:{CONJUGATOR_PORT} (conjugation on)")
+        yield
+    finally:
+        env.pop("conjugator_key", None)
+        stop_process_tree(process)
+
+
 def serve(env: dict) -> None:
     import uvicorn
     from flashcard.miniapp.api import create_app
@@ -226,7 +285,8 @@ def serve(env: dict) -> None:
         uvicorn.run(app, host=HOST, port=PORT, log_level="info")
 
     refresh_init_data(env)
-    with_settings(env, run)
+    with local_conjugator(env):
+        with_settings(env, run)
 
 
 def refresh_init_data(env: dict) -> None:
@@ -320,7 +380,7 @@ PROBE_PATHS = ("/.env", "/.env.local", "/.env.dev", "/src/telegram.ts", "/@vite/
 
 def secret_values(env: dict) -> list[str]:
     """Strings that must never be served: tokens, keys, the local dev init data."""
-    values = [env["token"], env["token"].partition(":")[2], env["groq_key"]]
+    values = [env["token"], env["token"].partition(":")[2], env["groq_key"], env.get("conjugator_key")]
     if FRONTEND_ENV.is_file():
         for line in FRONTEND_ENV.read_text(encoding="utf-8").splitlines():
             if line.startswith(f"{FRONTEND_VAR}=") and line.partition("=")[2]:
@@ -584,6 +644,10 @@ def main() -> None:
     parser.add_argument("--profile", choices=SEED_PROFILES, help="seed only: the dev user's state (default: ready)")
     parser.add_argument("--days-ahead", type=float, default=0.0,
                         help="run the app's clock this many days ahead (serve, tunnel, seed)")
+    parser.add_argument("--language", choices=tuple(LANGUAGE_NAMES),
+                        help="the shadow bot to use; overrides KARTINO_DEV_LANGUAGE in the env file")
+    parser.add_argument("--no-conjugator", action="store_true",
+                        help="Italian only: don't run the local conjugator (conjugation stays off)")
     args = parser.parse_args()
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="replace")
@@ -594,7 +658,8 @@ def main() -> None:
         raise SetupError(f"--days-ahead is for {', '.join(CLOCK_COMMANDS)} only")
     if not 0 <= args.days_ahead <= MAX_DAYS_AHEAD:  # also refuses nan and inf
         raise SetupError(f"--days-ahead must be between 0 and {MAX_DAYS_AHEAD}")
-    env = load_env(Path(args.env_file), tunnel=args.command == "tunnel")
+    env = load_env(Path(args.env_file), tunnel=args.command == "tunnel", language=args.language)
+    env["no_conjugator"] = args.no_conjugator
     if args.days_ahead:
         from flashcard.utils.time import shift_clock
         shift_clock(timedelta(days=args.days_ahead))
@@ -609,7 +674,8 @@ def main() -> None:
         print("Building the Mini App (production build, no dev init data)...")
         build_frontend()
         try:
-            with_settings(env, lambda settings: asyncio.run(run_tunnel(settings, env)))
+            with local_conjugator(env):
+                with_settings(env, lambda settings: asyncio.run(run_tunnel(settings, env)))
         except KeyboardInterrupt:
             pass
     elif args.command == "seed":
