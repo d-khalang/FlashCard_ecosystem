@@ -6,28 +6,37 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ## Unreleased
 
-Config: needs the it-conjugator image with the v2 routes (`/v2/conjugate`, `/v2/suggest`, `/v2/infinitives`); the bot no longer calls v1. New optional `COLLECTION_VERB_PRACTICE` (default `verb_practice`).
+## v2.5.0 (2026-11-19)
 
-Data migration: on the Italian database, run `python -m flashcard.migrations.ensure_indexes --apply` (builds the `verb_practice` indexes). After this release is live there, run `python -m flashcard.migrations.drop_conjugation_cache` (dry run: prints the count), then with `--apply` to drop the old conjugation cache, which nothing reads any more. This replaces the earlier `clear_conjugation_cache` step.
+Includes v2.4.1, which ran on English as `v2.4.1-rc.1` but was not published on its own.
 
-### Feature
+Config: needs the it-conjugator image of this release, with the v2 routes (`/v2/conjugate`, `/v2/suggest`, `/v2/infinitives`); the bot no longer calls v1. That image still answers v1, so it can go live before the Italian bot and Mini App. New optional `COLLECTION_VERB_PRACTICE` (default `verb_practice`). The Mini App of a language with conjugation on (Italian) needs the conjugator settings (`ENABLE_CONJUGATION`, `SCRAPER_URL`, the scraper key).
 
-- Mini App Verbs page API (`/api/v1/verbs`): search suggestions, lookup of any form (also with spaces: `sono andato`, `me ne vado`), recent verbs, the verbs in your collection, the tenses for your level, a typing drill and its results. `/me` says whether the Verbs tab is available (`features.verbs`, Italian only).
+Data migration, on the Italian database only, in this order:
+
+1. Back up the database, then put this release's it-conjugator image live.
+2. Deploy the Italian bot and Mini App, then run `python -m flashcard.migrations.ensure_indexes --apply` (builds the `verb_practice` indexes).
+3. Run `python -m flashcard.migrations.drop_conjugation_cache` (dry run: prints the count), then again with `--apply`. It drops the old conjugation cache, which nothing reads any more. (The `clear_conjugation_cache` step planned earlier is gone.)
+
+English needs no data migration.
+
+### New
+
+- Mini App: a Verbs tab (Italian only). Search any verb or form (also with spaces: `sono andato`, `me ne vado`), with suggestions while typing, recent verbs and the verbs in your collection. A verb opens as a deck of tense cards with a rail of dots, opening on the tense that matched; each form shows its stem and ending. A typing drill practises one tense and keeps your results.
+- Mini App API for it (`/api/v1/verbs`): suggestions, lookup, home (recent and collection verbs, the tenses for your level), drill and practice results. `/me` says whether the tab is available (`features.verbs`).
 - `/verb` accepts forms with spaces (`/verb sono andato`, `/verb me ne vado`) and shows the verb they belong to.
+- `flashcard-maintenance`: a stand-in bot for long server work. Run with a bot's own token and settings, it answers every message and button with one "under maintenance" note, shows an "under maintenance" line above empty inline search results, and needs no database. A webhook bot sets the same webhook as the real one. What users send meanwhile is answered, not kept.
 
 ### Change
 
 - Conjugations are read from the conjugator every time instead of a copy stored in the database, so a conjugator data fix shows at once.
-
-### New
-
-- `flashcard-maintenance`: a stand-in bot for long server work. Run with a bot's own token and settings, it answers every message and button with one "under maintenance" note, shows an "under maintenance" line above empty inline search results, and needs no database. A webhook bot sets the same webhook as the real one. What users send meanwhile is answered, not kept.
+- Verbs with only a pronominal form (for example `pentirsene`) are no longer conjugated: the conjugator v2 serves verbs with their own table.
 
 ### Fix
 
 - Verb conjugations (`/verb`) show standard Italian forms: common irregular verbs gave dialect or archaic forms (andare: vò/và instead of vado/va, fare: fazzo/face, essere: sò/ene), and many others had mixed tables (credere: credemo, mettere: messi, scegliere: sceglio). Also: the right meaning of homonyms (partire: parto), the formal imperative (valuti), reverse lookup (vado finds andare), and compound tenses of verbs with pronouns (ci ho messo, ce l'ho fatta). Fixed in the it-conjugator-api submodule.
 
-## v2.4.1 (2026-11-13)
+## v2.4.1 (2026-11-13, not published; shipped in v2.5.0)
 
 No config change or data migration.
 
