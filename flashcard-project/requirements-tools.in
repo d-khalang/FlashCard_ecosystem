@@ -1,0 +1,4 @@
+# Tools of the CI audit job (uv checks the lock files, pip-audit audits them). Hashed like the
+# app locks: uv pip compile requirements-tools.in --universal --python-version 3.12 --generate-hashes -o requirements-tools.txt
+uv==0.13.8
+pip-audit==2.10.1

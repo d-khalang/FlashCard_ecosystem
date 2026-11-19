@@ -76,6 +76,7 @@ jobs:
 
   unit-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: flashcard-project
@@ -110,6 +111,11 @@ jobs:
         image: mongo:7.0@sha256:9896df581dfd0718b7abe112f4c37598d0986c54060e4ec1384997e6503c8c71  # tag mongo:7.0
         ports:
           - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -136,6 +142,7 @@ jobs:
 
   miniapp:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: miniapp
@@ -165,6 +172,7 @@ jobs:
     # The built Mini App on an iPhone (WebKit) and an Android phone (Chromium), against the real API,
     # a test MongoDB and fakes for Telegram, the LLM and speech. See tests/browser/conftest.py.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       BOT_TOKEN: 123456:test-bot-token
       LOGGER_BOT_TOKEN: 123456:test-logger-bot-token
@@ -195,6 +203,11 @@ jobs:
         image: mongo:7.0@sha256:9896df581dfd0718b7abe112f4c37598d0986c54060e4ec1384997e6503c8c71  # see unit-tests
         ports:
           - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -268,16 +281,20 @@ jobs:
         working-directory: flashcard-project
         # Resolves again, keeping the locked versions: only an edit of pyproject.toml changes the result.
         run: |
-          pip install uv==0.13.8
+          pip install --require-hashes -r requirements-tools.txt
           uv pip compile pyproject.toml --universal --python-version 3.12 --generate-hashes -o requirements.txt
           uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 --generate-hashes -o requirements-dev.txt
-          git diff --exit-code -- requirements.txt requirements-dev.txt
+          uv pip compile requirements-tools.in --universal --python-version 3.12 --generate-hashes -o requirements-tools.txt
+          git diff --exit-code -- requirements.txt requirements-dev.txt requirements-tools.txt
 
       - name: Audit Python dependencies
         working-directory: flashcard-project
+        # Runtime, test (pytest, Playwright, ...) and CI tool packages. One call per lock file:
+        # in one call, a package pinned differently in two files fails as a duplicate requirement.
         run: |
-          pip install pip-audit==2.10.1
           pip-audit -r requirements.txt --no-deps --disable-pip
+          pip-audit -r requirements-dev.txt --no-deps --disable-pip
+          pip-audit -r requirements-tools.txt --no-deps --disable-pip
 
       - name: Audit Mini App production dependencies
         working-directory: miniapp
@@ -285,6 +302,7 @@ jobs:
 
   docker-build-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1

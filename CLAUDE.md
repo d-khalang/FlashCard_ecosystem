@@ -18,12 +18,16 @@ bot ids or personal setup.
 Bot (from `flashcard-project/`, Python 3.12):
 
 ```bash
-pip install -e ".[dev]"
+pip install --require-hashes -r requirements-dev.txt && pip install --no-deps -e .
+ruff check src tests dev
+mypy
 pytest tests/unit -q --tb=short
 pytest tests/integration tests/smoke -q --tb=short
 ```
 
+- Install from the lock file as CI does; `pip install -e ".[dev]"` resolves other versions.
 - Some layers need MongoDB at `mongodb://127.0.0.1:27019` (override `KARTINO_TEST_MONGO_URI`); locally they skip without it, CI fails.
+  Set `KARTINO_REQUIRE_MONGO=1` (and `KARTINO_REQUIRE_BROWSER=1` for browser tests) to fail locally too.
 - Browser tests: build the Mini App first (`(cd ../miniapp && npm run build)`), then `pytest tests/browser -q`.
 - Live contract tests (`tests/contract`) run only with `KARTINO_CONTRACT=1` and a Groq key.
 - Mini App (from `miniapp/`): `npm ci`, `npm test`, `npm run build`.

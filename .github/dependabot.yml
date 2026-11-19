@@ -3,7 +3,7 @@
 # Python packages are not here on purpose: the hashed lock files are written by `uv pip compile`,
 # and the `audit` job fails when they differ from what that command produces. Dependabot rewrites
 # them (and pyproject.toml) with its own tool, so its pull requests can never pass. Upgrade Python
-# packages with the commands in docs/cicd.md ("Lock files").
+# packages with the commands in docs/cicd.md ("Reproducible installs").
 version: 2
 updates:
   - package-ecosystem: npm
