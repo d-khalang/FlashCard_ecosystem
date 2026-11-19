@@ -52,9 +52,18 @@ def _settings_env(language, **extra):
             "uri": "mongodb://127.0.0.1:27019", "database": "kartino_dev_it", "groq_model": None, **extra}
 
 
-def test_conjugation_is_on_only_while_a_local_conjugator_key_is_set(tmp_path, monkeypatch):
+@pytest.fixture
+def restore_environ():
+    """make_settings writes os.environ (tokens, ENABLE_CONJUGATION, ...); put it back for the next tests."""
+    saved = dict(runner.os.environ)
+    yield
+    runner.os.environ.clear()
+    runner.os.environ.update(saved)
+
+
+def test_conjugation_is_on_only_while_a_local_conjugator_key_is_set(tmp_path, restore_environ):
     for name in ("SCRAPER_URL", "SCRAPER_PORT", "SCRAPER_API_KEY", "ENABLE_CONJUGATION"):
-        monkeypatch.delenv(name, raising=False)
+        runner.os.environ.pop(name, None)
     key_file = tmp_path / "k.json"
     key_file.write_text('{"core": [], "reminder": [], "users": {}}')
 
