@@ -32,6 +32,11 @@ export function VerbsScreen() {
     setFound(null);
   }, []);
   const endDrill = useCallback(() => setDrilling(null), []);
+  // Starting a drill drops a pending deck link, so its answer cannot swap or close the deck under the drill.
+  const startDrill = useCallback((t: TenseId) => {
+    deckLookup.current += 1;
+    setDrilling(t);
+  }, []);
 
   // A candidate from the deck ("Also: andarsene") opens straight away; problems fall back to the search.
   const lookupFromDeck = useCallback(
@@ -60,7 +65,7 @@ export function VerbsScreen() {
         tenseId={tense}
         onTenseChange={setTense}
         onBack={back}
-        onDrill={setDrilling}
+        onDrill={startDrill}
         onLookup={(v) => void lookupFromDeck(v)}
       />
       {drilling ? <VerbDrill infinitive={found.verb.infinitive} tenseId={drilling} onExit={endDrill} /> : null}

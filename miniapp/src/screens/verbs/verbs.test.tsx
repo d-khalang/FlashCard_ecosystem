@@ -116,6 +116,52 @@ describe('Verbs late answers', () => {
   });
 });
 
+describe('Verbs deck links answered late', () => {
+  const vado = fixture<LookupFound>('lookup-vado.json');
+  const withTwoLinks: LookupFound = { ...vado, match: { ...vado.match, candidates: ['andarsene', 'riandare'] } };
+  const andremo: LookupFound = {
+    ...vado,
+    match: { query: 'andremo', kind: 'form', slots: [{ tense_id: 'indicativo-futuro_semplice', person: '1p' }], candidates: [] },
+  };
+
+  function deferredLinks() {
+    const answers: Record<string, (r: LookupFound) => void> = {};
+    const lookup = (q: string) =>
+      q === 'vado' ? Promise.resolve(withTwoLinks) : new Promise<LookupFound>((r) => (answers[q] = r));
+    return { lookup, answer: (q: string, r: LookupFound) => act(async () => answers[q](r)) };
+  }
+
+  it('only the newest of two links opens, whatever order they answer in', async () => {
+    const { lookup, answer } = deferredLinks();
+    verbsApi({ lookup });
+    await search('vado');
+    await screen.findByRole('toolbar', { name: 'Tenses' });
+    fireEvent.click(screen.getByRole('button', { name: 'andarsene' }));
+    fireEvent.click(screen.getByRole('button', { name: 'riandare' }));
+
+    await answer('riandare', andremo);
+    await answer('andarsene', vado);
+
+    const current = within(screen.getByRole('toolbar', { name: 'Tenses' })).getByRole('button', { current: true });
+    expect(current.getAttribute('aria-label')).toBe('Indicativo Futuro semplice, 4 of 15');
+  });
+
+  it('a link answered after a drill starts leaves the drill open', async () => {
+    const { lookup, answer } = deferredLinks();
+    verbsApi({ lookup });
+    await search('vado');
+    await screen.findByRole('toolbar', { name: 'Tenses' });
+    fireEvent.click(screen.getByRole('button', { name: 'andarsene' }));
+    await act(async () => fireEvent.click(screen.getAllByRole('button', { name: 'Drill this tense' })[0]));
+    expect(await screen.findByRole('button', { name: 'Stop drill' })).toBeTruthy();
+
+    await answer('andarsene', { ...vado, status: 'not_found' } as unknown as LookupFound);
+
+    expect(screen.getByRole('button', { name: 'Stop drill' })).toBeTruthy();
+    expect(screen.getByRole('toolbar', { name: 'Tenses' })).toBeTruthy();
+  });
+});
+
 describe('Verbs deck', () => {
   it('opens on the matched tense with the matched slot marked, and moves with the rail and buttons', async () => {
     verbsApi();
