@@ -35,6 +35,17 @@ async def test_recent_verbs_are_capped_at_10_on_mongo(harness):
     assert user["verbs_recent"] == ["andare"] + [f"v{i}" for i in range(9)]
 
 
+async def test_a_stored_null_recent_list_is_replaced(harness):
+    await harness.get("/me")  # creates the user
+    users = harness.cols["users"]
+    await users.update_one({"user_id": stored_user_id(USER)}, {"$set": {"verbs_recent": None}})
+
+    await harness.get("/verbs/lookup?q=vado")
+
+    user = await users.find_one({"user_id": stored_user_id(USER)})
+    assert user["verbs_recent"] == ["andare"]
+
+
 async def test_practice_upserts_one_document_per_user_and_verb(harness):
     body = load("miniapp/practice-request.json")
 

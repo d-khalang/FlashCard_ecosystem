@@ -147,9 +147,9 @@ class UserService:
             new = ([infinitive] + [v for v in current or [] if v != infinitive])[:MAX_RECENT_VERBS]
             if new == current:
                 return
-            unchanged = {"$exists": False} if current is None else current
+            # A None filter matches the field missing or null, like the read.
             result = await self.users.update_one(
-                {"user_id": stored_id, "verbs_recent": unchanged}, {"$set": {"verbs_recent": new}})
+                {"user_id": stored_id, "verbs_recent": current}, {"$set": {"verbs_recent": new}})
             if result.matched_count:
                 return
         logger.warning(f"User {user_id}: recent verbs not updated, the list kept changing")

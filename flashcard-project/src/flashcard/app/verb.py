@@ -244,7 +244,7 @@ class VerbUseCases:
     async def home(self, user_id: UserId) -> Home:
         """Recent verbs and the user's cards that are verb infinitives (newest first)."""
         user = await self.users.get_user(user_id)
-        # Deduped on read: two lookups at once can leave a verb twice (remember_verb is two updates).
+        # Deduped on read: lists written before remember_verb's compare-and-set can hold a verb twice.
         recent = list(dict.fromkeys(user.verbs_recent))
         return Home(recent=recent, collection=await self._collection_verbs(user_id))
 
