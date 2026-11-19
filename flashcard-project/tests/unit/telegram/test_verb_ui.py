@@ -76,6 +76,12 @@ class TestFormatVerbConjugation:
         assert "📚 Indicativo - Passato prossimo" in msg
         assert "io → <b>sono andato</b>" in msg and "andata" not in msg
 
+    def test_the_tense_name_from_the_conjugator_is_escaped(self):
+        verb = _verb()
+        verb.tense("indicativo-presente").tense = "<b>&"
+
+        assert "📚 Indicativo - &lt;b&gt;&amp;" in format_verb_conjugation(verb, "indicativo", "presente")
+
     def test_imperativo_has_five_persons(self):
         msg = format_verb_conjugation(_verb(), "imperativo", "presente")
 

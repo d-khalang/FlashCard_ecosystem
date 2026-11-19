@@ -346,10 +346,10 @@ class InMemoryCollection:
                             _set_nested(doc, field, current)
                     else:
                         raise NotImplementedError(f"Unsupported update operator: {key}")
-                return SimpleNamespace(modified_count=1, upserted_id=None, deleted_count=0)
+                return SimpleNamespace(matched_count=1, modified_count=1, upserted_id=None, deleted_count=0)
 
         if not upsert:
-            return SimpleNamespace(modified_count=0, upserted_id=None, deleted_count=0)
+            return SimpleNamespace(matched_count=0, modified_count=0, upserted_id=None, deleted_count=0)
         if "_id" in query and any(doc.get("_id") == query["_id"] for doc in self.docs):
             # The filter missed an existing document: MongoDB's upsert then collides on _id.
             raise DuplicateKeyError("E11000 duplicate key error collection: _id")
@@ -372,7 +372,7 @@ class InMemoryCollection:
                         _set_nested(new_doc, field, value)
         new_doc.setdefault("_id", ObjectId())
         self.docs.append(new_doc)
-        return SimpleNamespace(modified_count=0, upserted_id=new_doc["_id"], deleted_count=0)
+        return SimpleNamespace(matched_count=0, modified_count=0, upserted_id=new_doc["_id"], deleted_count=0)
 
     async def delete_one(self, query: dict[str, Any]) -> SimpleNamespace:
         for index, doc in enumerate(self.docs):

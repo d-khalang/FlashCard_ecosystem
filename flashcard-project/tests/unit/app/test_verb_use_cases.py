@@ -131,6 +131,26 @@ class TestLookup:
 
         assert _user(cols)["verbs_recent"] == ["andare"] + [f"v{i}" for i in range(9)]
 
+    async def test_a_lookup_in_between_is_neither_lost_nor_doubled(self):
+        use_cases, cols = _setup()
+        _user(cols)["verbs_recent"] = [f"v{i}" for i in range(10)]
+        users, read = cols["users"], cols["users"].find_one
+        calls = []
+
+        async def find_one_then_another_lookup_writes(*args, **kwargs):
+            doc = await read(*args, **kwargs)
+            if args[1:] == ({"verbs_recent": 1},):  # remember_verb's read
+                if not calls:  # the other lookup lands between this read and its write
+                    _user(cols)["verbs_recent"] = ["essere"] + [f"v{i}" for i in range(9)]
+                calls.append(1)
+            return doc
+
+        users.find_one = find_one_then_another_lookup_writes
+        await use_cases.lookup(USER, "andare")
+
+        assert _user(cols)["verbs_recent"] == ["andare", "essere"] + [f"v{i}" for i in range(8)]
+        assert len(calls) == 2
+
     async def test_not_found_has_suggestions_and_is_neither_recorded_nor_counted(self):
         use_cases, cols = _setup()
 

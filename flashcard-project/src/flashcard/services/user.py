@@ -136,11 +136,23 @@ class UserService:
 
     async def remember_verb(self, user_id: UserId, infinitive: str) -> None:
         """Put a looked-up verb first in `verbs_recent` (once, newest first, at most 10). Never creates a user."""
-        query = {"user_id": stored_user_id(user_id)}
-        # Two steps: Mongo refuses $pull and $push on one field in the same update.
-        await self.users.update_one(query, {"$pull": {"verbs_recent": infinitive}})
-        await self.users.update_one(query, {"$push": {"verbs_recent": {
-            "$each": [infinitive], "$position": 0, "$slice": MAX_RECENT_VERBS}}})
+        stored_id = stored_user_id(user_id)
+        # Compare and set: write the new list only if the list read is still there, so two lookups at once
+        # can neither insert a verb twice nor push out an extra one. A lost race reads again.
+        for _ in range(5):
+            doc = await self.users.find_one({"user_id": stored_id}, {"verbs_recent": 1})
+            if doc is None:
+                return
+            current = doc.get("verbs_recent")
+            new = ([infinitive] + [v for v in current or [] if v != infinitive])[:MAX_RECENT_VERBS]
+            if new == current:
+                return
+            unchanged = {"$exists": False} if current is None else current
+            result = await self.users.update_one(
+                {"user_id": stored_id, "verbs_recent": unchanged}, {"$set": {"verbs_recent": new}})
+            if result.matched_count:
+                return
+        logger.warning(f"User {user_id}: recent verbs not updated, the list kept changing")
 
     async def advance_onboarding(self, user_id: UserId, current_step: int) -> bool:
         """

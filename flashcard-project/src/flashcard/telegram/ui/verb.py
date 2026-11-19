@@ -102,7 +102,7 @@ def format_verb_conjugation(verb: Verb, mood: str, tense: str) -> str:
         _format_header(verb, verb.infinitive),
         "________________________",
         "",
-        f"📚 {tense_label(shown.mood)} - {tense_label(shown.tense)}",
+        f"📚 {escape(tense_label(shown.mood))} - {escape(tense_label(shown.tense))}",
         *_person_lines(shown),
         "",
         _format_footer(),
